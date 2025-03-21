@@ -1,6 +1,14 @@
 // app-sidebar.tsx
 
-import { Calendar, BookOpen, Search, Settings, LogOut, Users, FileText } from "lucide-react"
+import {
+  Calendar,
+  BookOpen,
+  Search,
+  Settings,
+  LogOut,
+  Users,
+  FileText,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -10,9 +18,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
-import Image from "next/image"
-import Logo from "../public/uabc_logo.png"
+} from "@/components/ui/sidebar";
+import Image from "next/image";
+import Logo from "../public/uabc_logo.png";
 
 // Menús por rol
 const menuItemsByRole = {
@@ -86,15 +94,15 @@ const menuItemsByRole = {
       icon: FileText,
     },
   ],
-}
+};
 
 interface AppSidebarProps {
-  role: "admin" | "capturista" | "profesor" | "alumno" | "lector"
+  role: "admin" | "capturista" | "profesor" | "alumno" | "lector";
 }
 
 export function AppSidebar({ role }: AppSidebarProps) {
   // Obtenemos el arreglo de items según el rol
-  const items = menuItemsByRole[role] || []
+  const items = menuItemsByRole[role] || [];
 
   return (
     <Sidebar className="h-screen flex flex-col">
@@ -103,30 +111,29 @@ export function AppSidebar({ role }: AppSidebarProps) {
         {/* Logo UABC - centrado */}
         <div className="flex flex-col items-center justify-center p-4 mb-4">
           <div className="w-20 h-20">
-            <Image 
-              src={Logo} 
-              alt="UABC Logo" 
-              width={64} 
+            <Image
+              src={Logo}
+              alt="UABC Logo"
+              width={64}
               height={64}
               className="w-full h-full object-contain"
             />
           </div>
           <span className="text-white font-medium mt-1">UABC</span>
         </div>
-        
+
         <SidebarGroup className="flex-grow">
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title} className="py-2">
                   <SidebarMenuButton asChild>
-                    <a 
-                      href={item.url} 
-                     
-                      className="flex items-center gap-3 px-4 py-2 text-white hover:bg-[#00723F]/80 transition-colors"
+                    <a
+                      href={item.url}
+                      className="flex items-center gap-3 px-4 py-4 text-white hover:bg-[#00723F]/80 transition-colors"
                     >
                       <item.icon className="w-5 h-5" />
-                      <span>{item.title}</span>
+                      <span className="sidebar-title">{item.title}</span>
                     </a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -134,10 +141,10 @@ export function AppSidebar({ role }: AppSidebarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        
+
         {/* Cerrar sesión button - Pantone 131 - #DD971A */}
         <div className="mt-auto p-4 flex justify-center">
-          <a 
+          <a
             href="/logout"
             className=" mb-30 flex items-center justify-center gap-2 bg-[#DD971A] hover:bg-[#FEBE10] text-white py-2 px-6 rounded-md transition-colors w-full"
           >
@@ -147,5 +154,5 @@ export function AppSidebar({ role }: AppSidebarProps) {
         </div>
       </SidebarContent>
     </Sidebar>
-  )
+  );
 }
