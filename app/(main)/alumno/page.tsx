@@ -3,7 +3,7 @@ import React from "react";
 function Alumno() {
   return (
     <div>
-      <h1>Esta es la ruta /alumno</h1>
+      <h1>POR FAVOR, SELECCIONE UNA OPCIÓN DE LA BARRA DE NAVEGACIÓN.</h1>
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import React from 'react'
 
-function page() {
+function Capturista() {
   return (
-    <div>page</div>
+    <h1>POR FAVOR, SELECCIONE UNA OPCIÓN DE LA BARRA DE NAVEGACIÓN.</h1>
   )
 }
 
-export default page
+export default Capturista
