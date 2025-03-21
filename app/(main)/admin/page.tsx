@@ -3,7 +3,7 @@ import React from "react";
 function Admin() {
   return (
     <div>
-      <h1>Esta es la ruta /admin</h1>
+      <h1>POR FAVOR, SELECCIONE UNA OPCIÓN DE LA BARRA DE NAVEGACIÓN.</h1>
     </div>
   );
 }
