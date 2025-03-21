@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation"; // Importa useRouter
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,6 +26,7 @@ const initialData: MatchData[] = [
 ];
 
 export default function MatchingPage() {
+  const router = useRouter(); // Inicializa el router
   const [selectedLicenciatura, setSelectedLicenciatura] = useState<string>("Todos");
   const [selectedMateria, setSelectedMateria] = useState<string>("Todos");
   const [selectedDiscrepancia, setSelectedDiscrepancia] = useState<string>("Todos");
@@ -59,6 +61,11 @@ export default function MatchingPage() {
 
   return (
     <div className="p-6">
+      {/* Botón de regresar */}
+      <Button variant="outline" className="mb-4" onClick={() => router.push("/admin")}>
+        <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+      </Button>
+
       {/* Filtros */}
       <div className="flex gap-4 mb-4">
         {/* Filtro por Licenciatura */}
@@ -151,21 +158,6 @@ export default function MatchingPage() {
           ))}
         </TableBody>
       </Table>
-
-      {/* Paginación */}
-      <div className="flex justify-center mt-4 gap-2">
-        <Button variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        {[...Array(totalPages)].map((_, i) => (
-          <Button key={i + 1} variant={currentPage === i + 1 ? "default" : "outline"} onClick={() => setCurrentPage(i + 1)}>
-            {i + 1}
-          </Button>
-        ))}
-        <Button variant="outline" disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
     </div>
   );
 }
