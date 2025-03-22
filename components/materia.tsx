@@ -19,6 +19,10 @@ export function Materia({ estadoMateria }: { estadoMateria: string }) {
         btnTextoEstado = "Invitar"
     } else if (estadoMateria == "Aceptada") {
         btnTextoEstado = "Revisar";
+    } else if (estadoMateria == "Por registrar") {
+        btnTextoEstado = "Registrar avance";
+    } else if (estadoMateria == "Registrada") {
+        btnTextoEstado = "Revisar";
     }
     return (
         <div className="h-auto w-auto lg:w-3xs m-8">
@@ -33,7 +37,7 @@ export function Materia({ estadoMateria }: { estadoMateria: string }) {
                 </CardContent>
 
                 <CardFooter className="self-center align-bottom">
-                    <Button className="px-8 ">{btnTextoEstado}</Button>
+                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">{btnTextoEstado}</Button>
                 </CardFooter>
             </Card>
         </div>

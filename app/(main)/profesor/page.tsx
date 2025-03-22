@@ -1,4 +1,3 @@
-import { Materia } from "@/components/materia";
 import React from "react";
 
 function Profesor() {
@@ -7,25 +6,7 @@ function Profesor() {
       <div className="items-center justify-items-center gap-16 pt-8 font-[family-name:var(--font-geist-sans)]">
         <h1>Esta es la ruta /profesor</h1>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3   justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-10">
-        <div className="justify-items-center">
-          <h1 className="mb-8 ">Por asignar</h1>
-          <Materia estadoMateria="Por asignar"/>
-          <Materia estadoMateria="Por asignar"/>
-          <Materia estadoMateria="Por asignar"/>
 
-        </div>
-        <div className="justify-items-center">
-          <h1 className="mb-8 ">Publicadas</h1>
-          <Materia estadoMateria="Publicada"/>
-
-        </div>
-        <div className="justify-items-center">
-          <h1 className="mb-8 ">Aceptadas</h1>
-          <Materia estadoMateria="Aceptada"/>
-
-        </div>
-      </div>
     </>
   );
 }
