@@ -1,11 +1,11 @@
 import { Materia } from "@/components/materia";
 import React from "react";
 
-function Checkins() {
+function Avances() {
   return (
     <>
       <div className="items-center justify-items-center gap-16 pt-8 font-[family-name:var(--font-geist-sans)]">
-        <h1>Esta es la ruta /profesor/checkins</h1>
+        <h1>Esta es la ruta /profesor/avances</h1>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2   justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-10">
         <div className="justify-items-center">
@@ -25,4 +25,4 @@ function Checkins() {
   );
 }
 
-export default Checkins;
+export default Avances;
