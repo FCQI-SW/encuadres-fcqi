@@ -1,11 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation"; // Importa useRouter
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle, AlertTriangle, XCircle, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  CheckCircle,
+  AlertTriangle,
+  XCircle,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+} from "lucide-react";
 
 type MatchData = {
   id: number;
@@ -18,11 +38,51 @@ type MatchData = {
 };
 
 const initialData: MatchData[] = [
-  { id: 1, licenciatura: "FCQI", materia: "Inteligencia artificial", profesor: "Juan Reyes", alumno: "Juan Perez", porcentaje: 95, nivelDiscrepancia: "Coincidencia" },
-  { id: 2, licenciatura: "FCQI", materia: "Base de datos", profesor: "Juan Reyes", alumno: "Leonardo Alba", porcentaje: 65, nivelDiscrepancia: "Moderada" },
-  { id: 3, licenciatura: "FCQI", materia: "Electrónica avanzada", profesor: "Juan Reyes", alumno: "Miguel Segoviano", porcentaje: 45, nivelDiscrepancia: "Alta" },
-  { id: 4, licenciatura: "FCQI", materia: "Inglés II", profesor: "Juan Reyes", alumno: "Juan Perez", porcentaje: 95, nivelDiscrepancia: "Coincidencia" },
-  { id: 5, licenciatura: "FCQI", materia: "Estructura de datos", profesor: "Juan Reyes", alumno: "Luis Manríquez", porcentaje: 95, nivelDiscrepancia: "Coincidencia" },
+  {
+    id: 1,
+    licenciatura: "FCQI",
+    materia: "Inteligencia artificial",
+    profesor: "Juan Reyes",
+    alumno: "Juan Perez",
+    porcentaje: 95,
+    nivelDiscrepancia: "Coincidencia",
+  },
+  {
+    id: 2,
+    licenciatura: "FCQI",
+    materia: "Base de datos",
+    profesor: "Juan Reyes",
+    alumno: "Leonardo Alba",
+    porcentaje: 65,
+    nivelDiscrepancia: "Moderada",
+  },
+  {
+    id: 3,
+    licenciatura: "FCQI",
+    materia: "Electrónica avanzada",
+    profesor: "Juan Reyes",
+    alumno: "Miguel Segoviano",
+    porcentaje: 45,
+    nivelDiscrepancia: "Alta",
+  },
+  {
+    id: 4,
+    licenciatura: "FCQI",
+    materia: "Inglés II",
+    profesor: "Juan Reyes",
+    alumno: "Juan Perez",
+    porcentaje: 95,
+    nivelDiscrepancia: "Coincidencia",
+  },
+  {
+    id: 5,
+    licenciatura: "FCQI",
+    materia: "Estructura de datos",
+    profesor: "Juan Reyes",
+    alumno: "Luis Manríquez",
+    porcentaje: 95,
+    nivelDiscrepancia: "Coincidencia",
+  },
 ];
 
 export default function MatchingPage() {
@@ -34,24 +94,21 @@ export default function MatchingPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  const handleFilterChange = () => {
+  // Actualiza el filtrado automáticamente cuando cambian los filtros
+  useEffect(() => {
     let filtered = initialData;
-
     if (selectedLicenciatura !== "Todos") {
       filtered = filtered.filter(item => item.licenciatura === selectedLicenciatura);
     }
-
     if (selectedMateria !== "Todos") {
       filtered = filtered.filter(item => item.materia === selectedMateria);
     }
-
     if (selectedDiscrepancia !== "Todos") {
       filtered = filtered.filter(item => item.nivelDiscrepancia === selectedDiscrepancia);
     }
-
     setFilteredData(filtered);
     setCurrentPage(1);
-  };
+  }, [selectedLicenciatura, selectedMateria, selectedDiscrepancia]);
 
   // Paginación
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -61,57 +118,55 @@ export default function MatchingPage() {
 
   return (
     <div className="p-6">
-      {/* Botón de regresar */}
-      <Button variant="outline" className="mb-4" onClick={() => router.push("/admin")}>
-        <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
-      </Button>
-
-      {/* Filtros */}
-      <div className="flex gap-4 mb-4">
-        {/* Filtro por Licenciatura */}
-        <Select onValueChange={setSelectedLicenciatura} defaultValue="Todos">
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Filtrar por: Licenciatura" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Todos">Todos</SelectItem>
-            <SelectItem value="FCQI">FCQI</SelectItem>
-            <SelectItem value="Otra">Otra</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Filtro por Materia */}
-        <Select onValueChange={setSelectedMateria} defaultValue="Todos">
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Filtrar por: Materia" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Todos">Todas</SelectItem>
-            {initialData.map((item, index) => (
-              <SelectItem key={index} value={item.materia}>
-                {item.materia}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Filtro por Nivel de Discrepancia */}
-        <Select onValueChange={setSelectedDiscrepancia} defaultValue="Todos">
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Filtrar por: Nivel de Discrepancia" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Todos">Todos</SelectItem>
-            <SelectItem value="Coincidencia">Coincidencia</SelectItem>
-            <SelectItem value="Moderada">Moderada</SelectItem>
-            <SelectItem value="Alta">Alta</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button variant="default" onClick={handleFilterChange}>Filtrar</Button>
+      {/* Encabezado: Botón de regresar a la izquierda */}
+      <div className="flex justify-between mb-4">
+        <Button variant="outline" onClick={() => router.push("/admin")}>
+          <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+        </Button>
       </div>
 
-      {/* Tabla */}
+      {/* Sección de filtros */}
+      <div className="mb-4">
+        <div className="flex items-center gap-4 mb-2">
+          <span className="font-medium">Filtrar por:</span>
+          <Select onValueChange={setSelectedLicenciatura} defaultValue="Todos">
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Licenciatura" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todos">Todos</SelectItem>
+              <SelectItem value="FCQI">FCQI</SelectItem>
+              <SelectItem value="Otra">Otra</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select onValueChange={setSelectedMateria} defaultValue="Todos">
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Materia" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todos">Todas</SelectItem>
+              {initialData.map((item, index) => (
+                <SelectItem key={index} value={item.materia}>
+                  {item.materia}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select onValueChange={setSelectedDiscrepancia} defaultValue="Todos">
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Nivel de discrepancia" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todos">Todos</SelectItem>
+              <SelectItem value="Coincidencia">Coincidencia</SelectItem>
+              <SelectItem value="Moderada">Moderada</SelectItem>
+              <SelectItem value="Alta">Alta</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Tabla de usuarios */}
       <Table>
         <TableHeader>
           <TableRow>
@@ -158,6 +213,44 @@ export default function MatchingPage() {
           ))}
         </TableBody>
       </Table>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-4 gap-2">
+          {/* Botón de anterior: fondo blanco, flecha verde */}
+          <Button
+            variant="default"
+            disabled={currentPage === 1}
+            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F]"
+            onClick={() => setCurrentPage(currentPage - 1)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          {[...Array(totalPages)].map((_, i) => (
+            <Button
+              key={i + 1}
+              variant={currentPage === i + 1 ? "default" : "outline"}
+              className={
+                currentPage === i + 1
+                  ? "bg-[#00723F] hover:bg-[#005e30] text-white"
+                  : "border border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
+              }
+              onClick={() => setCurrentPage(i + 1)}
+            >
+              {i + 1}
+            </Button>
+          ))}
+          {/* Botón de siguiente: fondo blanco, flecha verde */}
+          <Button
+            variant="default"
+            disabled={currentPage === totalPages}
+            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F]"
+            onClick={() => setCurrentPage(currentPage + 1)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

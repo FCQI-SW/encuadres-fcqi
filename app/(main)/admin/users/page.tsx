@@ -2,9 +2,22 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation"; // Importa useRouter
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type User = {
@@ -15,11 +28,13 @@ type User = {
 
 const roles = ["Todos", "Administrador", "Profesor", "Capturista", "Lector", "Alumno"];
 
-const initialUsers: User[] = Array(9).fill(null).map((_, i) => ({
-  id: i + 1,
-  email: `prueba.prueba@uabcs.edu.mx`,
-  role: roles[i % roles.length], // Asigna roles de manera cíclica
-}));
+const initialUsers: User[] = Array(9)
+  .fill(null)
+  .map((_, i) => ({
+    id: i + 1,
+    email: `prueba.prueba@uabcs.edu.mx`,
+    role: roles[i % roles.length], // Asigna roles de manera cíclica
+  }));
 
 export default function UserManagementPage() {
   const router = useRouter(); // Inicializa el router
@@ -47,27 +62,45 @@ export default function UserManagementPage() {
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
 
+  // Función para aplicar el filtro (actualmente solo el de rol)
+  const handleFilterChange = () => {
+    setCurrentPage(1);
+  };
+
   return (
     <div className="p-6">
-      {/* Botón de regresar */}
-      <Button variant="outline" className="mb-4" onClick={() => router.push("/admin")}>
-        <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
-      </Button>
+      {/* Encabezado: Botón de regresar a la izquierda y Crear usuario a la derecha */}
+      <div className="flex justify-between mb-4">
+        <Button variant="outline" onClick={() => router.push("/admin")}>
+          <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+        </Button>
+        <Button
+          variant="default"
+          className="bg-[#00723F] hover:bg-[#005e30] text-white"
+          onClick={() => router.push("/admin/create-user")}
+        >
+          Crear usuario
+        </Button>
+      </div>
 
-      {/* Filtro por tipo de usuario */}
-      <div className="flex justify-end mb-2">
-        <Select onValueChange={setSelectedRole} defaultValue="Todos">
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filtrar por: Todos los usuarios" />
-          </SelectTrigger>
-          <SelectContent>
-            {roles.map(role => (
-              <SelectItem key={role} value={role}>
-                {role}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Sección de filtros */}
+      <div className="mb-4">
+        <div className="flex items-center gap-4 mb-2">
+          <span className="font-medium">Filtrar por:</span>
+          <Select onValueChange={setSelectedRole} defaultValue="Todos">
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Todos los usuarios" />
+            </SelectTrigger>
+            <SelectContent>
+              {roles.map(role => (
+                <SelectItem key={role} value={role}>
+                  {role}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
       </div>
 
       {/* Tabla de usuarios */}
@@ -90,7 +123,8 @@ export default function UserManagementPage() {
                       <SelectValue placeholder={user.role} />
                     </SelectTrigger>
                     <SelectContent>
-                      {roles.slice(1).map(role => ( // Evita "Todos" en la edición de roles
+                      {roles.slice(1).map(role => (
+                        // Evita "Todos" en la edición de roles
                         <SelectItem key={role} value={role}>
                           {role}
                         </SelectItem>
@@ -118,15 +152,36 @@ export default function UserManagementPage() {
       {/* Paginación */}
       {totalPages > 1 && (
         <div className="flex justify-center mt-4 gap-2">
-          <Button variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>
+          {/* Botón de anterior: fondo blanco, flecha verde */}
+          <Button
+            variant="default"
+            disabled={currentPage === 1}
+            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F]"
+            onClick={() => setCurrentPage(currentPage - 1)}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           {[...Array(totalPages)].map((_, i) => (
-            <Button key={i + 1} variant={currentPage === i + 1 ? "default" : "outline"} onClick={() => setCurrentPage(i + 1)}>
+            <Button
+              key={i + 1}
+              variant={currentPage === i + 1 ? "default" : "outline"}
+              className={
+                currentPage === i + 1
+                  ? "bg-[#00723F] hover:bg-[#005e30] text-white"
+                  : "border border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
+              }
+              onClick={() => setCurrentPage(i + 1)}
+            >
               {i + 1}
             </Button>
           ))}
-          <Button variant="outline" disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>
+          {/* Botón de siguiente: fondo blanco, flecha verde */}
+          <Button
+            variant="default"
+            disabled={currentPage === totalPages}
+            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F]"
+            onClick={() => setCurrentPage(currentPage + 1)}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
