@@ -117,7 +117,16 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.sidebar-title {
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow: visible !important;
+  display: block !important;
+  text-wrap: wrap !important;
 }
