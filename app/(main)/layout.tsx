@@ -1,22 +1,44 @@
 // app/layout.tsx (o donde manejes tu layout)
-"use client"
+"use client";
 
-import { ReactNode } from "react"
+import { ReactNode, useEffect } from "react";
 
 // Importa desde tu biblioteca de componentes (shadcn, etc.)
 import {
   SidebarProvider,
   SidebarTrigger,
   SidebarInset,
-} from "@/components/ui/sidebar"
-
-import { AppSidebar } from "@/components/app-sidebar"
-
-// Si usas lucide-react para los íconos
-import { Bell } from "lucide-react"
+} from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { Bell } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const role: "admin" | "capturista" | "profesor" | "alumno" | "lector" = "admin"
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!session) {
+      router.push("/");
+    }
+  }, [status, session, router]);
+
+  if (status === "loading") {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Cargando...
+      </div>
+    );
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  const role: "admin" | "capturista" | "profesor" | "alumno" | "lector" =
+    "admin";
 
   return (
     <SidebarProvider>
@@ -29,7 +51,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           {/* Sección izquierda: Trigger + Título */}
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-           
           </div>
 
           {/* Sección derecha: notificaciones + nombre de usuario + avatar */}
@@ -48,8 +69,10 @@ export default function Layout({ children }: { children: ReactNode }) {
             <span className="font-medium text-gray-800">Jose Gonzalez</span>
 
             {/* Avatar circular con iniciales */}
-            <div className="flex h-9 w-9 items-center justify-center
-                            rounded-full bg-gray-700 text-white font-semibold">
+            <div
+              className="flex h-9 w-9 items-center justify-center
+                            rounded-full bg-gray-700 text-white font-semibold"
+            >
               JG
             </div>
           </div>
@@ -59,5 +82,5 @@ export default function Layout({ children }: { children: ReactNode }) {
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }
