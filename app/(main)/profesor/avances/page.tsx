@@ -9,15 +9,15 @@ function Avances() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2   justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-10">
         <div className="justify-items-center">
-          <h1 className="mb-8 ">Por registrar</h1>
-          <Materia estadoMateria="Por registrar"/>
-          <Materia estadoMateria="Por registrar"/>
-          <Materia estadoMateria="Por registrar"/>
+          <h1 className="mb-8 text-xl font-bold">Por registrar</h1>
+          <Materia btnText="Registrar avance" />
+          <Materia btnText="Registrar avance" />
+          <Materia btnText="Registrar avance" />
 
         </div>
         <div className="justify-items-center">
-          <h1 className="mb-8 ">Registradas</h1>
-          <Materia estadoMateria="Registrada"/>
+          <h1 className="mb-8 text-xl font-bold">Registradas</h1>
+          <Materia btnText="Revisar" />
 
         </div>
       </div>

@@ -16,7 +16,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Bell } from "lucide-react"
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const role: "admin" | "capturista" | "profesor" | "alumno" | "lector" = "admin"
+  const role: "admin" | "capturista" | "profesor" | "alumno" | "lector" = "profesor"
 
   return (
     <SidebarProvider>

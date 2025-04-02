@@ -9,20 +9,20 @@ function Encuadre() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3   justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-10">
         <div className="justify-items-center">
-          <h1 className="mb-8 ">Por asignar</h1>
-          <Materia estadoMateria="Por asignar"/>
-          <Materia estadoMateria="Por asignar"/>
-          <Materia estadoMateria="Por asignar"/>
+          <h1 className="mb-8 text-xl font-bold">Por asignar</h1>
+          <Materia btnText="Asignar"/>
+          <Materia btnText="Asignar"/>
+          <Materia btnText="Asignar"/>
 
         </div>
         <div className="justify-items-center">
-          <h1 className="mb-8 ">Publicadas</h1>
-          <Materia estadoMateria="Publicada"/>
+          <h1 className="mb-8 text-xl font-bold">Publicadas</h1>
+          <Materia btnText="Invitar"/>
 
         </div>
         <div className="justify-items-center">
-          <h1 className="mb-8 ">Aceptadas</h1>
-          <Materia estadoMateria="Aceptada"/>
+          <h1 className="mb-8 text-xl font-bold">Aceptadas</h1>
+          <Materia btnText="Revisar"/>
 
         </div>
       </div>

@@ -8,13 +8,13 @@ import {
 import { Button } from "./ui/button";
 
 
-export function Materia({ estadoMateria }: { estadoMateria: string }) {
+export function Materia({ btnText }: { btnText: string }) {
     const nombreMateria = "Aplicaciones Móviles";
     const claveMateria = "40002";
     const grupoMateria = "361";
     const profesorMateria = "Guillermo Licea";
     //const estadoMateria: "Por asignar" | "Publicada" | "Aceptada" = "Por asignar";
-    let btnTextoEstado = "Abrir encuadre";
+/*     let btnTextoEstado = "Abrir encuadre";
     if (estadoMateria == "Publicada") {
         btnTextoEstado = "Invitar"
     } else if (estadoMateria == "Aceptada") {
@@ -23,7 +23,7 @@ export function Materia({ estadoMateria }: { estadoMateria: string }) {
         btnTextoEstado = "Registrar avance";
     } else if (estadoMateria == "Registrada") {
         btnTextoEstado = "Revisar";
-    }
+    } */
     return (
         <div className="h-auto w-auto lg:w-3xs m-8">
             <Card >
@@ -37,7 +37,7 @@ export function Materia({ estadoMateria }: { estadoMateria: string }) {
                 </CardContent>
 
                 <CardFooter className="self-center align-bottom">
-                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">{btnTextoEstado}</Button>
+                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">{btnText}</Button>
                 </CardFooter>
             </Card>
         </div>
