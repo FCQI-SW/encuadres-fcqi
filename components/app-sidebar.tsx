@@ -5,7 +5,6 @@ import {
   BookOpen,
   Search,
   Settings,
-  LogOut,
   Users,
   FileText,
 } from "lucide-react";
@@ -14,13 +13,13 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import Image from "next/image";
 import Logo from "../public/uabc_logo.png";
+import { LogoutButton } from "./logout-button";
 
 // Menús por rol
 const menuItemsByRole = {
@@ -112,7 +111,7 @@ export function AppSidebar({ role }: AppSidebarProps) {
         <div className="flex flex-col items-center justify-center p-4 mb-4">
           <div className="w-20 h-20">
             <Image
-              src={Logo}
+              src={Logo || "/placeholder.svg"}
               alt="UABC Logo"
               width={64}
               height={64}
@@ -143,14 +142,9 @@ export function AppSidebar({ role }: AppSidebarProps) {
         </SidebarGroup>
 
         {/* Cerrar sesión button - Pantone 131 - #DD971A */}
-        <div className="mt-auto p-4 flex justify-center">
-          <a
-            href="/logout"
-            className=" mb-30 flex items-center justify-center gap-2 bg-[#DD971A] hover:bg-[#FEBE10] text-white py-2 px-6 rounded-md transition-colors w-full"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Cerrar sesión</span>
-          </a>
+        <div className="mt-auto p-4">
+          {/* Usamos el componente LogoutButton con shadcn/ui */}
+          <LogoutButton variant="sidebar" />
         </div>
       </SidebarContent>
     </Sidebar>
