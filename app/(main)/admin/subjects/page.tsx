@@ -32,7 +32,7 @@ import { supabase } from "@/lib/supabase";
 import { AddSubjectModal } from "./add-subject-modal";
 import { EditSubjectModal } from "./edit-subject-modal";
 
-// IMPORTA useConfirm
+// Importa useConfirm del ConfirmProvider
 import { useConfirm } from "@/components/global-confirm-modal";
 
 export type Materia = {
@@ -70,12 +70,12 @@ export default function Page() {
   });
   const [errors, setErrors] = useState<string[]>([]);
 
-  // == MODAL DE "EDITAR MATERIA" (si ya lo tienes) ==
+  // == MODAL DE "EDITAR MATERIA" (con su estado e info)
   const [showEditForm, setShowEditForm] = useState(false);
   const [editMateria, setEditMateria] = useState<Materia | null>(null);
   const [editErrors, setEditErrors] = useState<string[]>([]);
 
-  // (1) OBTENER DATOS
+  // 1) Obtener datos de Supabase
   const fetchMaterias = async () => {
     const { data: materias, error } = await supabase
       .from("materias")
@@ -95,7 +95,7 @@ export default function Page() {
     fetchMaterias();
   }, []);
 
-  // (2) FILTRAR
+  // 2) Filtrar
   useEffect(() => {
     let temp = [...data];
     if (selectedLic !== "all") {
@@ -112,12 +112,13 @@ export default function Page() {
 
   const licenciaturas = Array.from(new Set(data.map((item) => item.licenciatura)));
 
-  // (3) TOGGLE ESTADO
+  // 3) Toggle Estado
   async function toggleEstado(clave: string) {
     const materiaActual = data.find((d) => d.clave === clave);
     if (!materiaActual) return;
 
-    const nuevoEstado = materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
+    const nuevoEstado =
+      materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
     const { error } = await supabase
       .from("materias")
       .update({ estado: nuevoEstado })
@@ -135,24 +136,24 @@ export default function Page() {
     );
   }
 
-  // (A) OBTÉN LA FUNCIÓN confirm DESDE useConfirm
+  // === useConfirm para eliminar con modal global ===
   const confirm = useConfirm();
 
-  // (B) ELIMINAR USANDO el modal global
+  // Eliminar con confirm
   async function handleDelete(clave: string) {
-    // Llamar confirm() y esperar la respuesta
     const userConfirmed = await confirm({
       title: "Eliminar materia",
-      message: "¿Deseas eliminar esta materia? Esta acción no se puede revertir.",
+      message:
+        "¿Estás seguro de eliminar esta materia? Esta acción no se puede revertir.",
       confirmText: "Sí, eliminar",
       cancelText: "Cancelar",
     });
     if (!userConfirmed) {
-      // Usuario presionó "Cancelar"
+      // El usuario canceló
       return;
     }
 
-    // Ahora eliminas en Supabase
+    // Procede a eliminar en Supabase
     const { error } = await supabase
       .from("materias")
       .delete()
@@ -163,10 +164,11 @@ export default function Page() {
       return;
     }
 
+    // Actualizar estado local
     setData((prev) => prev.filter((item) => item.clave !== clave));
   }
 
-  // (4) AGREGAR
+  // -- ABRIR MODAL Y LIMPIAR FORM (AGREGAR) --
   const handleShowForm = () => {
     setNewMateria({
       clave: "",
@@ -179,45 +181,89 @@ export default function Page() {
     setErrors([]);
     setShowForm(true);
   };
+
   const handleCloseForm = () => {
     setShowForm(false);
   };
 
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function handleInputChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) {
     const { name, value } = e.target;
     setNewMateria((prev) => ({ ...prev, [name]: value as Materia[keyof Materia] }));
   }
 
+  // 4) Guardar Materia (AGREGAR)
   async function handleSaveMateria() {
-    // ... validaciones e insert ...
+    // (A) Valida la materia (si lo deseas)
+    // const validationErrors = validateMateria(newMateria);
+    // if (validationErrors.length > 0) {
+    //   setErrors(validationErrors);
+    //   return;
+    // }
+
+    // (B) Insertar en Supabase
+    const { error } = await supabase.from("materias").insert([newMateria]);
+    if (error) {
+      console.error("Error al agregar materia:", error.message || error);
+      setErrors([`Error de BD: ${error.message}`]);
+      return;
+    }
+
     setShowForm(false);
     await fetchMaterias();
   }
 
-  // (OPCIONAL) LÓGICA PARA EDITAR
+  // ================================
+  // LÓGICA PARA EDITAR MATERIA
+  // ================================
   const handleEdit = (materia: Materia) => {
     setEditMateria(materia);
     setEditErrors([]);
     setShowEditForm(true);
   };
+
   const handleCloseEditForm = () => {
     setShowEditForm(false);
   };
-  function handleEditInputChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+
+  function handleEditInputChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) {
     if (!editMateria) return;
     const { name, value } = e.target;
     setEditMateria((prev) =>
       prev ? { ...prev, [name]: value as Materia[keyof Materia] } : null
     );
   }
+
   async function handleUpdateMateria() {
     if (!editMateria) return;
-    // ... update supabase ...
+
+    // Ejemplo: update en Supabase
+    // .eq("clave", editMateria.clave) para filtrar la misma clave
+    const { error } = await supabase
+      .from("materias")
+      .update({
+        nombre_materia: editMateria.nombre_materia,
+        licenciatura: editMateria.licenciatura,
+        categoria: editMateria.categoria,
+        requisito: editMateria.requisito,
+        estado: editMateria.estado,
+      })
+      .eq("clave", editMateria.clave);
+
+    if (error) {
+      console.error("Error al actualizar materia:", error);
+      setEditErrors([`Error de BD: ${error.message}`]);
+      return;
+    }
+
     setShowEditForm(false);
     await fetchMaterias();
   }
 
-  // (5) PAGINACIÓN
+  // 5) Paginación
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
@@ -311,7 +357,7 @@ export default function Page() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        {/* BOTÓN EDITAR */}
+                        {/* BOTÓN EDITAR (igual que en el snippet original) */}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -322,7 +368,7 @@ export default function Page() {
                           <Edit className="w-4 h-4" />
                         </Button>
 
-                        {/* BOTÓN ELIMINAR (usa handleDelete con useConfirm) */}
+                        {/* BOTÓN ELIMINAR con useConfirm */}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -409,7 +455,7 @@ export default function Page() {
         errors={errors}
       />
 
-      {/* MODAL EDITAR (opcional) */}
+      {/* MODAL EDITAR MATERIA */}
       <EditSubjectModal
         isOpen={showEditForm}
         editMateria={
