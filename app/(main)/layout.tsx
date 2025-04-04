@@ -1,9 +1,6 @@
-// app/layout.tsx (o donde manejes tu layout)
 "use client";
 
 import { ReactNode, useEffect } from "react";
-
-// Importa desde tu biblioteca de componentes (shadcn, etc.)
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -18,6 +15,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  // Redirección si no hay sesión
   useEffect(() => {
     if (status === "loading") return;
     if (!session) {
@@ -25,6 +23,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     }
   }, [status, session, router]);
 
+  // Mientras se carga la sesión
   if (status === "loading") {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -33,29 +32,39 @@ export default function Layout({ children }: { children: ReactNode }) {
     );
   }
 
+  // Si ya se terminó de cargar y no hay sesión, no mostramos nada
   if (!session) {
     return null;
   }
 
+  // Definir el rol según venga en la sesión o forzarlo si no tienes esa parte implementada
   const role: "admin" | "capturista" | "profesor" | "alumno" | "lector" =
-    "admin";
+    (session.user.role as
+      | "admin"
+      | "capturista"
+      | "profesor"
+      | "alumno"
+      | "lector") || "admin";
+
+  // Tomamos el nombre del usuario
+  const userName = session.user.name || "Desconocido";
+
+  // Calculamos las iniciales (p.ej. "Juan Perez" => "JP")
+  const initials = userName
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
 
   return (
     <SidebarProvider>
-      {/* Sidebar con tu lógica de rol */}
       <AppSidebar role={role} />
-
-      {/* Contenedor principal: Header (arriba) + contenido */}
       <SidebarInset>
         <header className="flex h-16 items-center justify-between border-b px-4">
-          {/* Sección izquierda: Trigger + Título */}
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
           </div>
-
-          {/* Sección derecha: notificaciones + nombre de usuario + avatar */}
           <div className="flex items-center gap-4">
-            {/* Ícono de notificaciones */}
             <button
               type="button"
               className="relative p-2 text-gray-500 hover:text-gray-700
@@ -64,21 +73,15 @@ export default function Layout({ children }: { children: ReactNode }) {
             >
               <Bell className="h-5 w-5" />
             </button>
-
-            {/* Nombre de usuario (provisional) */}
-            <span className="font-medium text-gray-800">Jose Gonzalez</span>
-
-            {/* Avatar circular con iniciales */}
+            <span className="font-medium text-gray-800">{userName}</span>
             <div
               className="flex h-9 w-9 items-center justify-center
-                            rounded-full bg-gray-700 text-white font-semibold"
+                         rounded-full bg-gray-700 text-white font-semibold"
             >
-              JG
+              {initials}
             </div>
           </div>
         </header>
-
-        {/* Contenido principal */}
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </SidebarProvider>
