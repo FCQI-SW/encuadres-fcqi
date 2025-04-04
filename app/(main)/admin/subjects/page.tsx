@@ -26,7 +26,6 @@ import {
   Trash2,
   ToggleRight,
   ToggleLeft,
-  Search,
 } from "lucide-react";
 
 type Materia = {
@@ -95,10 +94,17 @@ export default function Page() {
 
   return (
     <div className="p-6">
-      {/* Encabezado: Botón de regresar a la izquierda */}
+      {/* Encabezado: Botón de regresar a la izquierda, Agregar materia a la derecha */}
       <div className="flex justify-between mb-4">
         <Button variant="outline" onClick={() => router.push("/admin")}>
           <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+        </Button>
+        <Button
+          variant="default"
+          onClick={() => alert("Aquí iría la lógica para agregar una nueva materia")}
+          className="bg-[#00723F] text-white hover:bg-[#005e30] cursor-pointer"
+        >
+          Agregar materia
         </Button>
       </div>
 
@@ -168,6 +174,7 @@ export default function Page() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
+                      {/* Editar */}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -176,6 +183,7 @@ export default function Page() {
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
+                      {/* Eliminar */}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -184,6 +192,7 @@ export default function Page() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
+                      {/* Cambiar estado (Activa <-> Inactiva) */}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -219,7 +228,7 @@ export default function Page() {
           <Button
             variant="default"
             disabled={currentPage === 1}
-            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F]"
+            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F] cursor-pointer"
             onClick={() => setCurrentPage(currentPage - 1)}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -230,19 +239,19 @@ export default function Page() {
               variant={currentPage === i + 1 ? "default" : "outline"}
               className={
                 currentPage === i + 1
-                  ? "bg-[#00723F] hover:bg-[#005e30] text-white"
-                  : "border border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
+                  ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+                  : "border border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white cursor-pointer"
               }
               onClick={() => setCurrentPage(i + 1)}
             >
               {i + 1}
             </Button>
           ))}
-          {/* Botón de siguiente: fondo blanco, flecha verde */}
+          {/* Botón de siguiente */}
           <Button
             variant="default"
             disabled={currentPage === totalPages}
-            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F]"
+            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F] cursor-pointer"
             onClick={() => setCurrentPage(currentPage + 1)}
           >
             <ChevronRight className="h-4 w-4" />
