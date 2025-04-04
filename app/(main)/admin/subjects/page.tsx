@@ -32,9 +32,10 @@ import { supabase } from "@/lib/supabase";
 import { AddSubjectModal } from "./add-subject-modal";
 import { EditSubjectModal } from "./edit-subject-modal";
 
-// Importa useConfirm del ConfirmProvider
+// Importa useConfirm del ConfirmProvider global
 import { useConfirm } from "@/components/global-confirm-modal";
 
+// Tipos posibles para Materia
 export type Materia = {
   clave: string;
   nombre_materia: string;
@@ -70,7 +71,7 @@ export default function Page() {
   });
   const [errors, setErrors] = useState<string[]>([]);
 
-  // == MODAL DE "EDITAR MATERIA" (con su estado e info)
+  // == MODAL DE "EDITAR MATERIA" ==
   const [showEditForm, setShowEditForm] = useState(false);
   const [editMateria, setEditMateria] = useState<Materia | null>(null);
   const [editErrors, setEditErrors] = useState<string[]>([]);
@@ -139,7 +140,6 @@ export default function Page() {
   // === useConfirm para eliminar con modal global ===
   const confirm = useConfirm();
 
-  // Eliminar con confirm
   async function handleDelete(clave: string) {
     const userConfirmed = await confirm({
       title: "Eliminar materia",
@@ -148,12 +148,8 @@ export default function Page() {
       confirmText: "Sí, eliminar",
       cancelText: "Cancelar",
     });
-    if (!userConfirmed) {
-      // El usuario canceló
-      return;
-    }
+    if (!userConfirmed) return;
 
-    // Procede a eliminar en Supabase
     const { error } = await supabase
       .from("materias")
       .delete()
@@ -164,7 +160,6 @@ export default function Page() {
       return;
     }
 
-    // Actualizar estado local
     setData((prev) => prev.filter((item) => item.clave !== clave));
   }
 
@@ -193,16 +188,25 @@ export default function Page() {
     setNewMateria((prev) => ({ ...prev, [name]: value as Materia[keyof Materia] }));
   }
 
-  // 4) Guardar Materia (AGREGAR)
+  // 4) Guardar Materia con validaciones (se mantienen las validaciones anteriores)
   async function handleSaveMateria() {
-    // (A) Valida la materia (si lo deseas)
-    // const validationErrors = validateMateria(newMateria);
-    // if (validationErrors.length > 0) {
-    //   setErrors(validationErrors);
-    //   return;
-    // }
+    // Validación asíncrona: verificar que la clave no exista
+    const { error: checkError, data: existing } = await supabase
+      .from("materias")
+      .select("clave")
+      .eq("clave", newMateria.clave);
 
-    // (B) Insertar en Supabase
+    if (checkError) {
+      setErrors(["Error consultando la BD para verificar la clave repetida."]);
+      return;
+    }
+
+    if (existing && existing.length > 0) {
+      setErrors(["La clave ya existe en la base de datos."]);
+      return;
+    }
+
+    console.log("Insertando materia:", newMateria);
     const { error } = await supabase.from("materias").insert([newMateria]);
     if (error) {
       console.error("Error al agregar materia:", error.message || error);
@@ -212,6 +216,65 @@ export default function Page() {
 
     setShowForm(false);
     await fetchMaterias();
+  }
+
+  // Función de validaciones sincrónicas (como en tu código original)
+  function validateMateria(materia: Materia): string[] {
+    const errs: string[] = [];
+
+    // === Clave ===
+    if (!materia.clave.trim()) {
+      errs.push("La clave es obligatoria");
+    } else if (materia.clave.length > 10) {
+      errs.push("La clave no debe exceder 10 caracteres");
+    } else if (!/^[A-Za-z0-9-_]+$/.test(materia.clave)) {
+      errs.push("La clave solo puede contener letras, números y guiones (o guion bajo)");
+    }
+
+    // === Nombre ===
+    if (!materia.nombre_materia.trim()) {
+      errs.push("El nombre de la materia es obligatorio");
+    } else if (materia.nombre_materia.length > 100) {
+      errs.push("El nombre de la materia no puede exceder 100 caracteres");
+    }
+
+    // === Licenciatura ===
+    if (!materia.licenciatura.trim()) {
+      errs.push("Debe seleccionar una licenciatura");
+    } else {
+      const licOptions = [
+        "Tronco Común (Área de Ingeniería)",
+        "Tronco Común (Área de Ciencias Químicas)",
+        "Ing. en Computación",
+        "Ing. en Software y Tecnologías Emergentes",
+        "Ing. en Electrónica",
+        "Ing. Industrial",
+        "Ing. Químico",
+        "Químico Industrial",
+        "Químico Farmacobiólogo",
+        "Químico Farmacéutico Biológico",
+      ];
+      if (!licOptions.includes(materia.licenciatura)) {
+        errs.push("La licenciatura seleccionada no es válida");
+      }
+    }
+
+    // === Categoría ===
+    if (!["Basica", "Disciplinaria", "Terminal"].includes(materia.categoria)) {
+      errs.push("La categoría no es válida");
+    }
+
+    // === Requisito ===
+    if (!["obligatoria", "optativa"].includes(materia.requisito)) {
+      errs.push("El requisito debe ser 'obligatoria' u 'optativa'");
+    }
+
+    // === Estado ===
+    if (!["Activa", "Inactiva"].includes(materia.estado)) {
+      errs.push("Estado inválido, debe ser 'Activa' o 'Inactiva'");
+    }
+
+    return errs;
   }
 
   // ================================
@@ -240,8 +303,6 @@ export default function Page() {
   async function handleUpdateMateria() {
     if (!editMateria) return;
 
-    // Ejemplo: update en Supabase
-    // .eq("clave", editMateria.clave) para filtrar la misma clave
     const { error } = await supabase
       .from("materias")
       .update({
@@ -263,6 +324,7 @@ export default function Page() {
     await fetchMaterias();
   }
 
+  // ================================
   // 5) Paginación
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -357,7 +419,7 @@ export default function Page() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        {/* BOTÓN EDITAR (igual que en el snippet original) */}
+                        {/* BOTÓN EDITAR */}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -455,7 +517,7 @@ export default function Page() {
         errors={errors}
       />
 
-      {/* MODAL EDITAR MATERIA */}
+      {/* MODAL EDITAR */}
       <EditSubjectModal
         isOpen={showEditForm}
         editMateria={
