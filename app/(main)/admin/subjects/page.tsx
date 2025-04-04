@@ -28,25 +28,25 @@ import {
   ToggleLeft,
 } from "lucide-react";
 
-// IMPORTA tu cliente de Supabase
 import { supabase } from "@/lib/supabase";
+import { AddSubjectModal } from "./add-subject-modal";
+import { EditSubjectModal } from "./edit-subject-modal";
 
-/**
- * Ajusta el tipo TS con las columnas reales de la tabla "materias".
- */
-type Materia = {
+// IMPORTA useConfirm
+import { useConfirm } from "@/components/global-confirm-modal";
+
+export type Materia = {
   clave: string;
   nombre_materia: string;
   licenciatura: string;
-  categoria: string; // "basica" | "disciplinaria" | "terminal"
-  requisito: string; // "obligatoria" | "optativa"
-  estado: string;    // "Activa" | "Inactiva", etc.
+  categoria: "Basica" | "Disciplinaria" | "Terminal";
+  requisito: "obligatoria" | "optativa";
+  estado: "Activa" | "Inactiva";
 };
 
 export default function Page() {
   const router = useRouter();
 
-  // ESTADOS PRINCIPALES
   const [data, setData] = useState<Materia[]>([]);
   const [filteredData, setFilteredData] = useState<Materia[]>([]);
 
@@ -58,65 +58,66 @@ export default function Page() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  /**
-   * 1) Cargar datos reales desde Supabase
-   *    Notar que seleccionamos las columnas TAL CUAL existen en la tabla:
-   *    "clave", "nombre_materia", "licenciatura", "categoria", "requisito", "estado".
-   */
+  // == MODAL DE "AGREGAR MATERIA" ==
+  const [showForm, setShowForm] = useState(false);
+  const [newMateria, setNewMateria] = useState<Materia>({
+    clave: "",
+    nombre_materia: "",
+    licenciatura: "",
+    categoria: "Basica",
+    requisito: "obligatoria",
+    estado: "Activa",
+  });
+  const [errors, setErrors] = useState<string[]>([]);
+
+  // == MODAL DE "EDITAR MATERIA" (si ya lo tienes) ==
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editMateria, setEditMateria] = useState<Materia | null>(null);
+  const [editErrors, setEditErrors] = useState<string[]>([]);
+
+  // (1) OBTENER DATOS
+  const fetchMaterias = async () => {
+    const { data: materias, error } = await supabase
+      .from("materias")
+      .select("clave, nombre_materia, licenciatura, categoria, requisito, estado");
+
+    if (error) {
+      console.error("Error al obtener materias:", error);
+      return;
+    }
+    if (materias) {
+      setData(materias);
+      setFilteredData(materias);
+    }
+  };
+
   useEffect(() => {
-    const fetchMaterias = async () => {
-      const { data: materias, error } = await supabase
-        .from("materias")
-        .select("clave, nombre_materia, licenciatura, categoria, requisito, estado");
-
-      if (error) {
-        console.error("Error al obtener materias:", error);
-        return;
-      }
-      if (materias) {
-        setData(materias);
-        setFilteredData(materias);
-      }
-    };
-
     fetchMaterias();
   }, []);
 
-  /**
-   * 2) Actualizar la lista filtrada cuando cambien data, selectedLic, claveFilter
-   */
+  // (2) FILTRAR
   useEffect(() => {
     let temp = [...data];
-
-    // Filtrar por licenciatura si no es "all"
     if (selectedLic !== "all") {
       temp = temp.filter((item) => item.licenciatura === selectedLic);
     }
-
-    // Filtrar por clave si hay texto
     if (claveFilter.trim() !== "") {
       temp = temp.filter((item) =>
         item.clave.toLowerCase().includes(claveFilter.toLowerCase())
       );
     }
-
     setFilteredData(temp);
     setCurrentPage(1);
   }, [data, selectedLic, claveFilter]);
 
-  // Licenciaturas únicas para el filtro
   const licenciaturas = Array.from(new Set(data.map((item) => item.licenciatura)));
 
-  /**
-   * 3) Función para cambiar estado "Activa" <-> "Inactiva"
-   */
+  // (3) TOGGLE ESTADO
   async function toggleEstado(clave: string) {
     const materiaActual = data.find((d) => d.clave === clave);
     if (!materiaActual) return;
 
     const nuevoEstado = materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
-
-    // Actualiza en la BD
     const { error } = await supabase
       .from("materias")
       .update({ estado: nuevoEstado })
@@ -127,19 +128,96 @@ export default function Page() {
       return;
     }
 
-    // Reflejar el cambio en el estado local
-    setData((prevData) =>
-      prevData.map((item) =>
-        item.clave === clave
-          ? { ...item, estado: nuevoEstado }
-          : item
+    setData((prev) =>
+      prev.map((item) =>
+        item.clave === clave ? { ...item, estado: nuevoEstado } : item
       )
     );
   }
 
-  /**
-   * 4) Paginación
-   */
+  // (A) OBTÉN LA FUNCIÓN confirm DESDE useConfirm
+  const confirm = useConfirm();
+
+  // (B) ELIMINAR USANDO el modal global
+  async function handleDelete(clave: string) {
+    // Llamar confirm() y esperar la respuesta
+    const userConfirmed = await confirm({
+      title: "Eliminar materia",
+      message: "¿Deseas eliminar esta materia? Esta acción no se puede revertir.",
+      confirmText: "Sí, eliminar",
+      cancelText: "Cancelar",
+    });
+    if (!userConfirmed) {
+      // Usuario presionó "Cancelar"
+      return;
+    }
+
+    // Ahora eliminas en Supabase
+    const { error } = await supabase
+      .from("materias")
+      .delete()
+      .eq("clave", clave);
+
+    if (error) {
+      console.error("Error al eliminar materia:", error);
+      return;
+    }
+
+    setData((prev) => prev.filter((item) => item.clave !== clave));
+  }
+
+  // (4) AGREGAR
+  const handleShowForm = () => {
+    setNewMateria({
+      clave: "",
+      nombre_materia: "",
+      licenciatura: "",
+      categoria: "Basica",
+      requisito: "obligatoria",
+      estado: "Activa",
+    });
+    setErrors([]);
+    setShowForm(true);
+  };
+  const handleCloseForm = () => {
+    setShowForm(false);
+  };
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+    const { name, value } = e.target;
+    setNewMateria((prev) => ({ ...prev, [name]: value as Materia[keyof Materia] }));
+  }
+
+  async function handleSaveMateria() {
+    // ... validaciones e insert ...
+    setShowForm(false);
+    await fetchMaterias();
+  }
+
+  // (OPCIONAL) LÓGICA PARA EDITAR
+  const handleEdit = (materia: Materia) => {
+    setEditMateria(materia);
+    setEditErrors([]);
+    setShowEditForm(true);
+  };
+  const handleCloseEditForm = () => {
+    setShowEditForm(false);
+  };
+  function handleEditInputChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+    if (!editMateria) return;
+    const { name, value } = e.target;
+    setEditMateria((prev) =>
+      prev ? { ...prev, [name]: value as Materia[keyof Materia] } : null
+    );
+  }
+  async function handleUpdateMateria() {
+    if (!editMateria) return;
+    // ... update supabase ...
+    setShowEditForm(false);
+    await fetchMaterias();
+  }
+
+  // (5) PAGINACIÓN
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
@@ -155,7 +233,7 @@ export default function Page() {
         </Button>
         <Button
           variant="default"
-          onClick={() => alert("Aquí iría la lógica para agregar una nueva materia")}
+          onClick={handleShowForm}
           className="bg-[#00723F] text-white hover:bg-[#005e30] cursor-pointer"
         >
           Agregar materia
@@ -166,8 +244,6 @@ export default function Page() {
       <div className="mb-4">
         <div className="flex items-center gap-4 mb-2">
           <span className="font-medium">Filtrar por:</span>
-
-          {/* Filtrar licenciatura */}
           <Select onValueChange={setSelectedLic} defaultValue="all">
             <SelectTrigger className="w-64">
               <SelectValue placeholder="Licenciatura" />
@@ -182,7 +258,6 @@ export default function Page() {
             </SelectContent>
           </Select>
 
-          {/* Filtrar por clave */}
           <div className="flex items-center gap-2">
             <Label htmlFor="filtro-clave" className="font-medium">
               Clave:
@@ -199,7 +274,7 @@ export default function Page() {
         </div>
       </div>
 
-      {/* TABLA DE MATERIAS */}
+      {/* TABLA */}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -207,7 +282,7 @@ export default function Page() {
               <TableHead>Clave</TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead>Licenciatura</TableHead>
-              <TableHead>Tipo (categoría: requisito)</TableHead>
+              <TableHead>Tipo (Categoría: Requisito)</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
@@ -215,14 +290,13 @@ export default function Page() {
           <TableBody>
             {currentItems.length > 0 ? (
               currentItems.map((materia, index) => {
-                // Combinar categoria + requisito para mostrarlo como un "tipo"
-                const tipoCompleto = `${materia.categoria}: ${materia.requisito}`;
+                const tipo = `${materia.categoria}: ${materia.requisito}`;
                 return (
                   <TableRow key={`${materia.clave}-${index}`}>
                     <TableCell>{materia.clave}</TableCell>
                     <TableCell>{materia.nombre_materia}</TableCell>
                     <TableCell>{materia.licenciatura}</TableCell>
-                    <TableCell>{tipoCompleto}</TableCell>
+                    <TableCell>{tipo}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span
@@ -237,25 +311,29 @@ export default function Page() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        {/* Editar */}
+                        {/* BOTÓN EDITAR */}
                         <Button
                           variant="ghost"
                           size="icon"
                           className="text-blue-600 hover:text-blue-800"
                           title="Editar"
+                          onClick={() => handleEdit(materia)}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        {/* Eliminar */}
+
+                        {/* BOTÓN ELIMINAR (usa handleDelete con useConfirm) */}
                         <Button
                           variant="ghost"
                           size="icon"
                           className="text-red-600 hover:text-red-800"
                           title="Eliminar"
+                          onClick={() => handleDelete(materia.clave)}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
-                        {/* Cambiar estado */}
+
+                        {/* BOTÓN CAMBIAR ESTADO */}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -316,10 +394,39 @@ export default function Page() {
             className="bg-white hover:bg-white text-[#00723F] border border-[#00723F] cursor-pointer"
             onClick={() => setCurrentPage(currentPage + 1)}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
       )}
+
+      {/* MODAL AGREGAR */}
+      <AddSubjectModal
+        isOpen={showForm}
+        newMateria={newMateria}
+        onClose={handleCloseForm}
+        onInputChange={handleInputChange}
+        onSave={handleSaveMateria}
+        errors={errors}
+      />
+
+      {/* MODAL EDITAR (opcional) */}
+      <EditSubjectModal
+        isOpen={showEditForm}
+        editMateria={
+          editMateria || {
+            clave: "",
+            nombre_materia: "",
+            licenciatura: "",
+            categoria: "Basica",
+            requisito: "obligatoria",
+            estado: "Activa",
+          }
+        }
+        onClose={handleCloseEditForm}
+        onInputChange={handleEditInputChange}
+        onUpdate={handleUpdateMateria}
+        errors={editErrors}
+      />
     </div>
   );
 }
