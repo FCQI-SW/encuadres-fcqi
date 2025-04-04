@@ -1,9 +1,5 @@
-// app/layout.tsx (o donde manejes tu layout)
 "use client";
-
 import { ReactNode, useEffect } from "react";
-
-// Importa desde tu biblioteca de componentes (shadcn, etc.)
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -18,6 +14,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  // 1. Redirecciona si no hay sesión
   useEffect(() => {
     if (status === "loading") return;
     if (!session) {
@@ -25,7 +22,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     }
   }, [status, session, router]);
 
-export default function Layout({ children }: { children: ReactNode }) {
+  // 2. Mientras carga
   if (status === "loading") {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -34,29 +31,44 @@ export default function Layout({ children }: { children: ReactNode }) {
     );
   }
 
+  // 3. Si no hay sesión, no mostramos nada (o redirigimos)
   if (!session) {
     return null;
   }
 
-  const role: "admin" | "capturista" | "profesor" | "alumno" | "lector" =
-    "admin";
+  // 4. Extraer rol y nombre de la sesión
+  //    Asegúrate de que tu callback de NextAuth devuelva user.role y user.name
+  const role = session.user.role as
+    | "admin"
+    | "capturista"
+    | "profesor"
+    | "alumno"
+    | "lector";
+
+  const userName = session.user.name || "Invitado";
+
+  // 5. Generar iniciales a partir del nombre
+  const initials = userName
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
 
   return (
     <SidebarProvider>
-      {/* Sidebar con tu lógica de rol */}
+      {/* Sidebar (rol dinámico) */}
       <AppSidebar role={role} />
 
-      {/* Contenedor principal: Header (arriba) + contenido */}
       <SidebarInset>
+        {/* HEADER */}
         <header className="flex h-16 items-center justify-between border-b px-4">
-          {/* Sección izquierda: Trigger + Título */}
+          {/* Sección izquierda: sidebar trigger */}
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
           </div>
 
-          {/* Sección derecha: notificaciones + nombre de usuario + avatar */}
+          {/* Sección derecha: notificaciones + nombre + avatar */}
           <div className="flex items-center gap-4">
-            {/* Ícono de notificaciones */}
             <button
               type="button"
               className="relative p-2 text-gray-500 hover:text-gray-700
@@ -66,15 +78,15 @@ export default function Layout({ children }: { children: ReactNode }) {
               <Bell className="h-5 w-5" />
             </button>
 
-            {/* Nombre de usuario (provisional) */}
-            <span className="font-medium text-gray-800">Jose Gonzalez</span>
+            {/* Mostrar nombre real del usuario */}
+            <span className="font-medium text-gray-800">{userName}</span>
 
-            {/* Avatar circular con iniciales */}
+            {/* Avatar con iniciales */}
             <div
               className="flex h-9 w-9 items-center justify-center
-                            rounded-full bg-gray-700 text-white font-semibold"
+                         rounded-full bg-gray-700 text-white font-semibold"
             >
-              JG
+              {initials}
             </div>
           </div>
         </header>
