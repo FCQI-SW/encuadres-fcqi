@@ -25,6 +25,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     }
   }, [status, session, router]);
 
+export default function Layout({ children }: { children: ReactNode }) {
   if (status === "loading") {
     return (
       <div className="flex justify-center items-center min-h-screen">
