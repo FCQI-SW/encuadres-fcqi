@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
+// Importa tu ConfirmProvider
+import { ConfirmProvider } from "@/components/global-confirm-modal";
 import { SessionProvider } from "@/components/session-provider";
 
 const geistSans = Geist({
@@ -25,10 +28,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <SessionProvider>{children}</SessionProvider>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <SessionProvider>
+          <ConfirmProvider>
+            {children}
+          </ConfirmProvider>
+        </SessionProvider>
       </body>
     </html>
   );

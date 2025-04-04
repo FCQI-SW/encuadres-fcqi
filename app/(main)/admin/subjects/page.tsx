@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // Importa useRouter
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -26,68 +26,198 @@ import {
   Trash2,
   ToggleRight,
   ToggleLeft,
-  Search,
 } from "lucide-react";
 
-type Materia = {
-  clave: string;
-  licenciatura: string;
-  tipo: string;
-  estado: string;
-};
+import { supabase } from "@/lib/supabase";
+import { AddSubjectModal } from "./add-subject-modal";
+import { EditSubjectModal } from "./edit-subject-modal";
 
-const initialData: Materia[] = [
-  { clave: "MAT101", licenciatura: "Ingeniería en Computación", tipo: "Básica: Obligatoria", estado: "Activa" },
-  { clave: "MAT102", licenciatura: "Ingeniería en Computación", tipo: "Básica: Optativa", estado: "Inactiva" },
-  { clave: "MAT201", licenciatura: "Lic. en Administración", tipo: "Disciplinaria: Optativa", estado: "Activa" },
-  { clave: "MAT301", licenciatura: "Lic. en Derecho", tipo: "Terminal: Obligatoria", estado: "Inactiva" },
-  { clave: "MAT002", licenciatura: "Lic. en Administración", tipo: "Básica: Obligatoria", estado: "Activa" },
-  { clave: "ABC001", licenciatura: "Lic. en Derecho", tipo: "Disciplinaria: Obligatoria", estado: "Activa" },
-];
+// IMPORTA useConfirm
+import { useConfirm } from "@/components/global-confirm-modal";
+
+export type Materia = {
+  clave: string;
+  nombre_materia: string;
+  licenciatura: string;
+  categoria: "Basica" | "Disciplinaria" | "Terminal";
+  requisito: "obligatoria" | "optativa";
+  estado: "Activa" | "Inactiva";
+};
 
 export default function Page() {
   const router = useRouter();
-  // Estado para la data y filtros
-  const [data, setData] = useState<Materia[]>(initialData);
-  const [selectedLic, setSelectedLic] = useState<string>("all");
-  const [claveFilter, setClaveFilter] = useState<string>("");
+
+  const [data, setData] = useState<Materia[]>([]);
+  const [filteredData, setFilteredData] = useState<Materia[]>([]);
+
+  // Filtros
+  const [selectedLic, setSelectedLic] = useState("all");
+  const [claveFilter, setClaveFilter] = useState("");
 
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Filtrado automático
-  const [filteredData, setFilteredData] = useState<Materia[]>(initialData);
+  // == MODAL DE "AGREGAR MATERIA" ==
+  const [showForm, setShowForm] = useState(false);
+  const [newMateria, setNewMateria] = useState<Materia>({
+    clave: "",
+    nombre_materia: "",
+    licenciatura: "",
+    categoria: "Basica",
+    requisito: "obligatoria",
+    estado: "Activa",
+  });
+  const [errors, setErrors] = useState<string[]>([]);
+
+  // == MODAL DE "EDITAR MATERIA" (si ya lo tienes) ==
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editMateria, setEditMateria] = useState<Materia | null>(null);
+  const [editErrors, setEditErrors] = useState<string[]>([]);
+
+  // (1) OBTENER DATOS
+  const fetchMaterias = async () => {
+    const { data: materias, error } = await supabase
+      .from("materias")
+      .select("clave, nombre_materia, licenciatura, categoria, requisito, estado");
+
+    if (error) {
+      console.error("Error al obtener materias:", error);
+      return;
+    }
+    if (materias) {
+      setData(materias);
+      setFilteredData(materias);
+    }
+  };
 
   useEffect(() => {
-    let filtered = data;
+    fetchMaterias();
+  }, []);
+
+  // (2) FILTRAR
+  useEffect(() => {
+    let temp = [...data];
     if (selectedLic !== "all") {
-      filtered = filtered.filter((item) => item.licenciatura === selectedLic);
+      temp = temp.filter((item) => item.licenciatura === selectedLic);
     }
     if (claveFilter.trim() !== "") {
-      filtered = filtered.filter((item) =>
+      temp = temp.filter((item) =>
         item.clave.toLowerCase().includes(claveFilter.toLowerCase())
       );
     }
-    setFilteredData(filtered);
+    setFilteredData(temp);
     setCurrentPage(1);
-  }, [selectedLic, claveFilter, data]);
+  }, [data, selectedLic, claveFilter]);
 
-  // Obtiene las licenciaturas únicas de la data actual
   const licenciaturas = Array.from(new Set(data.map((item) => item.licenciatura)));
 
-  // Función para alternar el estado de una materia
-  function toggleEstado(clave: string) {
+  // (3) TOGGLE ESTADO
+  async function toggleEstado(clave: string) {
+    const materiaActual = data.find((d) => d.clave === clave);
+    if (!materiaActual) return;
+
+    const nuevoEstado = materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
+    const { error } = await supabase
+      .from("materias")
+      .update({ estado: nuevoEstado })
+      .eq("clave", clave);
+
+    if (error) {
+      console.error("Error al actualizar estado:", error);
+      return;
+    }
+
     setData((prev) =>
       prev.map((item) =>
-        item.clave === clave
-          ? { ...item, estado: item.estado === "Activa" ? "Inactiva" : "Activa" }
-          : item
+        item.clave === clave ? { ...item, estado: nuevoEstado } : item
       )
     );
   }
 
-  // Paginación cálculos
+  // (A) OBTÉN LA FUNCIÓN confirm DESDE useConfirm
+  const confirm = useConfirm();
+
+  // (B) ELIMINAR USANDO el modal global
+  async function handleDelete(clave: string) {
+    // Llamar confirm() y esperar la respuesta
+    const userConfirmed = await confirm({
+      title: "Eliminar materia",
+      message: "¿Deseas eliminar esta materia? Esta acción no se puede revertir.",
+      confirmText: "Sí, eliminar",
+      cancelText: "Cancelar",
+    });
+    if (!userConfirmed) {
+      // Usuario presionó "Cancelar"
+      return;
+    }
+
+    // Ahora eliminas en Supabase
+    const { error } = await supabase
+      .from("materias")
+      .delete()
+      .eq("clave", clave);
+
+    if (error) {
+      console.error("Error al eliminar materia:", error);
+      return;
+    }
+
+    setData((prev) => prev.filter((item) => item.clave !== clave));
+  }
+
+  // (4) AGREGAR
+  const handleShowForm = () => {
+    setNewMateria({
+      clave: "",
+      nombre_materia: "",
+      licenciatura: "",
+      categoria: "Basica",
+      requisito: "obligatoria",
+      estado: "Activa",
+    });
+    setErrors([]);
+    setShowForm(true);
+  };
+  const handleCloseForm = () => {
+    setShowForm(false);
+  };
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+    const { name, value } = e.target;
+    setNewMateria((prev) => ({ ...prev, [name]: value as Materia[keyof Materia] }));
+  }
+
+  async function handleSaveMateria() {
+    // ... validaciones e insert ...
+    setShowForm(false);
+    await fetchMaterias();
+  }
+
+  // (OPCIONAL) LÓGICA PARA EDITAR
+  const handleEdit = (materia: Materia) => {
+    setEditMateria(materia);
+    setEditErrors([]);
+    setShowEditForm(true);
+  };
+  const handleCloseEditForm = () => {
+    setShowEditForm(false);
+  };
+  function handleEditInputChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+    if (!editMateria) return;
+    const { name, value } = e.target;
+    setEditMateria((prev) =>
+      prev ? { ...prev, [name]: value as Materia[keyof Materia] } : null
+    );
+  }
+  async function handleUpdateMateria() {
+    if (!editMateria) return;
+    // ... update supabase ...
+    setShowEditForm(false);
+    await fetchMaterias();
+  }
+
+  // (5) PAGINACIÓN
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
@@ -95,18 +225,25 @@ export default function Page() {
 
   return (
     <div className="p-6">
-      {/* Encabezado: Botón de regresar a la izquierda */}
+      {/* ENCABEZADO */}
       <div className="flex justify-between mb-4">
         <Button variant="outline" onClick={() => router.push("/admin")}>
-          <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+          <ChevronLeft className="mr-2 h-5 w-5" />
+          Regresar
+        </Button>
+        <Button
+          variant="default"
+          onClick={handleShowForm}
+          className="bg-[#00723F] text-white hover:bg-[#005e30] cursor-pointer"
+        >
+          Agregar materia
         </Button>
       </div>
 
-      {/* Sección de filtros */}
+      {/* FILTROS */}
       <div className="mb-4">
         <div className="flex items-center gap-4 mb-2">
           <span className="font-medium">Filtrar por:</span>
-          {/* Filtro por Licenciatura */}
           <Select onValueChange={setSelectedLic} defaultValue="all">
             <SelectTrigger className="w-64">
               <SelectValue placeholder="Licenciatura" />
@@ -120,7 +257,7 @@ export default function Page() {
               ))}
             </SelectContent>
           </Select>
-          {/* Filtro por Clave */}
+
           <div className="flex items-center gap-2">
             <Label htmlFor="filtro-clave" className="font-medium">
               Clave:
@@ -137,73 +274,87 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Tabla de materias */}
+      {/* TABLA */}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Clave de la materia</TableHead>
+              <TableHead>Clave</TableHead>
+              <TableHead>Nombre</TableHead>
               <TableHead>Licenciatura</TableHead>
-              <TableHead>Tipo</TableHead>
+              <TableHead>Tipo (Categoría: Requisito)</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {currentItems.length > 0 ? (
-              currentItems.map((materia, index) => (
-                <TableRow key={`${materia.clave}-${index}`}>
-                  <TableCell>{materia.clave}</TableCell>
-                  <TableCell>{materia.licenciatura}</TableCell>
-                  <TableCell>{materia.tipo}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-block w-3 h-3 rounded-full ${
-                          materia.estado === "Activa" ? "bg-green-500" : "bg-red-500"
-                        }`}
-                      />
-                      <span>{materia.estado}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-blue-600 hover:text-blue-800"
-                        title="Editar"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-red-600 hover:text-red-800"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-gray-600 hover:text-gray-800"
-                        title="Cambiar estado"
-                        onClick={() => toggleEstado(materia.clave)}
-                      >
-                        {materia.estado === "Activa" ? (
-                          <ToggleRight className="w-4 h-4" />
-                        ) : (
-                          <ToggleLeft className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+              currentItems.map((materia, index) => {
+                const tipo = `${materia.categoria}: ${materia.requisito}`;
+                return (
+                  <TableRow key={`${materia.clave}-${index}`}>
+                    <TableCell>{materia.clave}</TableCell>
+                    <TableCell>{materia.nombre_materia}</TableCell>
+                    <TableCell>{materia.licenciatura}</TableCell>
+                    <TableCell>{tipo}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-block w-3 h-3 rounded-full ${
+                            materia.estado === "Activa"
+                              ? "bg-green-500"
+                              : "bg-red-500"
+                          }`}
+                        />
+                        <span>{materia.estado}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        {/* BOTÓN EDITAR */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-blue-600 hover:text-blue-800"
+                          title="Editar"
+                          onClick={() => handleEdit(materia)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+
+                        {/* BOTÓN ELIMINAR (usa handleDelete con useConfirm) */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-600 hover:text-red-800"
+                          title="Eliminar"
+                          onClick={() => handleDelete(materia.clave)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+
+                        {/* BOTÓN CAMBIAR ESTADO */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-gray-600 hover:text-gray-800"
+                          title="Cambiar estado"
+                          onClick={() => toggleEstado(materia.clave)}
+                        >
+                          {materia.estado === "Activa" ? (
+                            <ToggleRight className="w-4 h-4" />
+                          ) : (
+                            <ToggleLeft className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">
+                <TableCell colSpan={6} className="text-center">
                   No hay materias para mostrar.
                 </TableCell>
               </TableRow>
@@ -212,14 +363,13 @@ export default function Page() {
         </Table>
       </div>
 
-      {/* Paginación */}
+      {/* PAGINACIÓN */}
       {totalPages > 1 && (
         <div className="flex justify-center mt-4 gap-2">
-          {/* Botón de anterior: fondo blanco, flecha verde */}
           <Button
             variant="default"
             disabled={currentPage === 1}
-            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F]"
+            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F] cursor-pointer"
             onClick={() => setCurrentPage(currentPage - 1)}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -230,25 +380,53 @@ export default function Page() {
               variant={currentPage === i + 1 ? "default" : "outline"}
               className={
                 currentPage === i + 1
-                  ? "bg-[#00723F] hover:bg-[#005e30] text-white"
-                  : "border border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
+                  ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+                  : "border border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white cursor-pointer"
               }
               onClick={() => setCurrentPage(i + 1)}
             >
               {i + 1}
             </Button>
           ))}
-          {/* Botón de siguiente: fondo blanco, flecha verde */}
           <Button
             variant="default"
             disabled={currentPage === totalPages}
-            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F]"
+            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F] cursor-pointer"
             onClick={() => setCurrentPage(currentPage + 1)}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
       )}
+
+      {/* MODAL AGREGAR */}
+      <AddSubjectModal
+        isOpen={showForm}
+        newMateria={newMateria}
+        onClose={handleCloseForm}
+        onInputChange={handleInputChange}
+        onSave={handleSaveMateria}
+        errors={errors}
+      />
+
+      {/* MODAL EDITAR (opcional) */}
+      <EditSubjectModal
+        isOpen={showEditForm}
+        editMateria={
+          editMateria || {
+            clave: "",
+            nombre_materia: "",
+            licenciatura: "",
+            categoria: "Basica",
+            requisito: "obligatoria",
+            estado: "Activa",
+          }
+        }
+        onClose={handleCloseEditForm}
+        onInputChange={handleEditInputChange}
+        onUpdate={handleUpdateMateria}
+        errors={editErrors}
+      />
     </div>
   );
 }
