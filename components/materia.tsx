@@ -1,3 +1,5 @@
+"use client"
+
 import {
     Card,
     CardContent,
@@ -7,14 +9,11 @@ import {
 } from "@/components/ui/card"
 import { Button } from "./ui/button";
 import { Invite } from "./invite";
+import Link from "next/link";
+import { usePathname } from "next/navigation"
 
-
-export function Materia({ btnText }: { btnText: string }) {
-    const nombreMateria = "Aplicaciones Móviles";
-    const claveMateria = "40002";
-    const grupoMateria = "361";
-    const profesorMateria = "Guillermo Licea";
-
+export function Materia({ btnText, nombreMateria, claveMateria, grupoMateria, profesorMateria }: { btnText: string, nombreMateria: string, claveMateria: string, grupoMateria: string, profesorMateria: string }) {
+    const pathname = usePathname()
     const materiaInfo = <>
         <CardHeader>
             <CardTitle>{nombreMateria}</CardTitle>
@@ -44,7 +43,9 @@ export function Materia({ btnText }: { btnText: string }) {
                 <Card >
                     {materiaInfo}
                     <CardFooter className="self-center align-bottom">
-                        <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">{btnText}</Button>
+                        <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
+                            <Link href={`${pathname}/${claveMateria}`}>{btnText}</Link>
+                        </Button>
                     </CardFooter>
                 </Card>
             </div>
