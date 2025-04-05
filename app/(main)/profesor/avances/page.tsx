@@ -28,7 +28,7 @@ const data = [
     claveMateria: "40005",
     grupoMateria: "361",
     profesorMateria: "Guillermo Licea",
-    estadoMateria: "Publicada"
+    estadoMateria: "Registrada"
   },
   {
     nombreMateria: "Estructura de Datos",

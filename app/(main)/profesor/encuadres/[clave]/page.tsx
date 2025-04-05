@@ -9,6 +9,16 @@ import {
     TableRow,
 
 } from "@/components/ui/table"
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
 
 const dataCriterios = [
     {
@@ -204,8 +214,70 @@ function EncuadreMateria({
             </Table>
 
         </div>
-        <div className="py-8 justify-self-center">
-            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Avanzar</Button>
+        <div className="py-8 justify-self-center grid grid-cols-3 gap-16">
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Restablecer</Button>
+                </DialogTrigger>
+                <DialogContent className=" w-5xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-center">Restablecer cambios realizados</DialogTitle>
+                        <DialogDescription className="text-black text-left">
+                            Continuar con esta acción eliminará todos los cambios realizados en el encuadre, ¿Desea continuar?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button className="px-8 bg-(--destructive) hover:bg-[#FD0022]">Cancelar</Button>
+                        </DialogClose>
+                        <DialogClose asChild>
+                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Confirmar</Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Guardar borrador</Button>
+                </DialogTrigger>
+                <DialogContent className=" w-5xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-center">Borrador guardado</DialogTitle>
+                        <DialogDescription className="text-black text-left">
+                            El progreso y cambios se han guardado exitosamente como borrador.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Aceptar</Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Confirmar y publicar</Button>
+                </DialogTrigger>
+                <DialogContent className=" w-5xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-center">Publicar cambios de encuadre</DialogTitle>
+                        <DialogDescription className="text-black text-left">
+                            Los cambios realizados se guardaran en sistema y serán publicados para revisión del jefe de grupo.
+                            Esta acción no puede deshacerse, ¿Desea continuar?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button className="px-8 bg-(--destructive) hover:bg-[#FD0022]">Cancelar</Button>
+                        </DialogClose>
+                        <DialogClose asChild>
+                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Confirmar</Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
 
     </>)
