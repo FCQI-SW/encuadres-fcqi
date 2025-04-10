@@ -8,8 +8,8 @@ const handler = NextAuth({
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
+        email: { label: "Correo", type: "email" },
+        password: { label: "Contraseña", type: "password" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -18,23 +18,20 @@ const handler = NextAuth({
         }
 
         try {
-          console.log("Attempting to fetch user from Supabase");
-          const { data: user, error } = await supabase
-            .from("users")
-            .select("*, roles(name)")
-            .eq("email", credentials.email)
+          const { data: usuario, error } = await supabase
+            .from("usuarios")
+            .select("*, roles(nombre)")
+            .eq("correo", credentials.email)
             .single();
 
-          if (error || !user) {
+          if (error || !usuario) {
             console.error("User not found:", error);
             return null;
           }
 
-          console.log("User found:", user);
-
           const passwordMatch = await bcrypt.compare(
             credentials.password,
-            user.password
+            usuario.contraseña
           );
 
           if (!passwordMatch) {
@@ -42,13 +39,11 @@ const handler = NextAuth({
             return null;
           }
 
-          console.log("Password match successful");
-
           return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.roles?.name,
+            id: usuario.id,
+            name: usuario.nombre,
+            email: usuario.correo,
+            role: usuario.roles?.nombre,
           };
         } catch (error) {
           console.error("Authentication error:", error);
