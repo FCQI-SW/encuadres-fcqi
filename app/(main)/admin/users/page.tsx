@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation"; // Importa useRouter
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -19,60 +19,138 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
+// Tipos para usuarios y roles (ajusta según tu esquema de tablas)
 type User = {
-  id: number;
-  email: string;
-  role: string;
+  id: number;      // Asegúrate de que coincida con la PK que uses en la tabla 'usuarios'
+  email: string;   // Campo que mostrará el correo
+  role_id: string; // ID del rol en la tabla 'roles'
 };
 
-const roles = ["Todos", "Administrador", "Profesor", "Capturista", "Lector", "Alumno"];
-
-const initialUsers: User[] = Array(9)
-  .fill(null)
-  .map((_, i) => ({
-    id: i + 1,
-    email: `prueba.prueba@uabcs.edu.mx`,
-    role: roles[i % roles.length], // Asigna roles de manera cíclica
-  }));
+type Role = {
+  id: string;
+  nombre: string;
+};
 
 export default function UserManagementPage() {
-  const router = useRouter(); // Inicializa el router
-  const [selectedRole, setSelectedRole] = useState<string>("Todos"); // Estado del filtro
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const router = useRouter();
+  
+  // Estado para usuarios, roles y mapa (id->nombre)
+  const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [rolesMap, setRolesMap] = useState<Record<string, string>>({});
+  
+  // Estado para filtros y paginación
+  const [selectedRole, setSelectedRole] = useState("Todos");
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 5;
 
-  // Manejar cambio de rol
-  const handleRoleChange = (id: number, newRole: string) => {
-    setUsers(users.map(user => (user.id === id ? { ...user, role: newRole } : user)));
-  };
+  // Cargar datos de Supabase al montar el componente
+  useEffect(() => {
+    const fetchData = async () => {
+      // Obtén usuarios
+      const { data: usuariosData, error: usuariosError } = await supabase
+        .from("usuarios")
+        .select("id, correo, rol_id"); // Ajusta los campos según tu esquema
 
-  // Eliminar usuario
-  const handleDelete = (id: number) => {
-    setUsers(users.filter(user => user.id !== id));
-  };
+      // Obtén roles
+      const { data: rolesData, error: rolesError } = await supabase
+        .from("roles")
+        .select("id, nombre"); // Ajusta los campos según tu tabla de roles
 
-  // Filtrado de usuarios
-  const filteredUsers = selectedRole === "Todos" ? users : users.filter(user => user.role === selectedRole);
+      if (usuariosError || rolesError) {
+        console.error("Error al obtener usuarios o roles:", {
+          usuariosError,
+          rolesError,
+        });
+        return;
+      }
+
+      // Mapeamos los usuarios para que cumplan con nuestro type User
+      const mappedUsers = (usuariosData || []).map((u) => ({
+        id: u.id,
+        email: u.correo,
+        role_id: u.rol_id,
+      }));
+
+      // Creamos un "mapa" para convertir role_id a nombre de rol
+      const rolMap = (rolesData || []).reduce(
+        (acc, rol) => {
+          acc[rol.id] = rol.nombre;
+          return acc;
+        },
+        {} as Record<string, string>
+      );
+
+      setUsers(mappedUsers);
+      setRoles(rolesData || []);
+      setRolesMap(rolMap);
+    };
+
+    fetchData();
+  }, []);
+
+  // Filtrado por rol usando el mapa rolesMap
+  const filteredUsers =
+    selectedRole === "Todos"
+      ? users
+      : users.filter((user) => rolesMap[user.role_id] === selectedRole);
 
   // Paginación
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
   const indexOfLastUser = currentPage * usersPerPage;
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
 
-  // Función para aplicar el filtro (actualmente solo el de rol)
-  const handleFilterChange = () => {
-    setCurrentPage(1);
+  // Función para cambiar el rol de un usuario (actualiza en la BD y en el estado local)
+  const handleRoleChange = async (userId: number, newRoleName: string) => {
+    // Buscar en el array "roles" cuál tiene ese "nombre"
+    const newRole = roles.find((r) => r.nombre === newRoleName);
+    if (!newRole) return; // Evita errores si no existe
+
+    // Actualizamos en Supabase
+    const { error } = await supabase
+      .from("usuarios")
+      .update({ rol_id: newRole.id })
+      .eq("id", userId);
+
+    if (error) {
+      console.error("Error al actualizar rol:", error);
+      return;
+    }
+
+    // Si todo salió bien, reflejamos el cambio en el estado local
+    setUsers((prev) =>
+      prev.map((user) =>
+        user.id === userId ? { ...user, role_id: newRole.id } : user
+      )
+    );
+  };
+
+  // Función para eliminar un usuario
+  const handleDelete = async (userId: number) => {
+    const { error } = await supabase
+      .from("usuarios")
+      .delete()
+      .eq("id", userId);
+
+    if (error) {
+      console.error("Error al eliminar usuario:", error);
+      return;
+    }
+
+    // Si la eliminación fue exitosa en Supabase, removemos del estado
+    setUsers((prev) => prev.filter((user) => user.id !== userId));
   };
 
   return (
     <div className="p-6">
-      {/* Encabezado: Botón de regresar a la izquierda y Crear usuario a la derecha */}
+      {/* Encabezado: Botón de regresar y botón "Crear usuario" */}
       <div className="flex justify-between mb-4">
         <Button variant="outline" onClick={() => router.push("/admin")}>
-          <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+          <ChevronLeft className="mr-2 h-5 w-5" />
+          Regresar
         </Button>
         <Button
           variant="default"
@@ -83,7 +161,7 @@ export default function UserManagementPage() {
         </Button>
       </div>
 
-      {/* Sección de filtros */}
+      {/* Filtro por rol */}
       <div className="mb-4">
         <div className="flex items-center gap-4 mb-2">
           <span className="font-medium">Filtrar por:</span>
@@ -92,15 +170,16 @@ export default function UserManagementPage() {
               <SelectValue placeholder="Todos los usuarios" />
             </SelectTrigger>
             <SelectContent>
-              {roles.map(role => (
-                <SelectItem key={role} value={role}>
-                  {role}
+              <SelectItem value="Todos">Todos</SelectItem>
+              {/* Mostramos todos los roles disponibles */}
+              {roles.map((rol) => (
+                <SelectItem key={rol.id} value={rol.nombre}>
+                  {rol.nombre}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        
       </div>
 
       {/* Tabla de usuarios */}
@@ -114,19 +193,23 @@ export default function UserManagementPage() {
         </TableHeader>
         <TableBody>
           {currentUsers.length > 0 ? (
-            currentUsers.map(user => (
+            currentUsers.map((user) => (
               <TableRow key={user.id}>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
-                  <Select onValueChange={value => handleRoleChange(user.id, value)} defaultValue={user.role}>
+                  {/* Select para cambiar el rol del usuario en tiempo real */}
+                  <Select
+                    defaultValue={rolesMap[user.role_id] || "Desconocido"}
+                    onValueChange={(value) => handleRoleChange(user.id, value)}
+                  >
                     <SelectTrigger className="w-40">
-                      <SelectValue placeholder={user.role} />
+                      <SelectValue placeholder="Seleccionar rol" />
                     </SelectTrigger>
                     <SelectContent>
-                      {roles.slice(1).map(role => (
-                        // Evita "Todos" en la edición de roles
-                        <SelectItem key={role} value={role}>
-                          {role}
+                      {/* Excluimos "Todos" para edición de rol */}
+                      {roles.map((rol) => (
+                        <SelectItem key={rol.id} value={rol.nombre}>
+                          {rol.nombre}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -152,7 +235,6 @@ export default function UserManagementPage() {
       {/* Paginación */}
       {totalPages > 1 && (
         <div className="flex justify-center mt-4 gap-2">
-          {/* Botón de anterior: fondo blanco, flecha verde */}
           <Button
             variant="default"
             disabled={currentPage === 1}
@@ -163,7 +245,7 @@ export default function UserManagementPage() {
           </Button>
           {[...Array(totalPages)].map((_, i) => (
             <Button
-              key={i + 1}
+              key={i}
               variant={currentPage === i + 1 ? "default" : "outline"}
               className={
                 currentPage === i + 1
@@ -175,7 +257,6 @@ export default function UserManagementPage() {
               {i + 1}
             </Button>
           ))}
-          {/* Botón de siguiente: fondo blanco, flecha verde */}
           <Button
             variant="default"
             disabled={currentPage === totalPages}
