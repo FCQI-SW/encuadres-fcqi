@@ -21,9 +21,12 @@ import {
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-// Tipos para usuarios y roles (ajusta según tu esquema de tablas)
+// Importa tu modal
+import { AddUserModal } from "./add-user"; // Ajusta la ruta si tu componente está en otra carpeta
+
+// Tipos para usuarios y roles
 type User = {
-  id: number;      // Asegúrate de que coincida con la PK que uses en la tabla 'usuarios'
+  id: number;      // PK de tu tabla 'usuarios'
   email: string;   // Campo que mostrará el correo
   role_id: string; // ID del rol en la tabla 'roles'
 };
@@ -33,18 +36,37 @@ type Role = {
   nombre: string;
 };
 
+// Si quisieras manejar más campos en el modal, agrégalos aquí
+type NewUser = {
+  email: string;
+  role_id: string;
+  password: string;
+};
+
 export default function UserManagementPage() {
   const router = useRouter();
-  
+
   // Estado para usuarios, roles y mapa (id->nombre)
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [rolesMap, setRolesMap] = useState<Record<string, string>>({});
-  
+
   // Estado para filtros y paginación
   const [selectedRole, setSelectedRole] = useState("Todos");
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 5;
+
+  // ----------- ESTADOS PARA EL MODAL -----------
+  // Controla si el modal está abierto/cerrado
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Datos del nuevo usuario (se sincroniza con el modal)
+  const [newUser, setNewUser] = useState<NewUser>({
+    email: "",
+    role_id: "",
+    password: "",
+  });
+  // Errores para mostrar en el modal
+  const [errors, setErrors] = useState<string[]>([]);
 
   // Cargar datos de Supabase al montar el componente
   useEffect(() => {
@@ -75,13 +97,10 @@ export default function UserManagementPage() {
       }));
 
       // Creamos un "mapa" para convertir role_id a nombre de rol
-      const rolMap = (rolesData || []).reduce(
-        (acc, rol) => {
-          acc[rol.id] = rol.nombre;
-          return acc;
-        },
-        {} as Record<string, string>
-      );
+      const rolMap = (rolesData || []).reduce((acc, rol) => {
+        acc[rol.id] = rol.nombre;
+        return acc;
+      }, {} as Record<string, string>);
 
       setUsers(mappedUsers);
       setRoles(rolesData || []);
@@ -103,11 +122,11 @@ export default function UserManagementPage() {
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
 
-  // Función para cambiar el rol de un usuario (actualiza en la BD y en el estado local)
+  // Función para cambiar el rol de un usuario
   const handleRoleChange = async (userId: number, newRoleName: string) => {
     // Buscar en el array "roles" cuál tiene ese "nombre"
     const newRole = roles.find((r) => r.nombre === newRoleName);
-    if (!newRole) return; // Evita errores si no existe
+    if (!newRole) return;
 
     // Actualizamos en Supabase
     const { error } = await supabase
@@ -130,10 +149,7 @@ export default function UserManagementPage() {
 
   // Función para eliminar un usuario
   const handleDelete = async (userId: number) => {
-    const { error } = await supabase
-      .from("usuarios")
-      .delete()
-      .eq("id", userId);
+    const { error } = await supabase.from("usuarios").delete().eq("id", userId);
 
     if (error) {
       console.error("Error al eliminar usuario:", error);
@@ -144,6 +160,80 @@ export default function UserManagementPage() {
     setUsers((prev) => prev.filter((user) => user.id !== userId));
   };
 
+  // ----------- FUNCIONES PARA EL MODAL -----------
+  // Abre el modal y limpia el estado del nuevo usuario
+  const handleOpenModal = () => {
+    setNewUser({ email: "", role_id: "", password: "" });
+    setErrors([]);
+    setIsModalOpen(true);
+  };
+
+  // Cierra el modal
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+  };
+
+  // Maneja el cambio de inputs en el modal
+  const handleNewUserChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    setNewUser((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
+  // Lógica para guardar el nuevo usuario en Supabase
+  const handleSaveNewUser = async () => {
+    // Limpia errores previos
+    setErrors([]);
+    const tempErrors: string[] = [];
+
+    // Validaciones sencillas (ajusta según tu caso)
+    if (!newUser.email) tempErrors.push("El campo email es obligatorio.");
+    if (!newUser.password) tempErrors.push("El campo contraseña es obligatorio.");
+    if (!newUser.role_id) tempErrors.push("El campo rol es obligatorio.");
+
+    if (tempErrors.length > 0) {
+      setErrors(tempErrors);
+      return;
+    }
+
+    // Inserta al nuevo usuario en la tabla "usuarios"
+    // Ajusta a tus campos reales de BD. Ejemplo:
+    //  - si tu campo en BD es "correo" en lugar de "email"
+    //  - si manejas hashing de password en el backend
+    const { error } = await supabase.from("usuarios").insert([
+      {
+        correo: newUser.email,
+        rol_id: newUser.role_id,
+        password: newUser.password, // Ten cuidado con la seguridad
+      },
+    ]);
+
+    if (error) {
+      console.error("Error al crear usuario:", error);
+      setErrors(["Hubo un error al crear el usuario."]);
+      return;
+    }
+
+    // Si todo fue bien, cierra el modal y recarga la lista de usuarios
+    setIsModalOpen(false);
+    // Opcional: refetch de la lista, o puedes "push" al estado
+    const { data: usuariosData } = await supabase
+      .from("usuarios")
+      .select("id, correo, rol_id");
+    if (usuariosData) {
+      setUsers(
+        usuariosData.map((u) => ({
+          id: u.id,
+          email: u.correo,
+          role_id: u.rol_id,
+        }))
+      );
+    }
+  };
+
   return (
     <div className="p-6">
       {/* Encabezado: Botón de regresar y botón "Crear usuario" */}
@@ -152,10 +242,12 @@ export default function UserManagementPage() {
           <ChevronLeft className="mr-2 h-5 w-5" />
           Regresar
         </Button>
+
+        {/* Cambiamos el onClick para abrir el modal en lugar de hacer push */}
         <Button
           variant="default"
           className="bg-[#00723F] hover:bg-[#005e30] text-white"
-          onClick={() => router.push("/admin/create-user")}
+          onClick={handleOpenModal}
         >
           Crear usuario
         </Button>
@@ -171,7 +263,6 @@ export default function UserManagementPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Todos">Todos</SelectItem>
-              {/* Mostramos todos los roles disponibles */}
               {roles.map((rol) => (
                 <SelectItem key={rol.id} value={rol.nombre}>
                   {rol.nombre}
@@ -206,7 +297,6 @@ export default function UserManagementPage() {
                       <SelectValue placeholder="Seleccionar rol" />
                     </SelectTrigger>
                     <SelectContent>
-                      {/* Excluimos "Todos" para edición de rol */}
                       {roles.map((rol) => (
                         <SelectItem key={rol.id} value={rol.nombre}>
                           {rol.nombre}
@@ -216,7 +306,10 @@ export default function UserManagementPage() {
                   </Select>
                 </TableCell>
                 <TableCell>
-                  <Button variant="destructive" onClick={() => handleDelete(user.id)}>
+                  <Button
+                    variant="destructive"
+                    onClick={() => handleDelete(user.id)}
+                  >
                     Eliminar
                   </Button>
                 </TableCell>
@@ -267,6 +360,17 @@ export default function UserManagementPage() {
           </Button>
         </div>
       )}
+
+      {/* MODAL DE AGREGAR USUARIO */}
+      <AddUserModal
+        isOpen={isModalOpen}
+        newUser={newUser}
+        onClose={handleCloseModal}
+        onInputChange={handleNewUserChange}
+        onSave={handleSaveNewUser}
+        errors={errors}
+        roles={roles}
+      />
     </div>
   );
 }
