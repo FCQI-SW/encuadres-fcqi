@@ -21,26 +21,26 @@ import {
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-// Importa tu modal
-import { AddUserModal } from "./add-user"; // Ajusta la ruta si tu componente está en otra carpeta
+// Importa el modal
+import { AddUserModal } from "./add-user";
 
 // Tipos para usuarios y roles
 type User = {
-  id: number;      // PK de tu tabla 'usuarios'
-  email: string;   // Campo que mostrará el correo
-  role_id: string; // ID del rol en la tabla 'roles'
+  id: string;      // o number, si tu PK es integer
+  email: string;   // 'correo' en DB
+  role_id: string; // UUID del rol
 };
 
 type Role = {
-  id: string;
-  nombre: string;
+  id: string;      // UUID en la tabla 'roles'
+  nombre: string;  // Nombre del rol
 };
 
-// Si quisieras manejar más campos en el modal, agrégalos aquí
 type NewUser = {
   email: string;
-  role_id: string;
   password: string;
+  role_id: string;
+  name: string;    // Para la columna 'nombre'
 };
 
 export default function UserManagementPage() {
@@ -51,35 +51,33 @@ export default function UserManagementPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [rolesMap, setRolesMap] = useState<Record<string, string>>({});
 
-  // Estado para filtros y paginación
+  // Filtro y paginación
   const [selectedRole, setSelectedRole] = useState("Todos");
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 5;
 
-  // ----------- ESTADOS PARA EL MODAL -----------
-  // Controla si el modal está abierto/cerrado
+  // -- Estados para el modal de agregar usuario --
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // Datos del nuevo usuario (se sincroniza con el modal)
   const [newUser, setNewUser] = useState<NewUser>({
     email: "",
-    role_id: "",
     password: "",
+    role_id: "",
+    name: "",
   });
-  // Errores para mostrar en el modal
   const [errors, setErrors] = useState<string[]>([]);
 
-  // Cargar datos de Supabase al montar el componente
+  // Carga de datos inicial
   useEffect(() => {
     const fetchData = async () => {
-      // Obtén usuarios
+      // Obtén usuarios de la tabla 'usuarios'
       const { data: usuariosData, error: usuariosError } = await supabase
         .from("usuarios")
-        .select("id, correo, rol_id"); // Ajusta los campos según tu esquema
+        .select("id, correo, rol_id"); 
 
-      // Obtén roles
+      // Obtén roles de la tabla 'roles'
       const { data: rolesData, error: rolesError } = await supabase
         .from("roles")
-        .select("id, nombre"); // Ajusta los campos según tu tabla de roles
+        .select("id, nombre");
 
       if (usuariosError || rolesError) {
         console.error("Error al obtener usuarios o roles:", {
@@ -89,14 +87,14 @@ export default function UserManagementPage() {
         return;
       }
 
-      // Mapeamos los usuarios para que cumplan con nuestro type User
+      // Mapeamos a nuestro tipo "User"
       const mappedUsers = (usuariosData || []).map((u) => ({
         id: u.id,
-        email: u.correo,
-        role_id: u.rol_id,
+        email: u.correo,    // en la BD se llama 'correo'
+        role_id: u.rol_id,  
       }));
 
-      // Creamos un "mapa" para convertir role_id a nombre de rol
+      // Mapa id -> nombre del rol
       const rolMap = (rolesData || []).reduce((acc, rol) => {
         acc[rol.id] = rol.nombre;
         return acc;
@@ -110,7 +108,7 @@ export default function UserManagementPage() {
     fetchData();
   }, []);
 
-  // Filtrado por rol usando el mapa rolesMap
+  // Filtrar según rol
   const filteredUsers =
     selectedRole === "Todos"
       ? users
@@ -122,24 +120,23 @@ export default function UserManagementPage() {
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
 
-  // Función para cambiar el rol de un usuario
-  const handleRoleChange = async (userId: number, newRoleName: string) => {
-    // Buscar en el array "roles" cuál tiene ese "nombre"
+  // Cambiar rol de un usuario
+  const handleRoleChange = async (userId: string, newRoleName: string) => {
+    // Buscar en el array "roles" el que tenga ese nombre
     const newRole = roles.find((r) => r.nombre === newRoleName);
     if (!newRole) return;
 
-    // Actualizamos en Supabase
     const { error } = await supabase
       .from("usuarios")
       .update({ rol_id: newRole.id })
       .eq("id", userId);
 
     if (error) {
-      console.error("Error al actualizar rol:", error);
+      console.error("Error al actualizar rol:", error.message || error);
       return;
     }
 
-    // Si todo salió bien, reflejamos el cambio en el estado local
+    // Actualiza en el estado local
     setUsers((prev) =>
       prev.map((user) =>
         user.id === userId ? { ...user, role_id: newRole.id } : user
@@ -147,33 +144,28 @@ export default function UserManagementPage() {
     );
   };
 
-  // Función para eliminar un usuario
-  const handleDelete = async (userId: number) => {
+  // Eliminar usuario
+  const handleDelete = async (userId: string) => {
     const { error } = await supabase.from("usuarios").delete().eq("id", userId);
-
     if (error) {
-      console.error("Error al eliminar usuario:", error);
+      console.error("Error al eliminar usuario:", error.message || error);
       return;
     }
-
-    // Si la eliminación fue exitosa en Supabase, removemos del estado
-    setUsers((prev) => prev.filter((user) => user.id !== userId));
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
   };
 
-  // ----------- FUNCIONES PARA EL MODAL -----------
-  // Abre el modal y limpia el estado del nuevo usuario
+  // -- Lógica del modal: abrir, cerrar, etc.
   const handleOpenModal = () => {
-    setNewUser({ email: "", role_id: "", password: "" });
+    // Reseteamos el estado de newUser y errors
+    setNewUser({ email: "", password: "", role_id: "", name: "" });
     setErrors([]);
     setIsModalOpen(true);
   };
 
-  // Cierra el modal
   const handleCloseModal = () => {
     setIsModalOpen(false);
   };
 
-  // Maneja el cambio de inputs en el modal
   const handleNewUserChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -183,46 +175,50 @@ export default function UserManagementPage() {
     }));
   };
 
-  // Lógica para guardar el nuevo usuario en Supabase
+  // Crear usuario en DB (insert)
   const handleSaveNewUser = async () => {
-    // Limpia errores previos
     setErrors([]);
     const tempErrors: string[] = [];
 
-    // Validaciones sencillas (ajusta según tu caso)
-    if (!newUser.email) tempErrors.push("El campo email es obligatorio.");
-    if (!newUser.password) tempErrors.push("El campo contraseña es obligatorio.");
-    if (!newUser.role_id) tempErrors.push("El campo rol es obligatorio.");
+    // Validaciones mínimas
+    if (!newUser.email) tempErrors.push("El correo es obligatorio.");
+    if (!newUser.name) tempErrors.push("El nombre es obligatorio.");
+    if (!newUser.password) tempErrors.push("La contraseña es obligatoria.");
+    if (!newUser.role_id) tempErrors.push("Selecciona un rol.");
 
     if (tempErrors.length > 0) {
       setErrors(tempErrors);
       return;
     }
 
-    // Inserta al nuevo usuario en la tabla "usuarios"
-    // Ajusta a tus campos reales de BD. Ejemplo:
-    //  - si tu campo en BD es "correo" en lugar de "email"
-    //  - si manejas hashing de password en el backend
-    const { error } = await supabase.from("usuarios").insert([
-      {
-        correo: newUser.email,
-        rol_id: newUser.role_id,
-        password: newUser.password, // Ten cuidado con la seguridad
-      },
-    ]);
+    // Insertar en DB => Ajustar nombres de columnas
+    // OJO: tu tabla de 'usuarios' tiene "nombre" (NOT NULL), "correo", "contrasena", "rol_id", ...
+    const { error } = await supabase
+      .from("usuarios")
+      .insert([
+        {
+          // Campos en la BD
+          correo: newUser.email,    
+          nombre: newUser.name,     // Aquí enviamos 'nombre', que es NOT NULL
+          contraseña: newUser.password, 
+          rol_id: newUser.role_id, 
+        },
+      ]);
 
     if (error) {
-      console.error("Error al crear usuario:", error);
-      setErrors(["Hubo un error al crear el usuario."]);
+      console.error("Error al crear usuario:", error.message || error);
+      setErrors([`Hubo un error al crear el usuario: ${error.message}`]);
       return;
     }
 
-    // Si todo fue bien, cierra el modal y recarga la lista de usuarios
+    // Si todo ok, cierra modal y refresca
     setIsModalOpen(false);
-    // Opcional: refetch de la lista, o puedes "push" al estado
+
+    // Recargar la lista de usuarios
     const { data: usuariosData } = await supabase
       .from("usuarios")
       .select("id, correo, rol_id");
+
     if (usuariosData) {
       setUsers(
         usuariosData.map((u) => ({
@@ -236,14 +232,12 @@ export default function UserManagementPage() {
 
   return (
     <div className="p-6">
-      {/* Encabezado: Botón de regresar y botón "Crear usuario" */}
+      {/* Encabezado */}
       <div className="flex justify-between mb-4">
         <Button variant="outline" onClick={() => router.push("/admin")}>
           <ChevronLeft className="mr-2 h-5 w-5" />
           Regresar
         </Button>
-
-        {/* Cambiamos el onClick para abrir el modal en lugar de hacer push */}
         <Button
           variant="default"
           className="bg-[#00723F] hover:bg-[#005e30] text-white"
@@ -288,10 +282,10 @@ export default function UserManagementPage() {
               <TableRow key={user.id}>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
-                  {/* Select para cambiar el rol del usuario en tiempo real */}
+                  {/* Select para cambiar rol en vivo */}
                   <Select
                     defaultValue={rolesMap[user.role_id] || "Desconocido"}
-                    onValueChange={(value) => handleRoleChange(user.id, value)}
+                    onValueChange={(val) => handleRoleChange(user.id, val)}
                   >
                     <SelectTrigger className="w-40">
                       <SelectValue placeholder="Seleccionar rol" />
@@ -361,7 +355,7 @@ export default function UserManagementPage() {
         </div>
       )}
 
-      {/* MODAL DE AGREGAR USUARIO */}
+      {/* MODAL PARA AGREGAR USUARIO */}
       <AddUserModal
         isOpen={isModalOpen}
         newUser={newUser}
