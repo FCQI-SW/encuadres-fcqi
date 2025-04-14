@@ -18,45 +18,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-// Importa el modal
+// Hook para confirmación de borrado
+import { useConfirm } from "@/components/global-confirm-modal";
 import { AddUserModal } from "./add-user";
 
-// Tipos para usuarios y roles
+// Tipos para usuarios, roles, etc.
 type User = {
-  id: string;      // o number, si tu PK es integer
+  id: string;      // PK en tu tabla 'usuarios' (uuid o int)
   email: string;   // 'correo' en DB
-  role_id: string; // UUID del rol
+  name: string;    // 'nombre' en DB
+  role_id: string; // 'rol_id' en DB
 };
 
 type Role = {
-  id: string;      // UUID en la tabla 'roles'
-  nombre: string;  // Nombre del rol
+  id: string;      
+  nombre: string;  
 };
 
 type NewUser = {
   email: string;
   password: string;
   role_id: string;
-  name: string;    // Para la columna 'nombre'
+  name: string;    
 };
 
 export default function UserManagementPage() {
   const router = useRouter();
 
-  // Estado para usuarios, roles y mapa (id->nombre)
+  // ==================== ESTADOS ====================
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [rolesMap, setRolesMap] = useState<Record<string, string>>({});
 
-  // Filtro y paginación
+  // Filtro por rol y texto
   const [selectedRole, setSelectedRole] = useState("Todos");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 5;
 
-  // -- Estados para el modal de agregar usuario --
+  // Modal crear usuario
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newUser, setNewUser] = useState<NewUser>({
     email: "",
@@ -66,35 +72,42 @@ export default function UserManagementPage() {
   });
   const [errors, setErrors] = useState<string[]>([]);
 
-  // Carga de datos inicial
+  // Mensaje de éxito (crear/eliminar) con autodescarga
+  const [successMessage, setSuccessMessage] = useState("");
+
+  // Confirm hook para borrar
+  const confirm = useConfirm();
+
+  // ==================== EFECTOS ====================
+  // 1) Cargar usuarios y roles
   useEffect(() => {
     const fetchData = async () => {
-      // Obtén usuarios de la tabla 'usuarios'
+      // Trae usuarios (including nombre)
       const { data: usuariosData, error: usuariosError } = await supabase
         .from("usuarios")
-        .select("id, correo, rol_id"); 
+        .select("id, correo, nombre, rol_id");
 
-      // Obtén roles de la tabla 'roles'
+      // Trae roles
       const { data: rolesData, error: rolesError } = await supabase
         .from("roles")
         .select("id, nombre");
 
       if (usuariosError || rolesError) {
-        console.error("Error al obtener usuarios o roles:", {
+        console.error("Error al obtener usuarios/roles:", {
           usuariosError,
           rolesError,
         });
         return;
       }
 
-      // Mapeamos a nuestro tipo "User"
+      // Mapeo
       const mappedUsers = (usuariosData || []).map((u) => ({
         id: u.id,
-        email: u.correo,    // en la BD se llama 'correo'
-        role_id: u.rol_id,  
+        email: u.correo,
+        name: u.nombre,
+        role_id: u.rol_id,
       }));
 
-      // Mapa id -> nombre del rol
       const rolMap = (rolesData || []).reduce((acc, rol) => {
         acc[rol.id] = rol.nombre;
         return acc;
@@ -108,21 +121,55 @@ export default function UserManagementPage() {
     fetchData();
   }, []);
 
-  // Filtrar según rol
-  const filteredUsers =
-    selectedRole === "Todos"
-      ? users
-      : users.filter((user) => rolesMap[user.role_id] === selectedRole);
+  // 2) Quitar mensaje de éxito a los 7 seg
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(""), 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
-  // Paginación
+  // ==================== FILTRO DE USUARIOS ====================
+  // Filtrar por rol y por searchTerm (correo o nombre)
+  const filteredUsers = users.filter((user) => {
+    const matchesRole =
+      selectedRole === "Todos"
+        ? true
+        : rolesMap[user.role_id] === selectedRole;
+
+    // Filtramos por searchTerm en email o name (case-insensitive)
+    const st = searchTerm.toLowerCase();
+    const matchesSearch =
+      user.email.toLowerCase().includes(st) ||
+      user.name.toLowerCase().includes(st);
+
+    return matchesRole && matchesSearch;
+  });
+
+  // ==================== PAGINACIÓN DINÁMICA ====================
+  // Calcula total de páginas
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+
+  // Si se borró un usuario y la página actual quedó vacía,
+  // ajustamos la currentPage a la última con contenido (o 1 si totalPages=0)
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    } else if (totalPages === 0) {
+      // No hay usuarios filtrados => forzamos a la página 1 
+      // (aunque no haya paginación en pantalla, evita “quedarse” en 2)
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  // Indices y slice para la página actual
   const indexOfLastUser = currentPage * usersPerPage;
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
 
+  // ==================== HANDLERS ====================
   // Cambiar rol de un usuario
   const handleRoleChange = async (userId: string, newRoleName: string) => {
-    // Buscar en el array "roles" el que tenga ese nombre
     const newRole = roles.find((r) => r.nombre === newRoleName);
     if (!newRole) return;
 
@@ -132,11 +179,10 @@ export default function UserManagementPage() {
       .eq("id", userId);
 
     if (error) {
-      console.error("Error al actualizar rol:", error.message || error);
+      console.error("Error al actualizar rol:", error.message);
       return;
     }
 
-    // Actualiza en el estado local
     setUsers((prev) =>
       prev.map((user) =>
         user.id === userId ? { ...user, role_id: newRole.id } : user
@@ -144,19 +190,33 @@ export default function UserManagementPage() {
     );
   };
 
-  // Eliminar usuario
+  // Borrar usuario con confirm
   const handleDelete = async (userId: string) => {
+    const userConfirmed = await confirm({
+      title: "Eliminar usuario",
+      message: "¿Estás seguro de eliminar este usuario?",
+      confirmText: "Sí, eliminar",
+      cancelText: "Cancelar",
+    });
+    if (!userConfirmed) return;
+
     const { error } = await supabase.from("usuarios").delete().eq("id", userId);
     if (error) {
-      console.error("Error al eliminar usuario:", error.message || error);
+      console.error("Error al eliminar usuario:", error.message);
       return;
     }
+
+    // Saca del estado
+    const deletedUser = users.find((u) => u.id === userId);
     setUsers((prev) => prev.filter((u) => u.id !== userId));
+
+    if (deletedUser) {
+      setSuccessMessage(`Usuario ${deletedUser.email} eliminado con éxito.`);
+    }
   };
 
-  // -- Lógica del modal: abrir, cerrar, etc.
+  // Abrir/cerrar modal crear
   const handleOpenModal = () => {
-    // Reseteamos el estado de newUser y errors
     setNewUser({ email: "", password: "", role_id: "", name: "" });
     setErrors([]);
     setIsModalOpen(true);
@@ -166,73 +226,73 @@ export default function UserManagementPage() {
     setIsModalOpen(false);
   };
 
+  // Inputs del modal
   const handleNewUserChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    setNewUser((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
+    setNewUser((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  // Crear usuario en DB (insert)
+  // Crear usuario (con validaciones ya agregadas en tu “handleSaveNewUser”)
+  // Aquí un ejemplo simple; personaliza según tus validaciones
   const handleSaveNewUser = async () => {
     setErrors([]);
     const tempErrors: string[] = [];
 
-    // Validaciones mínimas
-    if (!newUser.email) tempErrors.push("El correo es obligatorio.");
-    if (!newUser.name) tempErrors.push("El nombre es obligatorio.");
-    if (!newUser.password) tempErrors.push("La contraseña es obligatoria.");
-    if (!newUser.role_id) tempErrors.push("Selecciona un rol.");
+    // Validaciones rápidas
+    if (!newUser.email.trim()) tempErrors.push("El correo es obligatorio.");
+    if (!newUser.password.trim()) tempErrors.push("La contraseña es obligatoria.");
+    if (!newUser.role_id.trim()) tempErrors.push("Selecciona un rol.");
+    if (!newUser.name.trim()) tempErrors.push("El nombre es obligatorio.");
 
     if (tempErrors.length > 0) {
       setErrors(tempErrors);
       return;
     }
 
-    // Insertar en DB => Ajustar nombres de columnas
-    // OJO: tu tabla de 'usuarios' tiene "nombre" (NOT NULL), "correo", "contrasena", "rol_id", ...
+    // Insert en BD
     const { error } = await supabase
       .from("usuarios")
       .insert([
         {
-          // Campos en la BD
-          correo: newUser.email,    
-          nombre: newUser.name,     // Aquí enviamos 'nombre', que es NOT NULL
-          contraseña: newUser.password, 
-          rol_id: newUser.role_id, 
+          correo: newUser.email,
+          nombre: newUser.name,
+          contraseña: newUser.password,
+          rol_id: newUser.role_id,
         },
       ]);
 
     if (error) {
-      console.error("Error al crear usuario:", error.message || error);
+      console.error("Error al crear usuario:", error.message);
       setErrors([`Hubo un error al crear el usuario: ${error.message}`]);
       return;
     }
 
-    // Si todo ok, cierra modal y refresca
     setIsModalOpen(false);
 
-    // Recargar la lista de usuarios
+    // Refrescamos
     const { data: usuariosData } = await supabase
       .from("usuarios")
-      .select("id, correo, rol_id");
-
+      .select("id, correo, nombre, rol_id");
     if (usuariosData) {
       setUsers(
         usuariosData.map((u) => ({
           id: u.id,
           email: u.correo,
+          name: u.nombre,
           role_id: u.rol_id,
         }))
       );
     }
+
+    // Mensaje de éxito
+    setSuccessMessage(`Usuario ${newUser.email} creado con éxito.`);
   };
 
+  // ==================== RENDER ====================
   return (
     <div className="p-6">
-      {/* Encabezado */}
+      {/* ENCABEZADO */}
       <div className="flex justify-between mb-4">
         <Button variant="outline" onClick={() => router.push("/admin")}>
           <ChevronLeft className="mr-2 h-5 w-5" />
@@ -247,10 +307,22 @@ export default function UserManagementPage() {
         </Button>
       </div>
 
-      {/* Filtro por rol */}
-      <div className="mb-4">
-        <div className="flex items-center gap-4 mb-2">
-          <span className="font-medium">Filtrar por:</span>
+      {/* MENSAJE DE ÉXITO */}
+      {successMessage && (
+        <div className="mb-4 p-3 border border-green-500 bg-green-50 text-green-800 rounded">
+          <div className="flex items-center justify-between">
+            <span>{successMessage}</span>
+            <Button variant="outline" size="sm" onClick={() => setSuccessMessage("")}>
+              Cerrar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* FILTROS: ROL y BUSCADOR (correo/nombre) */}
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="flex items-center gap-4">
+          <span className="font-medium">Filtrar por Rol:</span>
           <Select onValueChange={setSelectedRole} defaultValue="Todos">
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Todos los usuarios" />
@@ -265,13 +337,29 @@ export default function UserManagementPage() {
             </SelectContent>
           </Select>
         </div>
+
+        {/* Buscar por correo o nombre */}
+        <div className="flex items-center gap-2">
+          <Label htmlFor="searchTerm" className="font-medium">
+            Buscar:
+          </Label>
+          <input
+            id="searchTerm"
+            type="text"
+            placeholder="Correo o nombre..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border rounded px-2 py-1 w-[200px]"
+          />
+        </div>
       </div>
 
-      {/* Tabla de usuarios */}
+      {/* TABLA DE USUARIOS */}
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Correo</TableHead>
+            <TableHead>Nombre</TableHead>
             <TableHead>Rol</TableHead>
             <TableHead>Acciones</TableHead>
           </TableRow>
@@ -281,8 +369,8 @@ export default function UserManagementPage() {
             currentUsers.map((user) => (
               <TableRow key={user.id}>
                 <TableCell>{user.email}</TableCell>
+                <TableCell>{user.name}</TableCell>
                 <TableCell>
-                  {/* Select para cambiar rol en vivo */}
                   <Select
                     defaultValue={rolesMap[user.role_id] || "Desconocido"}
                     onValueChange={(val) => handleRoleChange(user.id, val)}
@@ -300,10 +388,7 @@ export default function UserManagementPage() {
                   </Select>
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleDelete(user.id)}
-                  >
+                  <Button variant="destructive" onClick={() => handleDelete(user.id)}>
                     Eliminar
                   </Button>
                 </TableCell>
@@ -311,7 +396,7 @@ export default function UserManagementPage() {
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={3} className="text-center py-4">
+              <TableCell colSpan={4} className="text-center py-4">
                 No se encontraron usuarios.
               </TableCell>
             </TableRow>
@@ -319,7 +404,7 @@ export default function UserManagementPage() {
         </TableBody>
       </Table>
 
-      {/* Paginación */}
+      {/* PAGINACIÓN */}
       {totalPages > 1 && (
         <div className="flex justify-center mt-4 gap-2">
           <Button
@@ -330,9 +415,10 @@ export default function UserManagementPage() {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
+
           {[...Array(totalPages)].map((_, i) => (
             <Button
-              key={i}
+              key={i + 1}
               variant={currentPage === i + 1 ? "default" : "outline"}
               className={
                 currentPage === i + 1
@@ -344,6 +430,7 @@ export default function UserManagementPage() {
               {i + 1}
             </Button>
           ))}
+
           <Button
             variant="default"
             disabled={currentPage === totalPages}
