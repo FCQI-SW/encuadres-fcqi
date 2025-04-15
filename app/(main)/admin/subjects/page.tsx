@@ -32,9 +32,10 @@ import { supabase } from "@/lib/supabase";
 import { AddSubjectModal } from "./add-subject-modal";
 import { EditSubjectModal } from "./edit-subject-modal";
 
-// IMPORTA useConfirm
+// Importa useConfirm del ConfirmProvider global
 import { useConfirm } from "@/components/global-confirm-modal";
 
+// Tipos posibles para Materia
 export type Materia = {
   clave: string;
   nombre_materia: string;
@@ -70,12 +71,12 @@ export default function Page() {
   });
   const [errors, setErrors] = useState<string[]>([]);
 
-  // == MODAL DE "EDITAR MATERIA" (si ya lo tienes) ==
+  // == MODAL DE "EDITAR MATERIA" ==
   const [showEditForm, setShowEditForm] = useState(false);
   const [editMateria, setEditMateria] = useState<Materia | null>(null);
   const [editErrors, setEditErrors] = useState<string[]>([]);
 
-  // (1) OBTENER DATOS
+  // 1) Obtener datos de Supabase
   const fetchMaterias = async () => {
     const { data: materias, error } = await supabase
       .from("materias")
@@ -95,7 +96,7 @@ export default function Page() {
     fetchMaterias();
   }, []);
 
-  // (2) FILTRAR
+  // 2) Filtrar
   useEffect(() => {
     let temp = [...data];
     if (selectedLic !== "all") {
@@ -112,12 +113,13 @@ export default function Page() {
 
   const licenciaturas = Array.from(new Set(data.map((item) => item.licenciatura)));
 
-  // (3) TOGGLE ESTADO
+  // 3) Toggle Estado
   async function toggleEstado(clave: string) {
     const materiaActual = data.find((d) => d.clave === clave);
     if (!materiaActual) return;
 
-    const nuevoEstado = materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
+    const nuevoEstado =
+      materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
     const { error } = await supabase
       .from("materias")
       .update({ estado: nuevoEstado })
@@ -135,24 +137,19 @@ export default function Page() {
     );
   }
 
-  // (A) OBTÉN LA FUNCIÓN confirm DESDE useConfirm
+  // === useConfirm para eliminar con modal global ===
   const confirm = useConfirm();
 
-  // (B) ELIMINAR USANDO el modal global
   async function handleDelete(clave: string) {
-    // Llamar confirm() y esperar la respuesta
     const userConfirmed = await confirm({
       title: "Eliminar materia",
-      message: "¿Deseas eliminar esta materia? Esta acción no se puede revertir.",
+      message:
+        "¿Estás seguro de eliminar esta materia? Esta acción no se puede revertir.",
       confirmText: "Sí, eliminar",
       cancelText: "Cancelar",
     });
-    if (!userConfirmed) {
-      // Usuario presionó "Cancelar"
-      return;
-    }
+    if (!userConfirmed) return;
 
-    // Ahora eliminas en Supabase
     const { error } = await supabase
       .from("materias")
       .delete()
@@ -166,7 +163,7 @@ export default function Page() {
     setData((prev) => prev.filter((item) => item.clave !== clave));
   }
 
-  // (4) AGREGAR
+  // -- ABRIR MODAL Y LIMPIAR FORM (AGREGAR) --
   const handleShowForm = () => {
     setNewMateria({
       clave: "",
@@ -179,45 +176,156 @@ export default function Page() {
     setErrors([]);
     setShowForm(true);
   };
+
   const handleCloseForm = () => {
     setShowForm(false);
   };
 
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function handleInputChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) {
     const { name, value } = e.target;
     setNewMateria((prev) => ({ ...prev, [name]: value as Materia[keyof Materia] }));
   }
 
+  // 4) Guardar Materia con validaciones (se mantienen las validaciones anteriores)
   async function handleSaveMateria() {
-    // ... validaciones e insert ...
+    // Validación asíncrona: verificar que la clave no exista
+    const { error: checkError, data: existing } = await supabase
+      .from("materias")
+      .select("clave")
+      .eq("clave", newMateria.clave);
+
+    if (checkError) {
+      setErrors(["Error consultando la BD para verificar la clave repetida."]);
+      return;
+    }
+
+    if (existing && existing.length > 0) {
+      setErrors(["La clave ya existe en la base de datos."]);
+      return;
+    }
+
+    console.log("Insertando materia:", newMateria);
+    const { error } = await supabase.from("materias").insert([newMateria]);
+    if (error) {
+      console.error("Error al agregar materia:", error.message || error);
+      setErrors([`Error de BD: ${error.message}`]);
+      return;
+    }
+
     setShowForm(false);
     await fetchMaterias();
   }
 
-  // (OPCIONAL) LÓGICA PARA EDITAR
+  // Función de validaciones sincrónicas (como en tu código original)
+  function validateMateria(materia: Materia): string[] {
+    const errs: string[] = [];
+
+    // === Clave ===
+    if (!materia.clave.trim()) {
+      errs.push("La clave es obligatoria");
+    } else if (materia.clave.length > 10) {
+      errs.push("La clave no debe exceder 10 caracteres");
+    } else if (!/^[A-Za-z0-9-_]+$/.test(materia.clave)) {
+      errs.push("La clave solo puede contener letras, números y guiones (o guion bajo)");
+    }
+
+    // === Nombre ===
+    if (!materia.nombre_materia.trim()) {
+      errs.push("El nombre de la materia es obligatorio");
+    } else if (materia.nombre_materia.length > 100) {
+      errs.push("El nombre de la materia no puede exceder 100 caracteres");
+    }
+
+    // === Licenciatura ===
+    if (!materia.licenciatura.trim()) {
+      errs.push("Debe seleccionar una licenciatura");
+    } else {
+      const licOptions = [
+        "Tronco Común (Área de Ingeniería)",
+        "Tronco Común (Área de Ciencias Químicas)",
+        "Ing. en Computación",
+        "Ing. en Software y Tecnologías Emergentes",
+        "Ing. en Electrónica",
+        "Ing. Industrial",
+        "Ing. Químico",
+        "Químico Industrial",
+        "Químico Farmacobiólogo",
+        "Químico Farmacéutico Biológico",
+      ];
+      if (!licOptions.includes(materia.licenciatura)) {
+        errs.push("La licenciatura seleccionada no es válida");
+      }
+    }
+
+    // === Categoría ===
+    if (!["Basica", "Disciplinaria", "Terminal"].includes(materia.categoria)) {
+      errs.push("La categoría no es válida");
+    }
+
+    // === Requisito ===
+    if (!["obligatoria", "optativa"].includes(materia.requisito)) {
+      errs.push("El requisito debe ser 'obligatoria' u 'optativa'");
+    }
+
+    // === Estado ===
+    if (!["Activa", "Inactiva"].includes(materia.estado)) {
+      errs.push("Estado inválido, debe ser 'Activa' o 'Inactiva'");
+    }
+
+    return errs;
+  }
+
+  // ================================
+  // LÓGICA PARA EDITAR MATERIA
+  // ================================
   const handleEdit = (materia: Materia) => {
     setEditMateria(materia);
     setEditErrors([]);
     setShowEditForm(true);
   };
+
   const handleCloseEditForm = () => {
     setShowEditForm(false);
   };
-  function handleEditInputChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+
+  function handleEditInputChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) {
     if (!editMateria) return;
     const { name, value } = e.target;
     setEditMateria((prev) =>
       prev ? { ...prev, [name]: value as Materia[keyof Materia] } : null
     );
   }
+
   async function handleUpdateMateria() {
     if (!editMateria) return;
-    // ... update supabase ...
+
+    const { error } = await supabase
+      .from("materias")
+      .update({
+        nombre_materia: editMateria.nombre_materia,
+        licenciatura: editMateria.licenciatura,
+        categoria: editMateria.categoria,
+        requisito: editMateria.requisito,
+        estado: editMateria.estado,
+      })
+      .eq("clave", editMateria.clave);
+
+    if (error) {
+      console.error("Error al actualizar materia:", error);
+      setEditErrors([`Error de BD: ${error.message}`]);
+      return;
+    }
+
     setShowEditForm(false);
     await fetchMaterias();
   }
 
-  // (5) PAGINACIÓN
+  // ================================
+  // 5) Paginación
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
@@ -322,7 +430,7 @@ export default function Page() {
                           <Edit className="w-4 h-4" />
                         </Button>
 
-                        {/* BOTÓN ELIMINAR (usa handleDelete con useConfirm) */}
+                        {/* BOTÓN ELIMINAR con useConfirm */}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -409,7 +517,7 @@ export default function Page() {
         errors={errors}
       />
 
-      {/* MODAL EDITAR (opcional) */}
+      {/* MODAL EDITAR */}
       <EditSubjectModal
         isOpen={showEditForm}
         editMateria={

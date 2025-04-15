@@ -26,21 +26,16 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      console.log("Intentando iniciar sesión con:", { email });
-
       const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
       });
 
-      console.log("Resultado de inicio de sesión:", result);
-
       if (result?.error) {
         setError("Credenciales inválidas. Por favor intente de nuevo.");
         console.error("Error de inicio de sesión:", result.error);
       } else if (result?.ok) {
-        console.log("Inicio de sesión exitoso, redirigiendo...");
         router.push("/admin");
       }
     } catch (error) {
