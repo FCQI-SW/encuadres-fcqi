@@ -44,7 +44,8 @@ function Encuadres() {
             // Trae usuarios (including nombre)
             const { data: materiasData, error: materiasError } = await supabase
                 .from("materias")
-                .select("id, clave, nombre_materia, estado");
+                .select("id, clave, nombre_materia, estado")
+                .eq("estado", "Activa");
 
             if (materiasError) {
                 console.error("Error al obtener materias:", {
