@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
@@ -9,10 +9,10 @@ interface Role {
 }
 
 interface NewUser {
-  email: string;    // Para "correo" en DB
-  password: string; // Para "contrasena" en DB
-  role_id: string;  // UUID del rol
-  name: string;     // Para "nombre" en DB
+  email: string;    
+  password: string; 
+  role_id: string;  
+  name: string;     
 }
 
 interface AddUserModalProps {
@@ -22,9 +22,12 @@ interface AddUserModalProps {
   onInputChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => void;
-  onSave: () => void;
-  errors: string[];
+  onSave: () => void;         // Crear un usuario individual
+  errors: string[];           // Errores a mostrar en este modal
   roles: Role[];
+
+  // Función para manejar la importación desde Excel
+  onImportFromExcel?: (file: File) => void;
 }
 
 export function AddUserModal({
@@ -35,8 +38,28 @@ export function AddUserModal({
   onSave,
   errors,
   roles,
+  onImportFromExcel,
 }: AddUserModalProps) {
+
+  // Referencia al <input type="file"> para Excel
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   if (!isOpen) return null;
+
+  // Cuando el usuario selecciona el archivo .xlsx / .xls
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    if (onImportFromExcel) {
+      onImportFromExcel(file);
+    }
+    e.target.value = ""; // para permitir re-seleccionar el mismo archivo si se desea
+  }
+
+  // Al presionar el botón, abrimos el diálogo de archivos
+  function handleExcelButtonClick() {
+    fileInputRef.current?.click();
+  }
 
   return (
     <div
@@ -49,7 +72,7 @@ export function AddUserModal({
       <div className="bg-white p-6 rounded shadow-md w-[400px]">
         <h2 className="text-xl font-bold mb-4">Agregar Usuario</h2>
 
-        {/* Lista de errores (si los hay) */}
+        {/* LISTA DE ERRORES (VISIBLES SÓLO EN EL MODAL) */}
         {errors.length > 0 && (
           <div className="mb-4 border border-red-300 bg-red-50 text-red-700 p-2 rounded">
             <ul className="list-disc ml-5">
@@ -60,7 +83,7 @@ export function AddUserModal({
           </div>
         )}
 
-        {/* Campo Email */}
+        {/* CAMPOS PARA CREAR UN USUARIO INDIVIDUAL */}
         <Label className="mb-1">Correo electrónico</Label>
         <input
           name="email"
@@ -70,7 +93,6 @@ export function AddUserModal({
           onChange={onInputChange}
         />
 
-        {/* Campo Nombre (para la columna nombre en DB) */}
         <Label className="mb-1">Nombre</Label>
         <input
           name="name"
@@ -80,7 +102,6 @@ export function AddUserModal({
           onChange={onInputChange}
         />
 
-        {/* Campo Password => se guardará en 'contrasena' en la BD */}
         <Label className="mb-1">Contraseña</Label>
         <input
           name="password"
@@ -90,7 +111,6 @@ export function AddUserModal({
           onChange={onInputChange}
         />
 
-        {/* Select para el Rol (ID => uuid) */}
         <Label className="mb-1">Rol</Label>
         <select
           name="role_id"
@@ -106,18 +126,39 @@ export function AddUserModal({
           ))}
         </select>
 
-        {/* Botones */}
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            variant="default"
-            className="bg-[#00723F] text-white hover:bg-[#005e30]"
-            onClick={onSave}
-          >
-            Guardar
-          </Button>
+        {/* BOTONES */}
+        <div className="flex flex-col gap-2">
+          <div className="flex justify-between">
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              variant="default"
+              className="bg-[#00723F] text-white hover:bg-[#005e30]"
+              onClick={onSave}
+            >
+              Guardar
+            </Button>
+          </div>
+
+          {/* SECCIÓN PARA CARGAR USUARIOS DESDE EXCEL */}
+          <div className="border-t mt-4 pt-4">
+            <Label className="mb-1 block">Agregar usuarios desde Excel:</Label>
+            {/* Input oculto */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx, .xls"
+              style={{ display: "none" }}
+              onChange={handleFileChange}
+            />
+            <Button variant="outline" onClick={handleExcelButtonClick}>
+              Cargar usuarios desde Excel
+            </Button>
+            <p className="text-sm text-gray-500 mt-1">
+              Selecciona un archivo .xlsx o .xls para importar múltiples usuarios.
+            </p>
+          </div>
         </div>
       </div>
     </div>

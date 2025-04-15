@@ -22,13 +22,16 @@ import { Label } from "@/components/ui/label";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
+// Para parsear Excel
+import * as XLSX from "xlsx";
+
 // Hook para confirmación de borrado
 import { useConfirm } from "@/components/global-confirm-modal";
 import { AddUserModal } from "./add-user";
 
 // Tipos para usuarios, roles, etc.
 type User = {
-  id: string;      // PK en tu tabla 'usuarios' (uuid o int)
+  id: string;
   email: string;   // 'correo' en DB
   name: string;    // 'nombre' en DB
   role_id: string; // 'rol_id' en DB
@@ -62,7 +65,7 @@ export default function UserManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 5;
 
-  // Modal crear usuario
+  // Modal de crear usuario
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newUser, setNewUser] = useState<NewUser>({
     email: "",
@@ -70,19 +73,20 @@ export default function UserManagementPage() {
     role_id: "",
     name: "",
   });
+
+  // Errores (se mostrarán en el modal)
   const [errors, setErrors] = useState<string[]>([]);
 
-  // Mensaje de éxito (crear/eliminar) con autodescarga
+  // Mensaje de éxito (se muestra en la página)
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Confirm hook para borrar
+  // Confirm hook
   const confirm = useConfirm();
 
-  // ==================== EFECTOS ====================
-  // 1) Cargar usuarios y roles
+  // 1) Cargar usuarios/roles al inicio
   useEffect(() => {
     const fetchData = async () => {
-      // Trae usuarios (including nombre)
+      // Trae usuarios
       const { data: usuariosData, error: usuariosError } = await supabase
         .from("usuarios")
         .select("id, correo, nombre, rol_id");
@@ -117,11 +121,10 @@ export default function UserManagementPage() {
       setRoles(rolesData || []);
       setRolesMap(rolMap);
     };
-
     fetchData();
   }, []);
 
-  // 2) Quitar mensaje de éxito a los 7 seg
+  // 2) Ocultar successMessage a los 7s
   useEffect(() => {
     if (successMessage) {
       const timer = setTimeout(() => setSuccessMessage(""), 7000);
@@ -130,14 +133,14 @@ export default function UserManagementPage() {
   }, [successMessage]);
 
   // ==================== FILTRO DE USUARIOS ====================
-  // Filtrar por rol y por searchTerm (correo o nombre)
   const filteredUsers = users.filter((user) => {
+    // Filtrar por rol
     const matchesRole =
       selectedRole === "Todos"
         ? true
         : rolesMap[user.role_id] === selectedRole;
 
-    // Filtramos por searchTerm en email o name (case-insensitive)
+    // Filtrar por searchTerm en email o name
     const st = searchTerm.toLowerCase();
     const matchesSearch =
       user.email.toLowerCase().includes(st) ||
@@ -146,29 +149,25 @@ export default function UserManagementPage() {
     return matchesRole && matchesSearch;
   });
 
-  // ==================== PAGINACIÓN DINÁMICA ====================
-  // Calcula total de páginas
+  // ==================== PAGINACIÓN ====================
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
 
-  // Si se borró un usuario y la página actual quedó vacía,
-  // ajustamos la currentPage a la última con contenido (o 1 si totalPages=0)
+  // Ajustar la página actual si se quedó sin elementos
   useEffect(() => {
     if (totalPages > 0 && currentPage > totalPages) {
       setCurrentPage(totalPages);
     } else if (totalPages === 0) {
-      // No hay usuarios filtrados => forzamos a la página 1 
-      // (aunque no haya paginación en pantalla, evita “quedarse” en 2)
       setCurrentPage(1);
     }
   }, [totalPages, currentPage]);
 
-  // Indices y slice para la página actual
   const indexOfLastUser = currentPage * usersPerPage;
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
 
   // ==================== HANDLERS ====================
-  // Cambiar rol de un usuario
+
+  // Cambiar rol
   const handleRoleChange = async (userId: string, newRoleName: string) => {
     const newRole = roles.find((r) => r.nombre === newRoleName);
     if (!newRole) return;
@@ -183,6 +182,7 @@ export default function UserManagementPage() {
       return;
     }
 
+    // Actualiza estado local
     setUsers((prev) =>
       prev.map((user) =>
         user.id === userId ? { ...user, role_id: newRole.id } : user
@@ -190,7 +190,7 @@ export default function UserManagementPage() {
     );
   };
 
-  // Borrar usuario con confirm
+  // Eliminar usuario
   const handleDelete = async (userId: string) => {
     const userConfirmed = await confirm({
       title: "Eliminar usuario",
@@ -206,7 +206,7 @@ export default function UserManagementPage() {
       return;
     }
 
-    // Saca del estado
+    // Remueve del estado
     const deletedUser = users.find((u) => u.id === userId);
     setUsers((prev) => prev.filter((u) => u.id !== userId));
 
@@ -215,42 +215,43 @@ export default function UserManagementPage() {
     }
   };
 
-  // Abrir/cerrar modal crear
+  // Mostrar modal
   const handleOpenModal = () => {
     setNewUser({ email: "", password: "", role_id: "", name: "" });
-    setErrors([]);
+    setErrors([]); 
     setIsModalOpen(true);
   };
 
+  // Cerrar modal
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setErrors([]); // Limpia los errores al cerrar
   };
 
-  // Inputs del modal
+  // Manejo de inputs del modal
   const handleNewUserChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     setNewUser((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  // Crear usuario (con validaciones ya agregadas en tu “handleSaveNewUser”)
-  // Aquí un ejemplo simple; personaliza según tus validaciones
+  // Crear usuario individual
   const handleSaveNewUser = async () => {
     setErrors([]);
     const tempErrors: string[] = [];
 
-    // Validaciones rápidas
+    // Validaciones mínimas
     if (!newUser.email.trim()) tempErrors.push("El correo es obligatorio.");
+    if (!newUser.name.trim()) tempErrors.push("El nombre es obligatorio.");
     if (!newUser.password.trim()) tempErrors.push("La contraseña es obligatoria.");
     if (!newUser.role_id.trim()) tempErrors.push("Selecciona un rol.");
-    if (!newUser.name.trim()) tempErrors.push("El nombre es obligatorio.");
 
     if (tempErrors.length > 0) {
       setErrors(tempErrors);
-      return;
+      return; // No cierra el modal
     }
 
-    // Insert en BD
+    // Insertar en Supabase
     const { error } = await supabase
       .from("usuarios")
       .insert([
@@ -265,12 +266,15 @@ export default function UserManagementPage() {
     if (error) {
       console.error("Error al crear usuario:", error.message);
       setErrors([`Hubo un error al crear el usuario: ${error.message}`]);
-      return;
+      return; // No cierra el modal
     }
 
+    // Éxito => cierra el modal
     setIsModalOpen(false);
+    setErrors([]);
+    setSuccessMessage(`Usuario ${newUser.email} creado con éxito.`);
 
-    // Refrescamos
+    // Refrescar la lista
     const { data: usuariosData } = await supabase
       .from("usuarios")
       .select("id, correo, nombre, rol_id");
@@ -284,12 +288,60 @@ export default function UserManagementPage() {
         }))
       );
     }
-
-    // Mensaje de éxito
-    setSuccessMessage(`Usuario ${newUser.email} creado con éxito.`);
   };
 
-  // ==================== RENDER ====================
+  // Importar desde Excel
+  async function handleImportFromExcel(file: File) {
+    try {
+      setErrors([]);
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      // Asumimos la primera fila es encabezado => data en la fila 2 en adelante
+      const rows = jsonData.slice(1); 
+      // Mapeo a objetos
+      const bulkUsers = rows.map((row: any) => ({
+        correo: row[0] || "",
+        nombre: row[1] || "",
+        contraseña: row[2] || "",
+        rol_id: row[3] || "",
+      }));
+
+      const { error } = await supabase.from("usuarios").insert(bulkUsers);
+      if (error) {
+        console.error("Error al importar Excel:", error);
+        setErrors([`Hubo un error al importar usuarios.`]); //: ${error.message}
+        return; // No cierra el modal
+      }
+
+      // Si no hubo error => cierra modal
+      setIsModalOpen(false);
+      setErrors([]);
+      setSuccessMessage(`Se importaron ${bulkUsers.length} usuarios correctamente.`);
+
+      // Refrescar la lista
+      const { data: usuariosData } = await supabase
+        .from("usuarios")
+        .select("id, correo, nombre, rol_id");
+      if (usuariosData) {
+        setUsers(
+          usuariosData.map((u) => ({
+            id: u.id,
+            email: u.correo,
+            name: u.nombre,
+            role_id: u.rol_id,
+          }))
+        );
+      }
+    } catch (err: any) {
+      console.error("Error leyendo Excel:", err);
+      setErrors(["Error leyendo el archivo Excel."]);
+    }
+  }
+
   return (
     <div className="p-6">
       {/* ENCABEZADO */}
@@ -338,7 +390,6 @@ export default function UserManagementPage() {
           </Select>
         </div>
 
-        {/* Buscar por correo o nombre */}
         <div className="flex items-center gap-2">
           <Label htmlFor="searchTerm" className="font-medium">
             Buscar:
@@ -356,53 +407,53 @@ export default function UserManagementPage() {
 
       {/* TABLA DE USUARIOS */}
       <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Correo</TableHead>
-            <TableHead>Nombre</TableHead>
-            <TableHead>Rol</TableHead>
-            <TableHead>Acciones</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {currentUsers.length > 0 ? (
-            currentUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.name}</TableCell>
-                <TableCell>
-                  <Select
-                    defaultValue={rolesMap[user.role_id] || "Desconocido"}
-                    onValueChange={(val) => handleRoleChange(user.id, val)}
-                  >
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Seleccionar rol" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roles.map((rol) => (
-                        <SelectItem key={rol.id} value={rol.nombre}>
-                          {rol.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <Button variant="destructive" onClick={() => handleDelete(user.id)}>
-                    Eliminar
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={4} className="text-center py-4">
-                No se encontraron usuarios.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Correo</TableHead>
+      <TableHead>Nombre</TableHead>
+      <TableHead>Rol</TableHead>
+      <TableHead>Acciones</TableHead>
+    </TableRow>
+  </TableHeader>
+
+  <TableBody>
+    {currentUsers.map((user) => (
+      <TableRow key={user.id}>
+        {/* COLUMNA CORREO */}
+        <TableCell>{user.email}</TableCell>
+
+        {/* COLUMNA NOMBRE */}
+        <TableCell>{user.name}</TableCell>
+
+        {/* COLUMNA ROL (con Select para cambiar) */}
+        <TableCell>
+          <Select
+            defaultValue={rolesMap[user.role_id] || "Desconocido"}
+            onValueChange={(val) => handleRoleChange(user.id, val)}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Seleccionar rol" />
+            </SelectTrigger>
+            <SelectContent>
+              {roles.map((rol) => (
+                <SelectItem key={rol.id} value={rol.nombre}>
+                  {rol.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </TableCell>
+
+        {/* COLUMNA ACCIONES */}
+        <TableCell>
+          <Button variant="destructive" onClick={() => handleDelete(user.id)}>
+            Eliminar
+          </Button>
+        </TableCell>
+      </TableRow>
+    ))}
+  </TableBody>
+</Table>
 
       {/* PAGINACIÓN */}
       {totalPages > 1 && (
@@ -415,7 +466,6 @@ export default function UserManagementPage() {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-
           {[...Array(totalPages)].map((_, i) => (
             <Button
               key={i + 1}
@@ -430,7 +480,6 @@ export default function UserManagementPage() {
               {i + 1}
             </Button>
           ))}
-
           <Button
             variant="default"
             disabled={currentPage === totalPages}
@@ -451,6 +500,7 @@ export default function UserManagementPage() {
         onSave={handleSaveNewUser}
         errors={errors}
         roles={roles}
+        onImportFromExcel={handleImportFromExcel}
       />
     </div>
   );

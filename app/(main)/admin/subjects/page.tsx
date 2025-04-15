@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -19,23 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Edit,
-  Trash2,
-  ToggleRight,
-  ToggleLeft,
-} from "lucide-react";
-
+import { ChevronLeft, ChevronRight, Edit, Trash2, ToggleRight, ToggleLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import * as XLSX from "xlsx";
+
+import { useConfirm } from "@/components/global-confirm-modal";
 import { AddSubjectModal } from "./add-subject-modal";
 import { EditSubjectModal } from "./edit-subject-modal";
 
-// Importa useConfirm del ConfirmProvider global
-import { useConfirm } from "@/components/global-confirm-modal";
-
-// Tipos posibles para Materia
 export type Materia = {
   clave: string;
   nombre_materia: string;
@@ -48,10 +39,11 @@ export type Materia = {
 export default function Page() {
   const router = useRouter();
 
+  // ==================== ESTADOS ====================
   const [data, setData] = useState<Materia[]>([]);
   const [filteredData, setFilteredData] = useState<Materia[]>([]);
 
-  // Filtros
+  // Filtros: por licenciatura y búsqueda (clave o nombre)
   const [selectedLic, setSelectedLic] = useState("all");
   const [claveFilter, setClaveFilter] = useState("");
 
@@ -59,7 +51,7 @@ export default function Page() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // == MODAL DE "AGREGAR MATERIA" ==
+  // Modal para agregar materia
   const [showForm, setShowForm] = useState(false);
   const [newMateria, setNewMateria] = useState<Materia>({
     clave: "",
@@ -71,17 +63,22 @@ export default function Page() {
   });
   const [errors, setErrors] = useState<string[]>([]);
 
-  // == MODAL DE "EDITAR MATERIA" ==
+  // Modal para editar materia
   const [showEditForm, setShowEditForm] = useState(false);
   const [editMateria, setEditMateria] = useState<Materia | null>(null);
   const [editErrors, setEditErrors] = useState<string[]>([]);
 
-  // 1) Obtener datos de Supabase
+  // Mensaje de éxito
+  const [successMessage, setSuccessMessage] = useState("");
+
+  // Hook de confirmación para borrar
+  const confirm = useConfirm();
+
+  // ==================== CARGAR DATOS ====================
   const fetchMaterias = async () => {
     const { data: materias, error } = await supabase
       .from("materias")
       .select("clave, nombre_materia, licenciatura, categoria, requisito, estado");
-
     if (error) {
       console.error("Error al obtener materias:", error);
       return;
@@ -96,15 +93,18 @@ export default function Page() {
     fetchMaterias();
   }, []);
 
-  // 2) Filtrar
+  // ==================== FILTRADO ====================
   useEffect(() => {
     let temp = [...data];
     if (selectedLic !== "all") {
       temp = temp.filter((item) => item.licenciatura === selectedLic);
     }
     if (claveFilter.trim() !== "") {
-      temp = temp.filter((item) =>
-        item.clave.toLowerCase().includes(claveFilter.toLowerCase())
+      const search = claveFilter.toLowerCase();
+      temp = temp.filter(
+        (item) =>
+          item.clave.toLowerCase().includes(search) ||
+          item.nombre_materia.toLowerCase().includes(search)
       );
     }
     setFilteredData(temp);
@@ -113,23 +113,19 @@ export default function Page() {
 
   const licenciaturas = Array.from(new Set(data.map((item) => item.licenciatura)));
 
-  // 3) Toggle Estado
+  // ==================== TOGGLE ESTADO ====================
   async function toggleEstado(clave: string) {
     const materiaActual = data.find((d) => d.clave === clave);
     if (!materiaActual) return;
-
-    const nuevoEstado =
-      materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
+    const nuevoEstado = materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
     const { error } = await supabase
       .from("materias")
       .update({ estado: nuevoEstado })
       .eq("clave", clave);
-
     if (error) {
-      console.error("Error al actualizar estado:", error);
+      console.error("Error al actualizar estado:", error.message);
       return;
     }
-
     setData((prev) =>
       prev.map((item) =>
         item.clave === clave ? { ...item, estado: nuevoEstado } : item
@@ -137,33 +133,84 @@ export default function Page() {
     );
   }
 
-  // === useConfirm para eliminar con modal global ===
-  const confirm = useConfirm();
-
+  // ==================== ELIMINAR MATERIA ====================
   async function handleDelete(clave: string) {
-    const userConfirmed = await confirm({
+    const confirmed = await confirm({
       title: "Eliminar materia",
-      message:
-        "¿Estás seguro de eliminar esta materia? Esta acción no se puede revertir.",
+      message: "¿Estás seguro de eliminar esta materia? Esta acción no se puede revertir.",
       confirmText: "Sí, eliminar",
       cancelText: "Cancelar",
     });
-    if (!userConfirmed) return;
-
+    if (!confirmed) return;
     const { error } = await supabase
       .from("materias")
       .delete()
       .eq("clave", clave);
-
     if (error) {
-      console.error("Error al eliminar materia:", error);
+      console.error("Error al eliminar materia:", error.message);
       return;
     }
-
     setData((prev) => prev.filter((item) => item.clave !== clave));
+    setSuccessMessage(`Materia ${clave} eliminada con éxito.`);
   }
 
-  // -- ABRIR MODAL Y LIMPIAR FORM (AGREGAR) --
+  // ==================== EDITAR MATERIA ====================
+  const handleEdit = (materia: Materia) => {
+    setEditMateria(materia);
+    setEditErrors([]);
+    setShowEditForm(true);
+  };
+
+  const handleCloseEditForm = () => {
+    setShowEditForm(false);
+    setEditMateria(null);
+    setEditErrors([]);
+  };
+
+  function handleEditInputChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) {
+    if (!editMateria) return;
+    const { name, value } = e.target;
+    setEditMateria((prev) => (prev ? { ...prev, [name]: value } : null));
+  }
+
+  async function handleUpdateMateria() {
+    if (!editMateria) return;
+    const { error } = await supabase
+      .from("materias")
+      .update({
+        nombre_materia: editMateria.nombre_materia,
+        licenciatura: editMateria.licenciatura,
+        categoria: editMateria.categoria,
+        requisito: editMateria.requisito,
+        estado: editMateria.estado,
+      })
+      .eq("clave", editMateria.clave);
+    if (error) {
+      console.error("Error al actualizar materia:", error);
+      setEditErrors([`Error de BD: ${error.message}`]);
+      return;
+    }
+    setShowEditForm(false);
+    await fetchMaterias();
+  }
+
+  // ==================== PAGINACIÓN ====================
+  const totalPagesCalc = Math.ceil(filteredData.length / itemsPerPage);
+  useEffect(() => {
+    if (totalPagesCalc > 0 && currentPage > totalPagesCalc) {
+      setCurrentPage(totalPagesCalc);
+    } else if (totalPagesCalc === 0) {
+      setCurrentPage(1);
+    }
+  }, [totalPagesCalc, currentPage]);
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
+
+  // ==================== HANDLERS PARA MODAL AGREGAR ====================
   const handleShowForm = () => {
     setNewMateria({
       clave: "",
@@ -179,158 +226,92 @@ export default function Page() {
 
   const handleCloseForm = () => {
     setShowForm(false);
+    setErrors([]);
   };
 
   function handleInputChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) {
-    const { name, value } = e.target;
-    setNewMateria((prev) => ({ ...prev, [name]: value as Materia[keyof Materia] }));
+    setNewMateria((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
   }
 
-  // 4) Guardar Materia con validaciones (se mantienen las validaciones anteriores)
+  // Validaciones y creación de una materia individual
   async function handleSaveMateria() {
-    // Validación asíncrona: verificar que la clave no exista
-    const { error: checkError, data: existing } = await supabase
-      .from("materias")
-      .select("clave")
-      .eq("clave", newMateria.clave);
+    setErrors([]);
+    const tempErrors: string[] = [];
 
-    if (checkError) {
-      setErrors(["Error consultando la BD para verificar la clave repetida."]);
+    if (!newMateria.clave.trim())
+      tempErrors.push("La clave es obligatoria.");
+    if (!newMateria.nombre_materia.trim())
+      tempErrors.push("El nombre de la materia es obligatorio.");
+    if (!newMateria.licenciatura.trim())
+      tempErrors.push("Seleccione una licenciatura.");
+    // Puedes agregar más validaciones según necesidad
+
+    if (tempErrors.length > 0) {
+      setErrors(tempErrors);
       return;
     }
 
-    if (existing && existing.length > 0) {
-      setErrors(["La clave ya existe en la base de datos."]);
-      return;
-    }
-
-    console.log("Insertando materia:", newMateria);
     const { error } = await supabase.from("materias").insert([newMateria]);
     if (error) {
-      console.error("Error al agregar materia:", error.message || error);
+      console.error("Error al agregar materia:", error.message);
       setErrors([`Error de BD: ${error.message}`]);
       return;
     }
 
     setShowForm(false);
+    setErrors([]);
+    setSuccessMessage(`Materia ${newMateria.clave} agregada con éxito.`);
     await fetchMaterias();
   }
 
-  // Función de validaciones sincrónicas (como en tu código original)
-  function validateMateria(materia: Materia): string[] {
-    const errs: string[] = [];
+  // ==================== IMPORTAR DESDE EXCEL ====================
+  async function handleImportFromExcel(file: File) {
+    try {
+      setErrors([]);
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const rows = jsonData.slice(1);
+      // Se espera que el Excel tenga columnas: clave, nombre_materia, licenciatura, categoria, requisito, estado
+      const bulkMaterias = rows.map((row: any) => ({
+        clave: row[0] || "",
+        nombre_materia: row[1] || "",
+        licenciatura: row[2] || "",
+        categoria: row[3] || "Basica",
+        requisito: row[4] || "obligatoria",
+        estado: row[5] || "Activa",
+      }));
 
-    // === Clave ===
-    if (!materia.clave.trim()) {
-      errs.push("La clave es obligatoria");
-    } else if (materia.clave.length > 10) {
-      errs.push("La clave no debe exceder 10 caracteres");
-    } else if (!/^[A-Za-z0-9-_]+$/.test(materia.clave)) {
-      errs.push("La clave solo puede contener letras, números y guiones (o guion bajo)");
-    }
-
-    // === Nombre ===
-    if (!materia.nombre_materia.trim()) {
-      errs.push("El nombre de la materia es obligatorio");
-    } else if (materia.nombre_materia.length > 100) {
-      errs.push("El nombre de la materia no puede exceder 100 caracteres");
-    }
-
-    // === Licenciatura ===
-    if (!materia.licenciatura.trim()) {
-      errs.push("Debe seleccionar una licenciatura");
-    } else {
-      const licOptions = [
-        "Tronco Común (Área de Ingeniería)",
-        "Tronco Común (Área de Ciencias Químicas)",
-        "Ing. en Computación",
-        "Ing. en Software y Tecnologías Emergentes",
-        "Ing. en Electrónica",
-        "Ing. Industrial",
-        "Ing. Químico",
-        "Químico Industrial",
-        "Químico Farmacobiólogo",
-        "Químico Farmacéutico Biológico",
-      ];
-      if (!licOptions.includes(materia.licenciatura)) {
-        errs.push("La licenciatura seleccionada no es válida");
+      const { error } = await supabase.from("materias").insert(bulkMaterias);
+      if (error) {
+        console.error("Error al importar materias:"); //error
+        setErrors([`Error al importar materias`]); //: ${error.message}
+        return;
       }
+      setShowForm(false);
+      setErrors([]);
+      setSuccessMessage(`Se importaron ${bulkMaterias.length} materias correctamente.`);
+      const { data: materiasData } = await supabase
+        .from("materias")
+        .select("clave, nombre_materia, licenciatura, categoria, requisito, estado");
+      if (materiasData) {
+        setData(materiasData);
+        setFilteredData(materiasData);
+      }
+    } catch (err: any) {
+      console.error("Error leyendo Excel:", err);
+      setErrors(["Error leyendo el archivo Excel."]);
     }
-
-    // === Categoría ===
-    if (!["Basica", "Disciplinaria", "Terminal"].includes(materia.categoria)) {
-      errs.push("La categoría no es válida");
-    }
-
-    // === Requisito ===
-    if (!["obligatoria", "optativa"].includes(materia.requisito)) {
-      errs.push("El requisito debe ser 'obligatoria' u 'optativa'");
-    }
-
-    // === Estado ===
-    if (!["Activa", "Inactiva"].includes(materia.estado)) {
-      errs.push("Estado inválido, debe ser 'Activa' o 'Inactiva'");
-    }
-
-    return errs;
   }
 
-  // ================================
-  // LÓGICA PARA EDITAR MATERIA
-  // ================================
-  const handleEdit = (materia: Materia) => {
-    setEditMateria(materia);
-    setEditErrors([]);
-    setShowEditForm(true);
-  };
-
-  const handleCloseEditForm = () => {
-    setShowEditForm(false);
-  };
-
-  function handleEditInputChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) {
-    if (!editMateria) return;
-    const { name, value } = e.target;
-    setEditMateria((prev) =>
-      prev ? { ...prev, [name]: value as Materia[keyof Materia] } : null
-    );
-  }
-
-  async function handleUpdateMateria() {
-    if (!editMateria) return;
-
-    const { error } = await supabase
-      .from("materias")
-      .update({
-        nombre_materia: editMateria.nombre_materia,
-        licenciatura: editMateria.licenciatura,
-        categoria: editMateria.categoria,
-        requisito: editMateria.requisito,
-        estado: editMateria.estado,
-      })
-      .eq("clave", editMateria.clave);
-
-    if (error) {
-      console.error("Error al actualizar materia:", error);
-      setEditErrors([`Error de BD: ${error.message}`]);
-      return;
-    }
-
-    setShowEditForm(false);
-    await fetchMaterias();
-  }
-
-  // ================================
-  // 5) Paginación
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-
+  // ==================== RENDER ====================
   return (
     <div className="p-6">
       {/* ENCABEZADO */}
@@ -347,6 +328,18 @@ export default function Page() {
           Agregar materia
         </Button>
       </div>
+
+      {/* MENSAJE DE ÉXITO */}
+      {successMessage && (
+        <div className="mb-4 p-3 border border-green-500 bg-green-50 text-green-800 rounded">
+          <div className="flex items-center justify-between">
+            <span>{successMessage}</span>
+            <Button variant="outline" size="sm" onClick={() => setSuccessMessage("")}>
+              Cerrar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* FILTROS */}
       <div className="mb-4">
@@ -368,14 +361,14 @@ export default function Page() {
 
           <div className="flex items-center gap-2">
             <Label htmlFor="filtro-clave" className="font-medium">
-              Clave:
+              Buscar:
             </Label>
             <input
               id="filtro-clave"
               type="text"
               value={claveFilter}
               onChange={(e) => setClaveFilter(e.target.value)}
-              placeholder="Buscar..."
+              placeholder="Clave o nombre..."
               className="border rounded px-2 py-1 w-[200px]"
             />
           </div>
@@ -409,9 +402,7 @@ export default function Page() {
                       <div className="flex items-center gap-2">
                         <span
                           className={`inline-block w-3 h-3 rounded-full ${
-                            materia.estado === "Activa"
-                              ? "bg-green-500"
-                              : "bg-red-500"
+                            materia.estado === "Activa" ? "bg-green-500" : "bg-red-500"
                           }`}
                         />
                         <span>{materia.estado}</span>
@@ -419,7 +410,6 @@ export default function Page() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        {/* BOTÓN EDITAR */}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -429,8 +419,6 @@ export default function Page() {
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
-
-                        {/* BOTÓN ELIMINAR con useConfirm */}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -440,8 +428,6 @@ export default function Page() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
-
-                        {/* BOTÓN CAMBIAR ESTADO */}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -462,7 +448,7 @@ export default function Page() {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
+                <TableCell colSpan={6} className="text-center py-4">
                   No hay materias para mostrar.
                 </TableCell>
               </TableRow>
@@ -472,7 +458,7 @@ export default function Page() {
       </div>
 
       {/* PAGINACIÓN */}
-      {totalPages > 1 && (
+      {totalPagesCalc > 1 && (
         <div className="flex justify-center mt-4 gap-2">
           <Button
             variant="default"
@@ -482,7 +468,7 @@ export default function Page() {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          {[...Array(totalPages)].map((_, i) => (
+          {[...Array(totalPagesCalc)].map((_, i) => (
             <Button
               key={i + 1}
               variant={currentPage === i + 1 ? "default" : "outline"}
@@ -498,16 +484,16 @@ export default function Page() {
           ))}
           <Button
             variant="default"
-            disabled={currentPage === totalPages}
+            disabled={currentPage === totalPagesCalc}
             className="bg-white hover:bg-white text-[#00723F] border border-[#00723F] cursor-pointer"
             onClick={() => setCurrentPage(currentPage + 1)}
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       )}
 
-      {/* MODAL AGREGAR */}
+      {/* MODAL AGREGAR MATERIA */}
       <AddSubjectModal
         isOpen={showForm}
         newMateria={newMateria}
@@ -515,26 +501,20 @@ export default function Page() {
         onInputChange={handleInputChange}
         onSave={handleSaveMateria}
         errors={errors}
+        onImportFromExcel={handleImportFromExcel}
       />
 
-      {/* MODAL EDITAR */}
-      <EditSubjectModal
-        isOpen={showEditForm}
-        editMateria={
-          editMateria || {
-            clave: "",
-            nombre_materia: "",
-            licenciatura: "",
-            categoria: "Basica",
-            requisito: "obligatoria",
-            estado: "Activa",
-          }
-        }
-        onClose={handleCloseEditForm}
-        onInputChange={handleEditInputChange}
-        onUpdate={handleUpdateMateria}
-        errors={editErrors}
-      />
+      {/* MODAL EDITAR MATERIA */}
+      {showEditForm && editMateria && (
+        <EditSubjectModal
+          isOpen={showEditForm}
+          editMateria={editMateria}
+          onClose={handleCloseEditForm}
+          onInputChange={handleEditInputChange}
+          onUpdate={handleUpdateMateria}
+          errors={editErrors}
+        />
+      )}
     </div>
   );
 }
