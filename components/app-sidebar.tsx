@@ -45,8 +45,8 @@ const menuItemsByRole = {
       icon: Calendar,
     },
     {
-      title: "Configuración",
-      url: "/admin/settings",
+      title: "Anuncios",
+      url: "/admin/ads",
       icon: Settings,
     },
   ],
