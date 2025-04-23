@@ -111,7 +111,7 @@ function PuaMateria({
 
                 <div className="pb-8 justify-self-center">
                     <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
-                        <Link href={"./"}>Continuar</Link>
+                        <Link href={`./${params.clave}/unidades`}>Continuar</Link>
                     </Button>
                 </div>
 
