@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -63,6 +64,21 @@ function PuaMateriaLaboratorio({
         <div className="h-auto w-auto m-8">
             <div className="items-center border-2 border-black bg-gray-200 justify-items-center py-8 gap-8 mx-24 my-12 font-[family-name:var(--font-geist-sans)]">
                 <h1 className="text-center font-bold text-2xl col-span-2">VI. ESTRUCTURA DE LAS PRÁCTICAS DE LABORATORIO</h1>
+                {nUnidades.map((m) => {
+                    return (
+                        <div key={m} className="my-16">
+                            <h1 className="text-center font-bold text-2xl pt-8">UNIDAD {m}</h1>
+                            <h2 className="text-center font-bold mt-8">Práctica #1</h2>
+                            <div className="grid grid-cols-4 gap-x-4 my-8">
+                                <h2>Nombre de la práctica: </h2>
+                                <Input className="border-black bg-gray-50" placeholder="Ingresar nombre..." />
+                                <h2>Duración de la práctica: </h2>
+                                <Input className="border-black bg-gray-50" type="number" />
+                            </div>
+                            <h2 className="text-center font-bold mt-8">[+] Agregar práctica (#2)</h2>
+                        </div>
+                    );
+                })}
             </div>
 
             <div className="pb-8 justify-self-center">

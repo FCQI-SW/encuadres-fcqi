@@ -15,7 +15,7 @@ export function Unidad({ nUnidad }: { nUnidad: number }) {
 
             <div className="col-span-2 grid grid-cols-3 mx-12">
                 <h1>Duración de la unidad: </h1>
-                <Input className="w-[75%] border-black bg-gray-50" />
+                <Input className="w-[75%] border-black bg-gray-50" type="number"/>
                 <h1 className="self-center">Horas</h1>
             </div>
 

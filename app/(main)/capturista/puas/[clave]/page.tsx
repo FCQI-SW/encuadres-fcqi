@@ -1,5 +1,6 @@
 'use client'
 
+import { TablaCriterios } from "@/components/criterios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
@@ -12,6 +13,39 @@ type Materia = {
     clave: string;   // 'clave' en DB
     nombre: string;    // 'nombre_materia' en DB
 };
+
+/* const dataCriterios = [
+    {
+        id: "1",
+        criterio: "Examen",
+        valor: 20,
+        descripcion: "2 Examenes durante el curso.",
+    },
+    {
+        id: "2",
+        criterio: "Prácticas de Taller",
+        valor: 20,
+        descripcion: "Prácticas realizadas fuera de clase.",
+    },
+    {
+        id: "3",
+        criterio: "Prácticas de Laboratorio",
+        valor: 30,
+        descripcion: "Prácticas realizadas durante de clase.",
+    },
+    {
+        id: "4",
+        criterio: "Tareas",
+        valor: 10,
+        descripcion: "Tareas realizadas fuera de clase.",
+    },
+    {
+        id: "5",
+        criterio: "Proyecto",
+        valor: 20,
+        descripcion: "Prototipo electrónico basado en microcontrolador.",
+    },
+]; */
 
 function PuaMateria({
     params,
@@ -74,7 +108,10 @@ function PuaMateria({
                         <h1 className="text-2xl">Plan de estudios: </h1>
                         <Input className="w-[75%] border-black bg-gray-50" placeholder="Plan de estudios" />
                     </div>
-
+                    <div className="grid grid-cols-2 col-span-2 justify-items-stretch">
+                        <h1 className="self-center text-2xl">Competencia general del curso: </h1>
+                        <Input className="min-h-36 border-black bg-gray-50 col-span-2" placeholder="Ingresar competencia..." />
+                    </div>
                 </div>
 
                 <div className="items-center border-2 border-black bg-gray-200 justify-items-center py-8 gap-8 mx-24 my-12 font-[family-name:var(--font-geist-sans)]">
@@ -107,6 +144,11 @@ function PuaMateria({
                         <h1 className="self-center text-2xl">Número de unidades: </h1>
                         <Input type="number" className=" border-black bg-gray-50 col-span-1" placeholder="Ingresar número de unidades..." />
                     </div>
+                </div>
+
+                <div className="items-center border-2 border-black bg-gray-200 justify-items-center py-8 gap-8 mx-24 my-12 font-[family-name:var(--font-geist-sans)]">
+                    <h1 className="text-center font-bold text-2xl col-span-2 pb-8">CRITERIOS DE EVALUACIÓN SUGERIDOS</h1>
+                    <TablaCriterios/>
                 </div>
 
                 <div className="pb-8 justify-self-center">
