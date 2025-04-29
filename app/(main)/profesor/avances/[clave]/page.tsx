@@ -9,6 +9,7 @@ import {
     TableRow,
 
 } from "@/components/ui/table"
+import Link from "next/link";
 
 const dataPlan = [
     {
@@ -99,7 +100,9 @@ function AvanceMateria({
 
         </div>
         <div className="py-8 justify-self-center">
-            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Registrar Avance</Button>
+            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
+                <Link href={"./"}>Registrar Avance</Link>
+            </Button>
         </div>
 
     </>)
