@@ -95,13 +95,13 @@ function PuaMateria({
 
                     <div className="grid grid-cols-2">
                         <h1 className="text-2xl">Programa educativo: </h1>
-                        <Input className="w-[75%] border-black bg-gray-50" disabled value={materia.nombre} />
+                        <Input className="w-[75%] border-black bg-gray-50" placeholder="Programa educativo" />
 
                     </div>
 
                     <div className="grid grid-cols-2">
                         <h1 className="text-2xl">Nombre del curso: </h1>
-                        <Input className="w-[75%] border-black bg-gray-50" placeholder="Nombre del curso" />
+                        <Input className="w-[75%] border-black bg-gray-50" disabled value={materia.nombre} />
                     </div>
 
                     <div className="grid grid-cols-2">
@@ -139,6 +139,11 @@ function PuaMateria({
                 </div>
 
                 <div className="items-center border-2 border-black bg-gray-200 justify-items-center py-8 gap-8 mx-24 my-12 font-[family-name:var(--font-geist-sans)]">
+                    <h1 className="text-center font-bold text-2xl col-span-2 pb-8">CRITERIOS DE EVALUACIÓN SUGERIDOS</h1>
+                    <TablaCriterios />
+                </div>
+
+                <div className="items-center border-2 border-black bg-gray-200 justify-items-center py-8 gap-8 mx-24 my-12 font-[family-name:var(--font-geist-sans)]">
                     <h1 className="text-center font-bold text-2xl col-span-2 pb-8">V. DESARROLLO POR UNIDADES</h1>
                     <div className="grid grid-cols-3 justify-items-stretch w-[90%]">
                         <h1 className="self-center text-2xl">Número de unidades: </h1>
@@ -146,10 +151,7 @@ function PuaMateria({
                     </div>
                 </div>
 
-                <div className="items-center border-2 border-black bg-gray-200 justify-items-center py-8 gap-8 mx-24 my-12 font-[family-name:var(--font-geist-sans)]">
-                    <h1 className="text-center font-bold text-2xl col-span-2 pb-8">CRITERIOS DE EVALUACIÓN SUGERIDOS</h1>
-                    <TablaCriterios/>
-                </div>
+
 
                 <div className="pb-8 justify-self-center">
                     <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">

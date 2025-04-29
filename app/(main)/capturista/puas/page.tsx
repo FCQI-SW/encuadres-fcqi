@@ -2,7 +2,6 @@
 
 
 import React, { useEffect, useState } from 'react'
-import { Button } from "@/components/ui/button";
 import {
     Table,
     TableBody,
@@ -110,10 +109,6 @@ function Puas() {
             </Table>
 
         </div>
-        <div className="py-8 justify-self-center">
-            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Avanzar</Button>
-        </div>
-
     </>)
 }
 
