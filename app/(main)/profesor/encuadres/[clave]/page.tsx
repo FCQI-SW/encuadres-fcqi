@@ -1,3 +1,5 @@
+'use client'
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,6 +11,17 @@ import {
     TableRow,
 
 } from "@/components/ui/table"
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+import Link from "next/link";
 
 const dataCriterios = [
     {
@@ -84,13 +97,14 @@ function EncuadreMateria({
 }) {
     //Una vez conectada a la BD, utilizar la clave para conseguir el registro con la información completa de la materia
     //En los requerimientos indica que el capturista ingrese también los criterios de evaluación sugeridos por la PUA, estos se deberán cargar a la tabla y podrán ser editados por el profesor.
+
     let total = 0;
     return (<>
         <div className="items-center justify-items-center gap-16 pt-8 font-[family-name:var(--font-geist-sans)]">
             <h1>Materia con clave: {params.clave} </h1>
 
             <h1 className="text-center font-bold text-2xl">Evaluación del curso</h1>
-            <p>Agregar valor a cada actividad</p>
+            <p>Estos valores son los que se encuentran por defecto en la PUA del curso, puede editarlos como considere conveniente.</p>
             <Table className="table-fixed w-[75%] justify-self-center border-solid border-1 border-black text-center m-4">
 
                 <TableHeader className="hover:bg-gray-300 bg-gray-300">
@@ -204,8 +218,74 @@ function EncuadreMateria({
             </Table>
 
         </div>
-        <div className="py-8 justify-self-center">
-            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Avanzar</Button>
+        <div className="py-8 justify-self-center grid grid-cols-3 gap-16">
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Restablecer</Button>
+                </DialogTrigger>
+                <DialogContent className=" w-5xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-center">Restablecer cambios realizados</DialogTitle>
+                        <DialogDescription className="text-black text-left">
+                            Continuar con esta acción eliminará todos los cambios realizados en el encuadre, ¿Desea continuar?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button className="px-8 bg-(--destructive) hover:bg-[#FD0022]">Cancelar</Button>
+                        </DialogClose>
+                        <DialogClose asChild>
+                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Confirmar</Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Guardar borrador</Button>
+                </DialogTrigger>
+                <DialogContent className=" w-5xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-center">Borrador guardado</DialogTitle>
+                        <DialogDescription className="text-black text-left">
+                            El progreso y cambios se han guardado exitosamente como borrador.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
+                                <Link href={"./"}>Aceptar</Link>
+                            </Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Confirmar y publicar</Button>
+                </DialogTrigger>
+                <DialogContent className=" w-5xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-center">Publicar cambios de encuadre</DialogTitle>
+                        <DialogDescription className="text-black text-left">
+                            Los cambios realizados se guardaran en sistema y serán publicados para revisión del jefe de grupo.
+                            Esta acción no puede deshacerse, ¿Desea continuar?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button className="px-8 bg-(--destructive) hover:bg-[#FD0022]">Cancelar</Button>
+                        </DialogClose>
+                        <DialogClose asChild>
+                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
+                                <Link href={"./"}>Confirmar</Link>
+                            </Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
 
     </>)
