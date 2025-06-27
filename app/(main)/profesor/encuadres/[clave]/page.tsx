@@ -1,5 +1,3 @@
-'use client'
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,7 +19,6 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
-import Link from "next/link";
 
 const dataCriterios = [
     {
@@ -97,14 +94,13 @@ function EncuadreMateria({
 }) {
     //Una vez conectada a la BD, utilizar la clave para conseguir el registro con la información completa de la materia
     //En los requerimientos indica que el capturista ingrese también los criterios de evaluación sugeridos por la PUA, estos se deberán cargar a la tabla y podrán ser editados por el profesor.
-
     let total = 0;
     return (<>
         <div className="items-center justify-items-center gap-16 pt-8 font-[family-name:var(--font-geist-sans)]">
             <h1>Materia con clave: {params.clave} </h1>
 
             <h1 className="text-center font-bold text-2xl">Evaluación del curso</h1>
-            <p>Estos valores son los que se encuentran por defecto en la PUA del curso, puede editarlos como considere conveniente.</p>
+            <p>Agregar valor a cada actividad</p>
             <Table className="table-fixed w-[75%] justify-self-center border-solid border-1 border-black text-center m-4">
 
                 <TableHeader className="hover:bg-gray-300 bg-gray-300">
@@ -254,9 +250,7 @@ function EncuadreMateria({
                     </DialogHeader>
                     <DialogFooter>
                         <DialogClose asChild>
-                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
-                                <Link href={"./"}>Aceptar</Link>
-                            </Button>
+                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Aceptar</Button>
                         </DialogClose>
                     </DialogFooter>
                 </DialogContent>
@@ -279,9 +273,7 @@ function EncuadreMateria({
                             <Button className="px-8 bg-(--destructive) hover:bg-[#FD0022]">Cancelar</Button>
                         </DialogClose>
                         <DialogClose asChild>
-                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
-                                <Link href={"./"}>Confirmar</Link>
-                            </Button>
+                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Confirmar</Button>
                         </DialogClose>
                     </DialogFooter>
                 </DialogContent>
