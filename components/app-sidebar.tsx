@@ -58,7 +58,7 @@ const menuItemsByRole = {
     },
     {
       title: "PUA",
-      url: "/capturista/pua",
+      url: "/capturista/puas",
       icon: BookOpen,
     },
   ],
