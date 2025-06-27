@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Bell } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import DynamicHeader from "@/components/dynamic-header";
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
@@ -65,8 +66,8 @@ export default function Layout({ children }: { children: ReactNode }) {
           {/* Sección izquierda: sidebar trigger */}
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
+            <DynamicHeader/>
           </div>
-
           {/* Sección derecha: notificaciones + nombre + avatar */}
           <div className="flex items-center gap-4">
             <button
