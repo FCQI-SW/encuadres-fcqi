@@ -11,10 +11,44 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "./ui/input";
 
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useState } from "react";
+
+
+const inviteSchema = z.object({
+    email: z
+        .string()
+        .email("Ingrese una dirección de correo electrónica")
+        .refine(
+            (email) => email.endsWith("@uabc.edu.mx"),
+            {
+                message: "Sólo correos institucionales permitidos @uabc.edu.mx",
+            }
+        ),
+});
 
 export function Invite() {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const {
+        register,
+        handleSubmit,
+        formState: { errors },
+    } = useForm({
+        resolver: zodResolver(inviteSchema),
+    });
+
+    const onSubmit = (data) => {
+        // Handle form submission
+        console.log("Valid email:", data.email);
+        setIsOpen(false);
+
+    };
     return (
-        <Dialog>
+
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                 <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Invitar</Button>
             </DialogTrigger>
@@ -27,18 +61,27 @@ export function Invite() {
                     </DialogDescription>
 
                 </DialogHeader>
-                <div className="grid gap-4 py-4 sm:grid-cols-1">
-                    <div className="grid grid-cols-1 items-center">
-                        <p>Correo Electrónico:</p>
-                        <Input type="email" id="email" placeholder="example@example.com" className="sm:w-[60%] " />
+
+                <form onSubmit={handleSubmit(onSubmit)}>
+                    <div className="grid gap-4 py-4 sm:grid-cols-1">
+                        <div className="grid grid-cols-1 items-center">
+                            <input
+                                type="email"
+                                {...register("email")}
+                                placeholder="Correo Electrónico"
+                            />
+                            {errors.email && (
+                                <p className="text-red-500">{errors.email.message}</p>
+                            )}
+                        </div>
                     </div>
-                </div>
-                <DialogFooter>
-                    <DialogClose asChild>
-                        <Button type="submit" className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Invitar</Button>
-                    </DialogClose>
-                </DialogFooter>
+                    <DialogFooter>
+                        <Button type="submit" className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
+                            Invitar
+                        </Button>
+                    </DialogFooter>
+                </form>
             </DialogContent>
-        </Dialog>
+        </Dialog >
     )
 }

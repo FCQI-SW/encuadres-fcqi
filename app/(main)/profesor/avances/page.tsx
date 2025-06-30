@@ -48,36 +48,36 @@ const data = [
 
 function Avances() {
   return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2   justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-10">
-        <div className="justify-items-center">
-          <h1 className="mb-8 text-xl font-bold">Por registrar</h1>
-          {data.map((materiaInfo) => {
-            if (materiaInfo.estadoMateria == "Por registrar") {
-              return (
-                <>
-                  <Materia key={materiaInfo.claveMateria} btnText="Registrar avance" nombreMateria={materiaInfo.nombreMateria} claveMateria={materiaInfo.claveMateria} grupoMateria={materiaInfo.grupoMateria} profesorMateria={materiaInfo.profesorMateria} />
-                </>
-              );
-            }
-          })}
 
-        </div>
-        <div className="justify-items-center">
-          <h1 className="mb-8 text-xl font-bold">Registradas</h1>
-          {data.map((materiaInfo) => {
-            if (materiaInfo.estadoMateria == "Registrada") {
-              return (
-                <>
-                  <Materia key={materiaInfo.claveMateria} btnText="Revisar" nombreMateria={materiaInfo.nombreMateria} claveMateria={materiaInfo.claveMateria} grupoMateria={materiaInfo.grupoMateria} profesorMateria={materiaInfo.profesorMateria} />
-                </>
-              );
-            }
-          })}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2   justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-10">
+      <div className="justify-items-center">
+        <h1 className="mb-8 text-xl font-bold">Por registrar</h1>
+        {data.map((materiaInfo) => {
+          if (materiaInfo.estadoMateria == "Por registrar") {
+            return (
 
-        </div>
+              <Materia key={materiaInfo.claveMateria} btnText="Registrar avance" nombreMateria={materiaInfo.nombreMateria} claveMateria={materiaInfo.claveMateria} grupoMateria={materiaInfo.grupoMateria} />
+
+            );
+          }
+        })}
+
       </div>
-    </>
+      <div className="justify-items-center">
+        <h1 className="mb-8 text-xl font-bold">Registradas</h1>
+        {data.map((materiaInfo) => {
+          if (materiaInfo.estadoMateria == "Registrada") {
+            return (
+
+              <Materia key={materiaInfo.claveMateria} btnText="Revisar" nombreMateria={materiaInfo.nombreMateria} claveMateria={materiaInfo.claveMateria} grupoMateria={materiaInfo.grupoMateria} />
+
+            );
+          }
+        })}
+
+      </div>
+    </div>
+
   );
 }
 

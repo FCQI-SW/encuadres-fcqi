@@ -12,14 +12,13 @@ import { Invite } from "./invite";
 import Link from "next/link";
 import { usePathname } from "next/navigation"
 
-export function Materia({ btnText, nombreMateria, claveMateria, grupoMateria, profesorMateria }: { btnText: string, nombreMateria: string, claveMateria: string, grupoMateria: string, profesorMateria: string }) {
+export function Materia({ btnText, nombreMateria, claveMateria, grupoMateria }: { btnText: string, nombreMateria: string, claveMateria: string, grupoMateria: string }) {
     const pathname = usePathname()
     const materiaInfo = <>
         <CardHeader>
             <CardTitle>{nombreMateria}</CardTitle>
         </CardHeader>
         <CardContent>
-            <p>Profesor: {profesorMateria}</p>
             <p>Clave: {claveMateria}</p>
             <p>Grupo: {grupoMateria}</p>
         </CardContent>
