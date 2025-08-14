@@ -9,9 +9,10 @@ type Props = {
   materias: MateriaAsignada[];
   loading?: boolean;
   onOpen: (m: MateriaAsignada) => void;
+  buttonText?: string; // 👈 Nuevo prop
 };
 
-export function SubjectGrid({ materias, loading, onOpen }: Props) {
+export function SubjectGrid({ materias, loading, onOpen, buttonText }: Props) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7">
@@ -35,7 +36,12 @@ export function SubjectGrid({ materias, loading, onOpen }: Props) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7">
       {materias.map((m) => (
-        <SubjectCard key={m.id} materia={m} onOpen={onOpen} />
+        <SubjectCard
+          key={m.id}
+          materia={m}
+          onOpen={onOpen}
+          buttonText={buttonText} // 👈 Se pasa aquí
+        />
       ))}
     </div>
   );

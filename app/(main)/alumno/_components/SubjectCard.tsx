@@ -9,9 +9,14 @@ import { MateriaAsignada } from "../types";
 type Props = {
   materia: MateriaAsignada;
   onOpen: (m: MateriaAsignada) => void;
+  buttonText?: string; // Prop opcional para cambiar el texto del botón
 };
 
-export function SubjectCard({ materia, onOpen }: Props) {
+export function SubjectCard({
+  materia,
+  onOpen,
+  buttonText = "Abrir encuadre", // Valor por defecto
+}: Props) {
   return (
     <Card className="rounded-lg shadow-sm bg-white border">
       <CardHeader className="pb-2">
@@ -24,24 +29,29 @@ export function SubjectCard({ materia, onOpen }: Props) {
       <CardContent className="text-sm space-y-1">
         <p>
           <span className="font-medium">Profesor: </span>
-          <span className="text-muted-foreground">{materia.profesor_nombre}</span>
+          <span className="text-muted-foreground">
+            {materia.profesor_nombre}
+          </span>
         </p>
         <p>
           <span className="font-medium">Clave: </span>
           <span className="text-muted-foreground">{materia.clave}</span>
         </p>
-        <p className="mb-3">
+        <p>
           <span className="font-medium">Grupo: </span>
           <span className="text-muted-foreground">{materia.grupo}</span>
         </p>
 
-        <Button
-          onClick={() => onOpen(materia)}
-          disabled={!materia.encuadre_id}
-          className="bg-[#00723F] hover:bg-[#005e30] text-white rounded-full px-5"
-        >
-          Abrir encuadre
-        </Button>
+        {/* Botón centrado usando grid + pointer */}
+        <div className="mt-4 grid place-items-center">
+          <Button
+            onClick={() => onOpen(materia)}
+            disabled={!materia.encuadre_id}
+            className="cursor-pointer bg-[#00723F] hover:bg-[#005e30] text-white rounded-full px-5"
+          >
+            {buttonText}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
