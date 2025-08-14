@@ -9,7 +9,7 @@ type Props = {
   materias: MateriaAsignada[];
   loading?: boolean;
   onOpen: (m: MateriaAsignada) => void;
-  buttonText?: string; // 👈 Nuevo prop
+  buttonText?: string; 
 };
 
 export function SubjectGrid({ materias, loading, onOpen, buttonText }: Props) {
@@ -40,7 +40,7 @@ export function SubjectGrid({ materias, loading, onOpen, buttonText }: Props) {
           key={m.id}
           materia={m}
           onOpen={onOpen}
-          buttonText={buttonText} // 👈 Se pasa aquí
+          buttonText={buttonText} 
         />
       ))}
     </div>
