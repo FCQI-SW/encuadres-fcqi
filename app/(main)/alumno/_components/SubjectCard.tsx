@@ -15,7 +15,7 @@ type Props = {
 export function SubjectCard({
   materia,
   onOpen,
-  buttonText = "Abrir encuadre", // Valor por defecto
+  buttonText = "Abrir encuadre", 
 }: Props) {
   return (
     <Card className="rounded-lg shadow-sm bg-white border">
