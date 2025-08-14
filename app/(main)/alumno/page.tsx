@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { LogoutButton } from "@/components/logout-button";
 
-export default function AdminPage() {
+export default function AlumnoPage() {
   const { data: session } = useSession();
 
   return (
