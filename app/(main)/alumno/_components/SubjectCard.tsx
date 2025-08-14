@@ -42,7 +42,7 @@ export function SubjectCard({
           <span className="text-muted-foreground">{materia.grupo}</span>
         </p>
 
-        {/* Botón centrado usando grid + pointer */}
+       
         <div className="mt-4 grid place-items-center">
           <Button
             onClick={() => onOpen(materia)}
