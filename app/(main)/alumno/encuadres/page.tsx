@@ -1,3 +1,4 @@
+// app/alumno/subjects/page.tsx
 "use client";
 
 import * as React from "react";
@@ -5,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubjectGrid } from "../_components/SubjectGrid";
-import type { MateriaAsignada } from "../types";
-import { fetchMateriasMock } from "../data.mock";
+import type { MateriaAsignada } from "../_data/types";
+import { fetchMateriasMock } from "../_data/data.mock";
 
 export default function Page() {
   const router = useRouter();
@@ -36,7 +37,7 @@ export default function Page() {
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-10">
       <div className="flex flex-col sm:grid sm:grid-cols-3 sm:items-center mb-6 gap-3 sm:gap-0">
-        {/* Botón regresar */}
+       
         <div className="flex justify-center sm:justify-start">
           <Button
             variant="outline"
@@ -48,12 +49,11 @@ export default function Page() {
           </Button>
         </div>
 
-        {/* Título */}
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-center">
           Materias asignadas
         </h1>
 
-        {/* Espacio vacío para balancear */}
+      
         <div className="hidden sm:block" />
       </div>
 
@@ -66,8 +66,7 @@ export default function Page() {
       <SubjectGrid
         materias={materias}
         loading={loading}
-        onOpen={openEncuadre}
-        buttonText="Abrir unidad de aprendizaje" 
+        onOpen={openEncuadre} // Texto por defecto "Abrir encuadre"
       />
     </div>
   );

@@ -76,13 +76,13 @@ const menuItemsByRole = {
   ],
   alumno: [
     {
-      title: "Mis materias",
-      url: "/alumno/subjects",
+      title: "Sistema de revisión de encuadres",
+      url: "/alumno/encuadres",
       icon: BookOpen,
     },
     {
-      title: "Mis calificaciones",
-      url: "/alumno/grades",
+      title: "Sistema de unidad de aprendizaje",
+      url: "/alumno/aprendizaje",
       icon: Search,
     },
   ],

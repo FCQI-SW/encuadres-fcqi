@@ -4,12 +4,12 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { MateriaAsignada } from "../types";
+import { MateriaAsignada } from "../_data/types";
 
 type Props = {
   materia: MateriaAsignada;
   onOpen: (m: MateriaAsignada) => void;
-  buttonText?: string; // Prop opcional para cambiar el texto del botón
+  buttonText?: string; 
 };
 
 export function SubjectCard({
