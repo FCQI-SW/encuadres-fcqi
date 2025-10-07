@@ -26,7 +26,6 @@ type RightExam = {
 };
 
 export type FullEncuadreProps = {
-  
   universidad: string;
   facultad: string;
   programa: string;

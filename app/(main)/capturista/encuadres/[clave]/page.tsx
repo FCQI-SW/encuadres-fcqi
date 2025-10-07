@@ -1,134 +1,228 @@
-'use client'
+"use client";
 
+import { useEffect, useMemo, useState } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabase";
-import Link from "next/link";
-import { useEffect, useState } from "react";
 import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { ChevronLeft } from "lucide-react";
 
 type Materia = {
-    id: string;      // PK en tu tabla 'materias' (uuid o int)
-    clave: string;   // 'clave' en DB
-    nombre: string;    // 'nombre_materia' en DB
+  id: string;
+  clave: string;
+  nombre: string;
 };
 
 type Profesor = {
-    id: string;
-    nombre: string;
-}
+  id: string;
+  nombre: string;
+};
 
-function EncuadreMateria({
-    params,
-}: {
-    params: { clave: string };
-}) {
+export default function EncuadreMateria() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useParams<{ clave: string }>();
+  const clave = params?.clave as string;
 
-    const [materia, setMateria] = useState<Materia>();
-    const [profesores, setProfesores] = useState<Profesor[]>();
+  const parent = useMemo(() => {
+    const parts = (pathname || "/").split("/").filter(Boolean);
+    parts.pop();
+    return "/" + parts.join("/");
+  }, [pathname]);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            const { data: materiaData, error: materiasError } = await supabase
-                .from("materias")
-                .select("id, clave, nombre_materia")
-                .eq("clave", params.clave);
+  const [loading, setLoading] = useState(true);
+  const [materia, setMateria] = useState<Materia | null>(null);
+  const [profesores, setProfesores] = useState<Profesor[]>([]);
+  const [profesorId, setProfesorId] = useState("");
+  const [periodo, setPeriodo] = useState("");
+  const [grupo, setGrupo] = useState("");
 
-            if (materiasError) {
-                console.error("Error al obtener materias:", {
-                    materiasError,
-                });
-                return;
-            }
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      setLoading(true);
 
-            // Mapeo
-            const mappedMateria = (materiaData).map((m) => ({
-                id: m.id,
-                clave: m.clave,
-                nombre: m.nombre_materia,
-            }));
+      const [{ data: matData }, { data: profData }] = await Promise.all([
+        supabase
+          .from("materias")
+          .select("id, clave, nombre_materia")
+          .eq("clave", clave),
+        supabase
+          .from("usuarios")
+          .select("id, nombre, rol_id")
+          .eq("rol_id", "bc3ab654-5fc8-401a-a6e2-97903b45cc93"),
+      ]);
 
+      if (!isMounted) return;
 
-            setMateria(mappedMateria[0]);
-        };
+      if (matData && matData.length > 0) {
+        const m = matData[0] as any;
+        setMateria({ id: m.id, clave: m.clave, nombre: m.nombre_materia });
+      } else {
+        setMateria(null);
+      }
 
-        fetchData();
-    },[]);
+      if (profData) {
+        setProfesores(
+          (profData as any[]).map((p) => ({ id: p.id, nombre: p.nombre }))
+        );
+      } else {
+        setProfesores([]);
+      }
 
-    useEffect(() => {
-        const fetchData = async () => {
-            const { data: profesoresData, error: profesoresError } = await supabase
-                .from("usuarios")
-                .select("id, nombre, rol_id")
-                .eq("rol_id", "bc3ab654-5fc8-401a-a6e2-97903b45cc93");
+      setLoading(false);
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [clave]);
 
-            if (profesoresError) {
-                console.error("Error al obtener materias:", {
-                    profesoresError,
-                });
-                return;
-            }
-
-            // Mapeo
-            const mappedProfesores = (profesoresData).map((m) => ({
-                id: m.id,
-                nombre: m.nombre,
-            }));
-
-
-            setProfesores(mappedProfesores);
-        };
-
-        fetchData();
-    }, []);
-
-    if (materia != null) {
-        return (
-            <>
-                <div className="grid grid-cols-2 items-center justify-items-center pt-8 gap-8 mx-24 font-[family-name:var(--font-geist-sans)]">
-                    <h1 className="text-center font-bold text-2xl ">Clave del curso:</h1>
-                    <h1 className="text-center font-bold text-2xl ">{materia.clave}</h1>
-
-                    <h1 className="text-center font-bold text-2xl ">Nombre del curso:</h1>
-                    <h1 className="text-center font-bold text-2xl ">{materia.nombre}</h1>
-
-                    <h1 className="text-center font-bold text-2xl ">Profesor del curso:</h1>
-                    <Select>
-                        <SelectTrigger className="w-[50%]">
-                            <SelectValue placeholder="Seleccione un profesor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                {profesores?.map((p) => {
-                                    return <>
-                                        <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-                                    </>
-                                })}
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
-
-                    <h1 className="text-center font-bold text-2xl ">Periodo del curso:</h1>
-                    <Input className="w-[50%]" placeholder="Periodo"></Input>
-
-                    <h1 className="text-center font-bold text-2xl ">Grupo del curso:</h1>
-                    <Input className="w-[50%]" placeholder="Grupo"></Input>
-
-                </div>
-                <div className="py-8 justify-self-center">
-                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
-                        <Link href={"./"}>Guardar</Link>
-                    </Button>
-                </div>
-            </>)
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push(parent || "/");
     }
-}
+  };
 
-export default EncuadreMateria;
+  const handleGuardar = () => {
+    // aquí podrías hacer el insert/update en Supabase
+    handleBack();
+  };
+
+  if (!loading && !materia) {
+    return (
+      <div className="px-4 py-8">
+        <div className="mx-auto max-w-3xl">
+          <Card>
+            <CardHeader>
+              <CardTitle>No se encontró la materia</CardTitle>
+              <CardDescription>
+                Verifica la clave en la URL o regresa al listado.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-end">
+              <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+                Regresar
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 py-8">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <div>
+          <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+            <ChevronLeft className="mr-2 h-5 w-5" />
+            Regresar
+          </Button>
+        </div>
+
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Configurar encuadre</h1>
+          <p className="text-sm text-muted-foreground">
+            Completa la información del curso antes de guardar.
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Datos de la materia</CardTitle>
+            <CardDescription>Campos de solo lectura</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+            <div className="sm:col-span-4">
+              <Label className="mb-2 block">Clave</Label>
+              <Input value={materia?.clave ?? ""} disabled />
+            </div>
+            <div className="sm:col-span-8">
+              <Label className="mb-2 block">Nombre</Label>
+              <Input value={materia?.nombre ?? ""} disabled />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuración del curso</CardTitle>
+            <CardDescription>Asigna profesor, periodo y grupo</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+            <div className="sm:col-span-6">
+              <Label className="mb-2 block">Profesor</Label>
+              <Select
+                value={profesorId}
+                onValueChange={setProfesorId}
+                disabled={loading || profesores.length === 0}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={loading ? "Cargando..." : "Seleccione un profesor"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {profesores.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="sm:col-span-3">
+              <Label className="mb-2 block">Periodo</Label>
+              <Input
+                value={periodo}
+                onChange={(e) => setPeriodo(e.target.value)}
+                placeholder="2025-1"
+              />
+            </div>
+
+            <div className="sm:col-span-3">
+              <Label className="mb-2 block">Grupo</Label>
+              <Input
+                value={grupo}
+                onChange={(e) => setGrupo(e.target.value)}
+                placeholder="301"
+              />
+            </div>
+
+            <div className="sm:col-span-12 flex items-center justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+                Cancelar
+              </Button>
+              <Button
+                className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+                onClick={handleGuardar}
+                disabled={loading || !profesorId || !periodo || !grupo}
+              >
+                Guardar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
