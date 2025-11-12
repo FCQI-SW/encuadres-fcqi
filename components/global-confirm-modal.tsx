@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 
-// Tipos para las “opciones” que se pueden mostrar en el modal
+// Tipos para las "opciones" que se pueden mostrar en el modal
 interface ConfirmOptions {
   title?: string;
   message: string;
@@ -30,7 +30,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [options, setOptions] = useState<ConfirmOptions>({ message: "" });
   const [resolveFn, setResolveFn] = useState<((value: boolean) => void) | null>(null);
 
-  // Esta función se llamará cuando en el código hagas “confirm({ message, ... })”
+  // Esta función se llamará cuando en el código hagas "confirm({ message, ... })"
   const confirm = (opts: ConfirmOptions) => {
     setOptions(opts);
     setIsOpen(true);
@@ -41,13 +41,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // Se llama cuando el usuario presiona “Aceptar”
+  // Se llama cuando el usuario presiona "Aceptar"
   const handleConfirm = () => {
     if (resolveFn) resolveFn(true);
     setIsOpen(false);
   };
 
-  // Se llama cuando el usuario presiona “Cancelar”
+  // Se llama cuando el usuario presiona "Cancelar"
   const handleCancel = () => {
     if (resolveFn) resolveFn(false);
     setIsOpen(false);
@@ -73,19 +73,21 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             <p className="mb-6 text-gray-700">{options.message}</p>
 
             <div className="flex justify-end gap-2">
-              {/* Botón Cancelar */}
-              <Button
-                variant="outline"
-                className="border-red-600 text-red-600 hover:bg-red-50"
-                onClick={handleCancel}
-              >
-                {options.cancelText ?? "Cancelar"}
-              </Button>
+              {/* Botón Cancelar - solo se muestra si hay texto */}
+              {options.cancelText && (
+                <Button
+                  variant="outline"
+                  className="border-red-600 text-red-600 hover:bg-red-50 cursor-pointer"
+                  onClick={handleCancel}
+                >
+                  {options.cancelText}
+                </Button>
+              )}
 
               {/* Botón Aceptar */}
               <Button
                 variant="default"
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-green-600 hover:bg-green-700 text-white cursor-pointer"
                 onClick={handleConfirm}
               >
                 {options.confirmText ?? "Aceptar"}
