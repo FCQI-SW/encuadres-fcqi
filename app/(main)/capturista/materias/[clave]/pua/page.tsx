@@ -72,7 +72,11 @@ export default function PuaMateria() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-end">
-              <Button variant="outline" onClick={() => router.back()} className="cursor-pointer">
+              <Button
+                variant="outline"
+                onClick={() => router.push("/capturista/materias")}
+                className="cursor-pointer"
+              >
                 Regresar
               </Button>
             </CardContent>
@@ -82,7 +86,6 @@ export default function PuaMateria() {
     );
   }
 
-  // estilos base para <textarea>
   const ta =
     "min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm " +
     "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 " +
@@ -93,7 +96,11 @@ export default function PuaMateria() {
     <div className="px-4 py-8">
       <div className="mx-auto max-w-5xl space-y-6">
         <div>
-          <Button variant="outline" onClick={() => router.back()} className="cursor-pointer">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/capturista/materias")}
+            className="cursor-pointer"
+          >
             <ChevronLeft className="mr-2 h-5 w-5" />
             Regresar
           </Button>
@@ -247,10 +254,10 @@ export default function PuaMateria() {
         <div className="flex justify-end gap-2">
           <Button
             className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
-            asChild
+            onClick={() => router.push(`/capturista/materias/${clave}/pua/unidades`)}
             disabled={!numUnidades}
           >
-            <a href={`./${clave}/unidades`}>Continuar</a>
+            Continuar
           </Button>
         </div>
       </div>

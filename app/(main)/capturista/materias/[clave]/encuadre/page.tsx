@@ -36,15 +36,8 @@ type Profesor = {
 
 export default function EncuadreMateria() {
   const router = useRouter();
-  const pathname = usePathname();
   const params = useParams<{ clave: string }>();
   const clave = params?.clave as string;
-
-  const parent = useMemo(() => {
-    const parts = (pathname || "/").split("/").filter(Boolean);
-    parts.pop();
-    return "/" + parts.join("/");
-  }, [pathname]);
 
   const [loading, setLoading] = useState(true);
   const [materia, setMateria] = useState<Materia | null>(null);
@@ -94,15 +87,11 @@ export default function EncuadreMateria() {
   }, [clave]);
 
   const handleBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push(parent || "/");
-    }
+    router.push("/capturista/materias");
   };
 
   const handleGuardar = () => {
-    // aquí podrías hacer el insert/update en Supabase
+    // TODO: Aquí guardarás en Supabase
     handleBack();
   };
 
@@ -118,7 +107,11 @@ export default function EncuadreMateria() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-end">
-              <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                className="cursor-pointer"
+              >
                 Regresar
               </Button>
             </CardContent>
@@ -132,14 +125,18 @@ export default function EncuadreMateria() {
     <div className="px-4 py-8">
       <div className="mx-auto max-w-4xl space-y-6">
         <div>
-          <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            className="cursor-pointer"
+          >
             <ChevronLeft className="mr-2 h-5 w-5" />
             Regresar
           </Button>
         </div>
 
         <div className="text-center">
-          <h1 className="text-2xl font-bold">Configurar encuadre</h1>
+          <h1 className="text-2xl font-bold">Configurar Encuadre</h1>
           <p className="text-sm text-muted-foreground">
             Completa la información del curso antes de guardar.
           </p>
@@ -176,7 +173,11 @@ export default function EncuadreMateria() {
                 disabled={loading || profesores.length === 0}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder={loading ? "Cargando..." : "Seleccione un profesor"} />
+                  <SelectValue
+                    placeholder={
+                      loading ? "Cargando..." : "Seleccione un profesor"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
@@ -209,7 +210,11 @@ export default function EncuadreMateria() {
             </div>
 
             <div className="sm:col-span-12 flex items-center justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                className="cursor-pointer"
+              >
                 Cancelar
               </Button>
               <Button

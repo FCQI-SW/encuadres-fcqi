@@ -6,9 +6,9 @@ const routeNames: Record<string, string> = {
   '/': 'Inicio',
   '/profesor': 'Detalles',
   '/capturista': 'Detalles',
+  '/capturista/materias': 'Materias',
   '/encuadres': 'Encuadres',
   '/avances': 'Avances',
-  '/puas': 'PUAs',
 }
 
 // Tipa el parámetro y el retorno
@@ -17,10 +17,14 @@ function getRouteName(pathname: string): string {
     return routeNames[pathname]
   }
 
+  // Rutas del profesor
   if (pathname.startsWith('/profesor/encuadres')) return 'Encuadres'
   if (pathname.startsWith('/profesor/avances')) return 'Avances'
-  if (pathname.startsWith('/capturista/encuadres')) return 'Encuadres'
-  if (pathname.startsWith('/capturista/puas')) return 'PUAs'
+  
+  // Rutas del capturista - ACTUALIZADAS
+  if (pathname.startsWith('/capturista/materias') && pathname.includes('/encuadre')) return 'Encuadre'
+  if (pathname.startsWith('/capturista/materias') && pathname.includes('/pua')) return 'PUA'
+  if (pathname.startsWith('/capturista/materias')) return 'Materias'
 
   const segments = pathname.split('/').filter(Boolean)
   const lastSegment = segments[segments.length - 1]

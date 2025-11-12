@@ -23,8 +23,7 @@ import {
       { title: "Establecer fecha de operación", url: "/admin/fechas", icon: Calendar },
     ],
     capturista: [
-      { title: "Encuadres", url: "/capturista/encuadres", icon: FileSearch },
-      { title: "PUA", url: "/capturista/pua", icon: BookOpen },
+      { title: "Materias", url: "/capturista/materias", icon: BookOpen },
     ],
     profesor: [
       { title: "Sistema de revisión de encuadres", url: "/profesor/encuadres", icon: FileSearch },
@@ -40,4 +39,3 @@ import {
       { title: "Alumnos invitados", url: "/lector/invitados", icon: Users },
     ],
   }
-  

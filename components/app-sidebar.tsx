@@ -50,18 +50,13 @@ const menuItemsByRole = {
       icon: Settings,
     },
   ],
-  capturista: [
-    {
-      title: "Encuadres",
-      url: "/capturista/encuadres",
-      icon: FileText,
-    },
-    {
-      title: "PUA",
-      url: "/capturista/puas",
-      icon: BookOpen,
-    },
-  ],
+capturista: [
+  {
+    title: "Materias",
+    url: "/capturista/materias",
+    icon: BookOpen,
+  },
+],
   profesor: [
     {
       title: "Sistema de revisión de encuadres",
