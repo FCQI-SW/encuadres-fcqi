@@ -14,8 +14,10 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 import { TablaCriterios } from "@/components/criterios";
+import { usePuaForm } from "@/hooks/usePuaForm";
+import { useConfirm } from "@/components/global-confirm-modal";
 
 type Materia = {
   id: string;
@@ -27,7 +29,9 @@ export default function PuaMateria() {
   const router = useRouter();
   const params = useParams<{ clave: string }>();
   const clave = params?.clave as string;
+  const confirm = useConfirm();
 
+  const [loadingData, setLoadingData] = useState(true);
   const [materia, setMateria] = useState<Materia | null>(null);
 
   const [programaEducativo, setProgramaEducativo] = useState("");
@@ -38,8 +42,12 @@ export default function PuaMateria() {
   const [evidencias, setEvidencias] = useState("");
   const [numUnidades, setNumUnidades] = useState<string>("");
 
+  const { guardarPua, cargarPua, loading, error } = usePuaForm(materia?.id || "");
+
   useEffect(() => {
     (async () => {
+      setLoadingData(true);
+
       const { data, error } = await supabase
         .from("materias")
         .select("id, clave, nombre_materia")
@@ -48,6 +56,7 @@ export default function PuaMateria() {
       if (error) {
         console.error("Error al obtener materia:", error);
         setMateria(null);
+        setLoadingData(false);
         return;
       }
 
@@ -57,8 +66,132 @@ export default function PuaMateria() {
       } else {
         setMateria(null);
       }
+
+      setLoadingData(false);
     })();
   }, [clave]);
+
+  // Cargar PUA existente (si hay)
+  useEffect(() => {
+    if (!materia?.id) return;
+
+    (async () => {
+      const pua = await cargarPua();
+      if (pua) {
+        setProgramaEducativo(pua.programa_educativo || "");
+        setPlanEstudios(pua.plan_estudios || "");
+        setCompetenciaGeneral(pua.competencia_general || "");
+        setPropositoUA(pua.proposito || "");
+        setCompetenciaUA(pua.competencia || "");
+        setEvidencias(pua.evidencias || "");
+        setNumUnidades(String(pua.unidades || ""));
+      }
+    })();
+  }, [materia?.id, cargarPua]);
+
+  const handleBack = async () => {
+    // Si hay cambios sin guardar, preguntar
+    if (propositoUA || competenciaUA || evidencias || numUnidades || programaEducativo || planEstudios || competenciaGeneral) {
+      const shouldLeave = await confirm({
+        title: "¿Salir sin guardar?",
+        message: "Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?",
+        confirmText: "Sí, salir",
+        cancelText: "Cancelar",
+      });
+
+      if (!shouldLeave) return;
+    }
+
+    router.push("/capturista/materias");
+  };
+
+  const handleContinuar = async () => {
+    if (!materia) return;
+
+    // Validaciones
+    if (!propositoUA.trim()) {
+      await confirm({
+        title: "Campo requerido",
+        message: "Por favor ingresa el propósito de la unidad de aprendizaje.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    if (!competenciaUA.trim()) {
+      await confirm({
+        title: "Campo requerido",
+        message: "Por favor ingresa la competencia de la unidad de aprendizaje.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    if (!evidencias.trim()) {
+      await confirm({
+        title: "Campo requerido",
+        message: "Por favor ingresa las evidencias de desempeño.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    if (!numUnidades || Number(numUnidades) < 1) {
+      await confirm({
+        title: "Campo requerido",
+        message: "Por favor ingresa un número válido de unidades (mínimo 1).",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    // Confirmar antes de guardar
+    const shouldSave = await confirm({
+      title: "Guardar PUA",
+      message: "¿Deseas guardar la información del PUA y continuar con las unidades?",
+      confirmText: "Guardar y continuar",
+      cancelText: "Cancelar",
+    });
+
+    if (!shouldSave) return;
+
+    // Guardar
+    const programaId = await guardarPua({
+      materiaId: materia.id,
+      programaEducativo,
+      planEstudios,
+      competenciaGeneral,
+      propositoUA,
+      competenciaUA,
+      evidencias,
+      numUnidades: Number(numUnidades),
+    });
+
+    if (programaId) {
+      // Mostrar mensaje de éxito
+      await confirm({
+        title: "¡Guardado exitoso!",
+        message: "El PUA se ha guardado correctamente.",
+        confirmText: "Continuar a unidades",
+        cancelText: "",
+      });
+
+      // Ir a unidades
+      router.push(`/capturista/materias/${clave}/pua/unidades`);
+    }
+  };
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   if (!materia) {
     return (
@@ -74,7 +207,7 @@ export default function PuaMateria() {
             <CardContent className="flex justify-end">
               <Button
                 variant="outline"
-                onClick={() => router.push("/capturista/materias")}
+                onClick={handleBack}
                 className="cursor-pointer"
               >
                 Regresar
@@ -98,7 +231,7 @@ export default function PuaMateria() {
         <div>
           <Button
             variant="outline"
-            onClick={() => router.push("/capturista/materias")}
+            onClick={handleBack}
             className="cursor-pointer"
           >
             <ChevronLeft className="mr-2 h-5 w-5" />
@@ -112,6 +245,14 @@ export default function PuaMateria() {
             Completa la información de la unidad de aprendizaje antes de continuar.
           </p>
         </div>
+
+        {error && (
+          <Card className="border-red-500 bg-red-50">
+            <CardContent className="pt-6">
+              <p className="text-red-600 text-sm">{error}</p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* I. Datos de identificación */}
         <Card>
@@ -170,7 +311,9 @@ export default function PuaMateria() {
             <CardTitle>II. Propósito de la unidad de aprendizaje</CardTitle>
           </CardHeader>
           <CardContent>
-            <Label className="mb-2 block">Propósito</Label>
+            <Label className="mb-2 block">
+              Propósito <span className="text-red-500">*</span>
+            </Label>
             <textarea
               className={ta}
               value={propositoUA}
@@ -188,7 +331,9 @@ export default function PuaMateria() {
             <CardTitle>III. Competencia de la unidad de aprendizaje</CardTitle>
           </CardHeader>
           <CardContent>
-            <Label className="mb-2 block">Competencia</Label>
+            <Label className="mb-2 block">
+              Competencia <span className="text-red-500">*</span>
+            </Label>
             <textarea
               className={ta}
               value={competenciaUA}
@@ -206,7 +351,9 @@ export default function PuaMateria() {
             <CardTitle>IV. Evidencia(s) de desempeño</CardTitle>
           </CardHeader>
           <CardContent>
-            <Label className="mb-2 block">Evidencias</Label>
+            <Label className="mb-2 block">
+              Evidencias <span className="text-red-500">*</span>
+            </Label>
             <textarea
               className={ta}
               value={evidencias}
@@ -218,16 +365,7 @@ export default function PuaMateria() {
           </CardContent>
         </Card>
 
-        {/* Criterios sugeridos */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Criterios de evaluación sugeridos</CardTitle>
-            <CardDescription>Ajusta los porcentajes/criterios según tu curso</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TablaCriterios />
-          </CardContent>
-        </Card>
+
 
         {/* V. Desarrollo por unidades */}
         <Card>
@@ -236,7 +374,9 @@ export default function PuaMateria() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-6">
             <div className="sm:col-span-3">
-              <Label className="mb-2 block">Número de unidades</Label>
+              <Label className="mb-2 block">
+                Número de unidades <span className="text-red-500">*</span>
+              </Label>
               <Input
                 type="number"
                 inputMode="numeric"
@@ -253,11 +393,20 @@ export default function PuaMateria() {
 
         <div className="flex justify-end gap-2">
           <Button
-            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
-            onClick={() => router.push(`/capturista/materias/${clave}/pua/unidades`)}
-            disabled={!numUnidades}
+            variant="outline"
+            onClick={handleBack}
+            disabled={loading}
+            className="cursor-pointer"
           >
-            Continuar
+            Cancelar
+          </Button>
+          <Button
+            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+            onClick={handleContinuar}
+            disabled={loading}
+          >
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? "Guardando..." : "Guardar y continuar"}
           </Button>
         </div>
       </div>

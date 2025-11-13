@@ -20,8 +20,16 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { useEncuadreForm } from "@/hooks/useEncuadreForm";
 import { useConfirm } from "@/components/global-confirm-modal";
 
@@ -36,6 +44,12 @@ type Profesor = {
   nombre: string;
 };
 
+type CriterioCalificacion = {
+  criterio: string;
+  valor: number;
+  descripcion: string;
+};
+
 export default function EncuadreMateria() {
   const router = useRouter();
   const params = useParams<{ clave: string }>();
@@ -48,7 +62,22 @@ export default function EncuadreMateria() {
   const [profesorId, setProfesorId] = useState("");
   const [periodo, setPeriodo] = useState("");
   const [grupo, setGrupo] = useState("");
-  const [seccion, setSeccion] = useState(""); // ⬅️ AGREGADO
+  const [seccion, setSeccion] = useState("");
+  const [competenciaGeneral, setCompetenciaGeneral] = useState("");
+  const [descripcionEvaluacion, setDescripcionEvaluacion] = useState("");
+  const [derechoOrdinario, setDerechoOrdinario] = useState("");
+  const [derechoExtraordinario, setDerechoExtraordinario] = useState("");
+  const [descripcionProducto, setDescripcionProducto] = useState("");
+  const [bibliografiaBasica, setBibliografiaBasica] = useState("");
+  const [normasConducta, setNormasConducta] = useState("");
+  const [profesorPuedeModificar, setProfesorPuedeModificar] = useState(true);
+  
+  // Criterios de calificación (tabla)
+  const [criteriosCalificacion, setCriteriosCalificacion] = useState<CriterioCalificacion[]>([
+    { criterio: "", valor: 0, descripcion: "" },
+    { criterio: "", valor: 0, descripcion: "" },
+    { criterio: "", valor: 0, descripcion: "" },
+  ]);
 
   const { guardarEncuadre, cargarEncuadre, loading, error } = useEncuadreForm(
     materia?.id || ""
@@ -94,7 +123,7 @@ export default function EncuadreMateria() {
     };
   }, [clave]);
 
-  // Cargar encuadre existente (si hay)
+  // Cargar encuadre existente
   useEffect(() => {
     if (!materia?.id) return;
 
@@ -104,13 +133,31 @@ export default function EncuadreMateria() {
         setProfesorId(encuadre.usuario_id || "");
         setGrupo(encuadre.grupo || "");
         setPeriodo(encuadre.periodo || "");
-        setSeccion(encuadre.seccion || ""); // ⬅️ AGREGADO
+        setSeccion(encuadre.seccion || "");
+        setCompetenciaGeneral(encuadre.competencia_general || "");
+        setDescripcionEvaluacion(encuadre.descripcion_evaluacion || "");
+        setDerechoOrdinario(encuadre.derecho_ordinario || "");
+        setDerechoExtraordinario(encuadre.derecho_extraordinario || "");
+        setDescripcionProducto(encuadre.descripcion_producto || "");
+        setBibliografiaBasica(encuadre.bibliografia_basica || "");
+        setNormasConducta(encuadre.normas_conducta || "");
+        setProfesorPuedeModificar(encuadre.profesor_puede_modificar_criterios ?? true);
+        
+        // Cargar criterios
+        if (encuadre.criterios_evaluacion && encuadre.criterios_evaluacion.length > 0) {
+          setCriteriosCalificacion(
+            encuadre.criterios_evaluacion.map((c: any) => ({
+              criterio: c.criterio,
+              valor: c.valor,
+              descripcion: c.descripcion || "",
+            }))
+          );
+        }
       }
     })();
   }, [materia?.id, cargarEncuadre]);
 
   const handleBack = async () => {
-    // Si hay cambios sin guardar, preguntar
     if (profesorId || periodo || grupo || seccion) {
       const shouldLeave = await confirm({
         title: "¿Salir sin guardar?",
@@ -128,7 +175,10 @@ export default function EncuadreMateria() {
   const handleGuardar = async () => {
     if (!materia) return;
 
-    // Validaciones
+    // ========================================
+    // VALIDACIONES BÁSICAS (Campos requeridos)
+    // ========================================
+
     if (!profesorId) {
       await confirm({
         title: "Campo requerido",
@@ -169,15 +219,122 @@ export default function EncuadreMateria() {
       return;
     }
 
-    // Confirmar antes de guardar
+    // ========================================
+    // VALIDACIONES DE CRITERIOS DE CALIFICACIÓN
+    // ========================================
+
+    // Filtrar solo los criterios que tienen nombre
+    const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
+
+    // Si hay al menos un criterio con nombre, validar que todos tengan datos completos
+    if (criteriosConValor.length > 0) {
+      // Verificar que todos los criterios con nombre tengan porcentaje > 0
+      const criterioSinPorcentaje = criteriosConValor.find((c) => c.valor <= 0);
+      if (criterioSinPorcentaje) {
+        await confirm({
+          title: "Porcentaje inválido",
+          message: `El criterio "${criterioSinPorcentaje.criterio}" debe tener un porcentaje mayor a 0.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      // Verificar que los porcentajes sumen 100%
+      const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
+      if (totalPorcentaje !== 100) {
+        await confirm({
+          title: "Porcentajes incorrectos",
+          message: `Los porcentajes deben sumar exactamente 100%. Actualmente suman ${totalPorcentaje}%.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      // Verificar que no haya porcentajes mayores a 100
+      const criterioExcesivo = criteriosConValor.find((c) => c.valor > 100);
+      if (criterioExcesivo) {
+        await confirm({
+          title: "Porcentaje inválido",
+          message: `El criterio "${criterioExcesivo.criterio}" tiene un porcentaje mayor a 100%.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+    }
+
+    // Validar que haya al menos un criterio de calificación
+    if (criteriosConValor.length === 0) {
+      await confirm({
+        title: "Sin criterios de calificación",
+        message: "Debes agregar al menos un criterio de evaluación con su porcentaje.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    // ========================================
+    // ADVERTENCIAS OPCIONALES (No bloquean guardado)
+    // ========================================
+
+    // Advertir si no hay competencia general
+    if (!competenciaGeneral.trim()) {
+      const shouldContinue = await confirm({
+        title: "Campo vacío",
+        message: "No has ingresado la Competencia General del Curso. ¿Deseas continuar de todas formas?",
+        confirmText: "Sí, continuar",
+        cancelText: "Cancelar",
+      });
+
+      if (!shouldContinue) return;
+    }
+
+    // Advertir si no hay descripción de evaluación
+    if (!descripcionEvaluacion.trim()) {
+      const shouldContinue = await confirm({
+        title: "Campo vacío",
+        message: "No has ingresado una descripción general de la evaluación. ¿Deseas continuar de todas formas?",
+        confirmText: "Sí, continuar",
+        cancelText: "Cancelar",
+      });
+
+      if (!shouldContinue) return;
+    }
+
+    // Advertir si faltan derechos de examen
+    if (!derechoOrdinario.trim() || !derechoExtraordinario.trim()) {
+      const shouldContinue = await confirm({
+        title: "Información incompleta",
+        message: "No has completado los criterios para el Derecho a Examen Ordinario y/o Extraordinario. ¿Deseas continuar de todas formas?",
+        confirmText: "Sí, continuar",
+        cancelText: "Cancelar",
+      });
+
+      if (!shouldContinue) return;
+    }
+
+    // ========================================
+    // CONFIRMACIÓN FINAL
+    // ========================================
+
     const shouldSave = await confirm({
       title: "Guardar encuadre",
-      message: "¿Deseas guardar la configuración del encuadre?",
+      message: "¿Estás seguro de que deseas guardar la configuración del encuadre?",
       confirmText: "Guardar",
       cancelText: "Cancelar",
     });
 
     if (!shouldSave) return;
+
+    // ========================================
+    // PREPARAR Y GUARDAR DATOS
+    // ========================================
+
+    // Filtrar solo criterios completos
+    const criteriosAGuardar = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
 
     // Guardar
     const encuadreId = await guardarEncuadre({
@@ -185,11 +342,19 @@ export default function EncuadreMateria() {
       profesorId,
       periodo,
       grupo,
-      seccion, // ⬅️ AGREGADO
+      seccion,
+      competenciaGeneral,
+      descripcionEvaluacion,
+      derechoOrdinario,
+      derechoExtraordinario,
+      descripcionProducto,
+      bibliografiaBasica,
+      normasConducta,
+      profesorPuedeModificarCriterios: profesorPuedeModificar,
+      criteriosCalificacion: criteriosAGuardar,
     });
 
     if (encuadreId) {
-      // Mostrar mensaje de éxito
       await confirm({
         title: "¡Guardado exitoso!",
         message: "El encuadre se ha guardado correctamente.",
@@ -200,6 +365,23 @@ export default function EncuadreMateria() {
       router.push("/capturista/materias");
     }
   };
+
+  const agregarCriterioCalificacion = () => {
+    setCriteriosCalificacion([...criteriosCalificacion, { criterio: "", valor: 0, descripcion: "" }]);
+  };
+
+  const eliminarCriterioCalificacion = (index: number) => {
+    setCriteriosCalificacion(criteriosCalificacion.filter((_, i) => i !== index));
+  };
+
+  const actualizarCriterioCalificacion = (index: number, field: keyof CriterioCalificacion, value: string | number) => {
+    const nuevosCriterios = [...criteriosCalificacion];
+    nuevosCriterios[index] = { ...nuevosCriterios[index], [field]: value };
+    setCriteriosCalificacion(nuevosCriterios);
+  };
+
+  const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
+  const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
 
   if (loadingData) {
     return (
@@ -235,9 +417,15 @@ export default function EncuadreMateria() {
     );
   }
 
+  const ta =
+    "min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm " +
+    "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 " +
+    "focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background " +
+    "disabled:cursor-not-allowed disabled:opacity-50";
+
   return (
     <div className="px-4 py-8">
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <div>
           <Button
             variant="outline"
@@ -250,9 +438,9 @@ export default function EncuadreMateria() {
         </div>
 
         <div className="text-center">
-          <h1 className="text-2xl font-bold">Configurar Encuadre</h1>
+          <h1 className="text-2xl font-bold">Encuadre de la Unidad de Aprendizaje</h1>
           <p className="text-sm text-muted-foreground">
-            Completa la información del curso antes de guardar.
+            Completa la información del encuadre del curso.
           </p>
         </div>
 
@@ -264,29 +452,21 @@ export default function EncuadreMateria() {
           </Card>
         )}
 
+        {/* Datos básicos */}
         <Card>
           <CardHeader>
-            <CardTitle>Datos de la materia</CardTitle>
-            <CardDescription>Campos de solo lectura</CardDescription>
+            <CardTitle>Datos del curso</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-            <div className="sm:col-span-4">
+            <div className="sm:col-span-3">
               <Label className="mb-2 block">Clave</Label>
               <Input value={materia.clave} disabled />
             </div>
-            <div className="sm:col-span-8">
-              <Label className="mb-2 block">Nombre</Label>
+            <div className="sm:col-span-9">
+              <Label className="mb-2 block">Nombre del Curso</Label>
               <Input value={materia.nombre} disabled />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Configuración del curso</CardTitle>
-            <CardDescription>Asigna profesor, periodo, grupo y sección</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-12">
             <div className="sm:col-span-6">
               <Label className="mb-2 block">
                 Profesor <span className="text-red-500">*</span>
@@ -315,7 +495,7 @@ export default function EncuadreMateria() {
               </Select>
             </div>
 
-            <div className="sm:col-span-6">
+            <div className="sm:col-span-3">
               <Label className="mb-2 block">
                 Periodo <span className="text-red-500">*</span>
               </Label>
@@ -326,7 +506,7 @@ export default function EncuadreMateria() {
               />
             </div>
 
-            <div className="sm:col-span-6">
+            <div className="sm:col-span-3">
               <Label className="mb-2 block">
                 Grupo <span className="text-red-500">*</span>
               </Label>
@@ -336,38 +516,249 @@ export default function EncuadreMateria() {
                 placeholder="301"
               />
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="sm:col-span-6">
-              <Label className="mb-2 block">
-                Sección <span className="text-red-500">*</span>
+        {/* Competencia General */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Competencia General del Curso</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className={ta}
+              value={competenciaGeneral}
+              onChange={(e) => setCompetenciaGeneral(e.target.value)}
+              placeholder="Describe la competencia general del curso..."
+            />
+          </CardContent>
+        </Card>
+
+        {/* Evaluación de Curso */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Evaluación de Curso</CardTitle>
+            <CardDescription>
+              Descripción detallada de cómo se evaluará el curso. Asignar valor a cada actividad.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Checkbox permitir modificar */}
+            <div className="flex items-center space-x-2 pb-4 border-b">
+              <input
+                type="checkbox"
+                id="profesorModifica"
+                checked={profesorPuedeModificar}
+                onChange={(e) => setProfesorPuedeModificar(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 cursor-pointer"
+              />
+              <Label htmlFor="profesorModifica" className="cursor-pointer">
+                Permitir al profesor modificar estos criterios
               </Label>
-              <Input
-                value={seccion}
-                onChange={(e) => setSeccion(e.target.value)}
-                placeholder="A"
+            </div>
+
+            {/* Descripción general de evaluación */}
+            <div>
+              <Label className="mb-2 block">Descripción general</Label>
+              <textarea
+                className={ta}
+                value={descripcionEvaluacion}
+                onChange={(e) => setDescripcionEvaluacion(e.target.value)}
+                placeholder="Descripción detallada de cómo se evaluará el curso..."
               />
             </div>
 
-            <div className="sm:col-span-12 flex items-center justify-end gap-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={handleBack}
-                disabled={loading}
-                className="cursor-pointer"
-              >
-                Cancelar
-              </Button>
-              <Button
-                className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
-                onClick={handleGuardar}
-                disabled={loading}
-              >
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {loading ? "Guardando..." : "Guardar"}
-              </Button>
+            {/* Tabla de criterios */}
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[35%]">Criterio</TableHead>
+                    <TableHead className="w-[15%] text-center">Valor %</TableHead>
+                    <TableHead className="w-[40%]">Descripción</TableHead>
+                    <TableHead className="w-[10%]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {criteriosCalificacion.map((criterio, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <Input
+                          value={criterio.criterio}
+                          onChange={(e) =>
+                            actualizarCriterioCalificacion(index, "criterio", e.target.value)
+                          }
+                          placeholder="Nombre del criterio"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={criterio.valor}
+                          onChange={(e) =>
+                            actualizarCriterioCalificacion(index, "valor", Number(e.target.value))
+                          }
+                          className="text-center"
+                          placeholder="%"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={criterio.descripcion}
+                          onChange={(e) =>
+                            actualizarCriterioCalificacion(index, "descripcion", e.target.value)
+                          }
+                          placeholder="Descripción del criterio"
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => eliminarCriterioCalificacion(index)}
+                          disabled={criteriosCalificacion.length === 1}
+                          className="cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow>
+                    <TableCell className="font-semibold">Total</TableCell>
+                    <TableCell className="text-center">
+                      <span
+                        className={`font-semibold ${
+                          totalPorcentaje === 100
+                            ? "text-green-600"
+                            : totalPorcentaje > 0
+                            ? "text-red-600"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {totalPorcentaje}%
+                      </span>
+                    </TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={agregarCriterioCalificacion}
+              className="cursor-pointer"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Agregar fila
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Derecho Examen Ordinario y Extraordinario */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Derecho Examen Ordinario y Extraordinario</CardTitle>
+            <CardDescription>
+              Detallar claramente los criterios para exentar el examen ordinario
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div>
+              <Label className="mb-2 block">Ordinario</Label>
+              <textarea
+                className={ta}
+                value={derechoOrdinario}
+                onChange={(e) => setDerechoOrdinario(e.target.value)}
+                placeholder="- Alumnos con 80% o más de asistencias en clases impartidas&#10;- Para exentar examen ordinario el estudiante deberá tener..."
+              />
+            </div>
+            <div>
+              <Label className="mb-2 block">Extraordinario</Label>
+              <textarea
+                className={ta}
+                value={derechoExtraordinario}
+                onChange={(e) => setDerechoExtraordinario(e.target.value)}
+                placeholder="- Alumnos con 60% o más de asistencias en clases impartidas&#10;- La calificación final obtenida equivale al 100%"
+              />
             </div>
           </CardContent>
         </Card>
+
+        {/* Descripción de Producto */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Descripción de Producto o Evidencia de Desempeño</CardTitle>
+            <CardDescription>
+              En caso de existir rúbrica del trabajo final, incluirla en este apartado
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className={ta}
+              value={descripcionProducto}
+              onChange={(e) => setDescripcionProducto(e.target.value)}
+              placeholder="Describe el producto final o evidencias de desempeño..."
+            />
+          </CardContent>
+        </Card>
+
+        {/* Bibliografía */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Bibliografía, Referencias y Recurso de la Red</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className={ta}
+              value={bibliografiaBasica}
+              onChange={(e) => setBibliografiaBasica(e.target.value)}
+              placeholder="Lista las referencias bibliográficas, sitios web y recursos..."
+            />
+          </CardContent>
+        </Card>
+
+        {/* Normas de Conducta */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Normas de Conducta dentro del Salón de Clases</CardTitle>
+            <CardDescription>
+              Describir las reglas de conducta, retardos, uso de celular, alimentos, etc.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className={ta}
+              value={normasConducta}
+              onChange={(e) => setNormasConducta(e.target.value)}
+              placeholder="En caso de haber una sanción al no respetarlas, estas deberán mencionarse en este apartado y apegarse al estatuto general de la UABC (art. 202)"
+            />
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={loading}
+            className="cursor-pointer"
+          >
+            Cancelar
+          </Button>
+          <Button
+            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+            onClick={handleGuardar}
+            disabled={loading}
+          >
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? "Guardando..." : "Guardar"}
+          </Button>
+        </div>
       </div>
     </div>
   );

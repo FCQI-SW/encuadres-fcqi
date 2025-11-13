@@ -9,7 +9,16 @@ type EncuadreFormData = {
   profesorId: string;
   periodo: string;
   grupo: string;
-  seccion: string; // ⬅️ AGREGADO
+  seccion: string;
+  competenciaGeneral: string;
+  descripcionEvaluacion: string;
+  derechoOrdinario: string;
+  derechoExtraordinario: string;
+  descripcionProducto: string;
+  bibliografiaBasica: string;
+  normasConducta: string;
+  profesorPuedeModificarCriterios: boolean;
+  criteriosCalificacion: Array<{ criterio: string; valor: number; descripcion: string }>;
 };
 
 export function useEncuadreForm(materiaId: string) {
@@ -75,11 +84,37 @@ export function useEncuadreForm(materiaId: string) {
             usuario_id: data.profesorId,
             grupo: data.grupo,
             periodo: data.periodo,
-            seccion: data.seccion, // ⬅️ AGREGADO
+            seccion: data.seccion,
+            competencia_general: data.competenciaGeneral,
+            descripcion_evaluacion: data.descripcionEvaluacion,
+            derecho_ordinario: data.derechoOrdinario,
+            derecho_extraordinario: data.derechoExtraordinario,
+            descripcion_producto: data.descripcionProducto,
+            bibliografia_basica: data.bibliografiaBasica,
+            normas_conducta: data.normasConducta,
+            profesor_puede_modificar_criterios: data.profesorPuedeModificarCriterios,
           })
           .eq("id", encuadreId);
 
         if (updateError) throw updateError;
+
+        // Actualizar criterios de calificación
+        await supabase.from("criterios_evaluacion").delete().eq("encuadre_id", encuadreId);
+
+        if (data.criteriosCalificacion.length > 0) {
+          const criteriosToInsert = data.criteriosCalificacion.map((c) => ({
+            encuadre_id: encuadreId,
+            criterio: c.criterio,
+            valor: c.valor,
+            descripcion: c.descripcion || null,
+          }));
+
+          const { error: criteriosError } = await supabase
+            .from("criterios_evaluacion")
+            .insert(criteriosToInsert);
+
+          if (criteriosError) throw criteriosError;
+        }
         
         return encuadreId;
       }
@@ -92,7 +127,15 @@ export function useEncuadreForm(materiaId: string) {
           usuario_id: data.profesorId,
           grupo: data.grupo,
           periodo: data.periodo,
-          seccion: data.seccion, // ⬅️ AGREGADO
+          seccion: data.seccion,
+          competencia_general: data.competenciaGeneral,
+          descripcion_evaluacion: data.descripcionEvaluacion,
+          derecho_ordinario: data.derechoOrdinario,
+          derecho_extraordinario: data.derechoExtraordinario,
+          descripcion_producto: data.descripcionProducto,
+          bibliografia_basica: data.bibliografiaBasica,
+          normas_conducta: data.normasConducta,
+          profesor_puede_modificar_criterios: data.profesorPuedeModificarCriterios,
           estado_encuadre: "borrador",
           creado_por: session.user.id,
         })
@@ -102,6 +145,23 @@ export function useEncuadreForm(materiaId: string) {
       if (insertError) throw insertError;
 
       setEncuadreId(nuevoEncuadre.id);
+
+      // Guardar criterios de calificación
+      if (data.criteriosCalificacion.length > 0) {
+        const criteriosToInsert = data.criteriosCalificacion.map((c) => ({
+          encuadre_id: nuevoEncuadre.id,
+          criterio: c.criterio,
+          valor: c.valor,
+          descripcion: c.descripcion || null,
+        }));
+
+        const { error: criteriosError } = await supabase
+          .from("criterios_evaluacion")
+          .insert(criteriosToInsert);
+
+        if (criteriosError) throw criteriosError;
+      }
+
       return nuevoEncuadre.id;
     } catch (err: any) {
       console.error("Error al guardar encuadre:", err);
@@ -112,13 +172,12 @@ export function useEncuadreForm(materiaId: string) {
     }
   }, [session?.user?.id, programaId, encuadreId]);
 
-  // Cargar encuadre existente (si existe)
+  // Cargar encuadre existente
   const cargarEncuadre = useCallback(async () => {
     if (!materiaId) return null;
     
     setLoading(true);
     try {
-      // 1. Obtener programa de la materia
       const { data: programa } = await supabase
         .from("programas")
         .select("id")
@@ -129,10 +188,9 @@ export function useEncuadreForm(materiaId: string) {
       
       setProgramaId(programa.id);
 
-      // 2. Obtener encuadre del programa
       const { data: encuadre, error } = await supabase
         .from("encuadres")
-        .select("*")
+        .select("*, criterios_evaluacion(*)")
         .eq("programa_id", programa.id)
         .single();
 
