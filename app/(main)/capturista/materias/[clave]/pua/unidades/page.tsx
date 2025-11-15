@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/card";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { Unidad } from "@/components/unidad";
+import { useUnidadesForm } from "@/hooks/useUnidadesForm";
+import { useConfirm } from "@/components/global-confirm-modal";
 
 type Programa = {
   id: string;
@@ -20,19 +22,32 @@ type Programa = {
   unidades: number;
 };
 
+type UnidadData = {
+  numero: number;
+  nombre: string;
+  competencia: string;
+  contenido: string;
+  duracion: number;
+};
+
 export default function PuaMateriaUnidades() {
   const router = useRouter();
   const params = useParams<{ clave: string }>();
   const clave = params?.clave;
+  const confirm = useConfirm();
 
   const [programa, setPrograma] = useState<Programa | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
+  const [unidadesData, setUnidadesData] = useState<Record<number, UnidadData>>({});
+  const [unidadesCargadas, setUnidadesCargadas] = useState<UnidadData[]>([]);
+
+  const { loading, guardarUnidades, cargarUnidades } = useUnidadesForm(programa?.id || "");
 
   useEffect(() => {
     const fetchPrograma = async () => {
       if (!clave) return;
 
-      setLoading(true);
+      setLoadingData(true);
       try {
         const { data: materiaData } = await supabase
           .from("materias")
@@ -42,7 +57,7 @@ export default function PuaMateriaUnidades() {
 
         if (!materiaData) {
           setPrograma(null);
-          setLoading(false);
+          setLoadingData(false);
           return;
         }
 
@@ -62,23 +77,120 @@ export default function PuaMateriaUnidades() {
         console.error("Error:", err);
         setPrograma(null);
       } finally {
-        setLoading(false);
+        setLoadingData(false);
       }
     };
 
     fetchPrograma();
   }, [clave]);
 
+  // Cargar unidades existentes
+  useEffect(() => {
+    if (!programa?.id) return;
+
+    (async () => {
+      const unidades = await cargarUnidades();
+      setUnidadesCargadas(unidades);
+    })();
+  }, [programa?.id, cargarUnidades]);
+
   const handleBack = () => {
     router.push(`/capturista/materias/${clave}/pua`);
   };
 
-  const handleContinuar = () => {
-    // TODO: Guardar las unidades en la base de datos
-    router.push(`/capturista/materias/${clave}/pua/laboratorio`);
+  const handleUnidadChange = (data: UnidadData) => {
+    setUnidadesData((prev) => ({
+      ...prev,
+      [data.numero]: data,
+    }));
   };
 
-  if (loading) {
+  const handleContinuar = async () => {
+    if (!programa) return;
+
+    // Convertir unidadesData a array
+    const unidadesArray = Object.values(unidadesData);
+
+    // Validar que todas las unidades estén completas
+    if (unidadesArray.length < programa.unidades) {
+      await confirm({
+        title: "Unidades incompletas",
+        message: `Debes completar todas las ${programa.unidades} unidades antes de continuar.`,
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    // Validar cada unidad
+    for (const unidad of unidadesArray) {
+      if (!unidad.nombre.trim()) {
+        await confirm({
+          title: "Campo requerido",
+          message: `La Unidad ${unidad.numero} debe tener un nombre.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      if (!unidad.competencia.trim()) {
+        await confirm({
+          title: "Campo requerido",
+          message: `La Unidad ${unidad.numero} debe tener una competencia.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      if (!unidad.contenido.trim()) {
+        await confirm({
+          title: "Campo requerido",
+          message: `La Unidad ${unidad.numero} debe tener contenido.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      if (unidad.duracion <= 0) {
+        await confirm({
+          title: "Duración inválida",
+          message: `La Unidad ${unidad.numero} debe tener una duración mayor a 0 horas.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+    }
+
+    // Confirmar guardado
+    const shouldSave = await confirm({
+      title: "Guardar unidades",
+      message: "¿Deseas guardar todas las unidades?",
+      confirmText: "Guardar",
+      cancelText: "Cancelar",
+    });
+
+    if (!shouldSave) return;
+
+    // Guardar
+    const success = await guardarUnidades(unidadesArray);
+
+    if (success) {
+      await confirm({
+        title: "¡Guardado exitoso!",
+        message: "Las unidades se han guardado correctamente.",
+        confirmText: "Continuar",
+        cancelText: "",
+      });
+
+      router.push(`/capturista/materias`);
+    }
+  };
+
+  if (loadingData) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -116,7 +228,8 @@ export default function PuaMateriaUnidades() {
 
   return (
     <div className="px-4 py-8">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
+        {/* Botón regresar */}
         <div>
           <Button
             variant="outline"
@@ -128,26 +241,32 @@ export default function PuaMateriaUnidades() {
           </Button>
         </div>
 
-        <div className="text-center">
-          <Card className="border-2 border-gray-300 bg-gray-100">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-2xl">
-                V. DESARROLLO POR UNIDADES
-              </CardTitle>
-            </CardHeader>
-          </Card>
+        {/* Título principal - Sin marco ni fondo */}
+        <div className="text-center py-4">
+          <h1 className="text-2xl font-bold">V. DESARROLLO POR UNIDADES</h1>
         </div>
 
+        {/* Unidades */}
         <div className="space-y-8">
-          {nUnidades.map((num) => (
-            <Unidad key={num} nUnidad={num} />
-          ))}
+          {nUnidades.map((num) => {
+            const unidadCargada = unidadesCargadas.find((u) => u.numero === num);
+            return (
+              <Unidad
+                key={num}
+                nUnidad={num}
+                value={unidadCargada}
+                onChange={handleUnidadChange}
+              />
+            );
+          })}
         </div>
 
+        {/* Botones de acción */}
         <div className="flex justify-end gap-2 pt-4">
           <Button
             variant="outline"
             onClick={handleBack}
+            disabled={loading}
             className="cursor-pointer"
           >
             Cancelar
@@ -155,8 +274,10 @@ export default function PuaMateriaUnidades() {
           <Button
             className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
             onClick={handleContinuar}
+            disabled={loading}
           >
-            Continuar
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? "Guardando..." : "Guardar unidades"}
           </Button>
         </div>
       </div>

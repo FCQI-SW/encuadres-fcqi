@@ -15,7 +15,6 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { ChevronLeft, Loader2 } from "lucide-react";
-import { TablaCriterios } from "@/components/criterios";
 import { usePuaForm } from "@/hooks/usePuaForm";
 import { useConfirm } from "@/components/global-confirm-modal";
 
@@ -33,10 +32,26 @@ export default function PuaMateria() {
 
   const [loadingData, setLoadingData] = useState(true);
   const [materia, setMateria] = useState<Materia | null>(null);
+  const [puaExistente, setPuaExistente] = useState(false);
+  const [puaCompleto, setPuaCompleto] = useState(false);
+  const [programaId, setProgramaId] = useState<string>("");
 
+  // Estados para los campos de la sección I
+  const [unidadAcademica, setUnidadAcademica] = useState("");
   const [programaEducativo, setProgramaEducativo] = useState("");
   const [planEstudios, setPlanEstudios] = useState("");
-  const [competenciaGeneral, setCompetenciaGeneral] = useState("");
+  const [hc, setHc] = useState<string>("0");
+  const [hl, setHl] = useState<string>("0");
+  const [ht, setHt] = useState<string>("0");
+  const [hpc, setHpc] = useState<string>("0");
+  const [hcl, setHcl] = useState<string>("0");
+  const [he, setHe] = useState<string>("0");
+  const [cr, setCr] = useState<string>("0");
+  const [etapaFormacion, setEtapaFormacion] = useState("");
+  const [caracterUA, setCaracterUA] = useState("");
+  const [requisitos, setRequisitos] = useState("");
+
+  // Estados para las secciones II, III, IV, V
   const [propositoUA, setPropositoUA] = useState("");
   const [competenciaUA, setCompetenciaUA] = useState("");
   const [evidencias, setEvidencias] = useState("");
@@ -78,30 +93,58 @@ export default function PuaMateria() {
     (async () => {
       const pua = await cargarPua();
       if (pua) {
+        setPuaExistente(true);
+        setUnidadAcademica(pua.unidad_academica || "");
         setProgramaEducativo(pua.programa_educativo || "");
         setPlanEstudios(pua.plan_estudios || "");
-        setCompetenciaGeneral(pua.competencia_general || "");
+        setHc(String(pua.hc || 0));
+        setHl(String(pua.hl || 0));
+        setHt(String(pua.ht || 0));
+        setHpc(String(pua.hpc || 0));
+        setHcl(String(pua.hcl || 0));
+        setHe(String(pua.he || 0));
+        setCr(String(pua.cr || 0));
+        setEtapaFormacion(pua.etapa_formacion || "");
+        setCaracterUA(pua.caracter_ua || "");
+        setRequisitos(pua.requisitos || "");
         setPropositoUA(pua.proposito || "");
         setCompetenciaUA(pua.competencia || "");
         setEvidencias(pua.evidencias || "");
         setNumUnidades(String(pua.unidades || ""));
+
+        // Obtener el programa_id y verificar si está completo
+        const { data: programaData } = await supabase
+          .from("programas")
+          .select("id, unidades")
+          .eq("materia_id", materia.id)
+          .single();
+
+        if (programaData) {
+          setProgramaId(programaData.id);
+
+          // Verificar si todas las unidades están completas
+          const { data: unidades } = await supabase
+            .from("unidades")
+            .select("numero, nombre, competencia, contenido, duracion")
+            .eq("programa_id", programaData.id);
+
+          const numUnidadesEsperadas = programaData.unidades || 0;
+          const unidadesCompletas = (unidades || []).filter(
+            (u) =>
+              u.nombre?.trim() &&
+              u.competencia?.trim() &&
+              u.contenido?.trim() &&
+              u.duracion > 0
+          );
+
+          const todasUnidadesCompletas = unidadesCompletas.length === numUnidadesEsperadas;
+          setPuaCompleto(todasUnidadesCompletas);
+        }
       }
     })();
   }, [materia?.id, cargarPua]);
 
   const handleBack = async () => {
-    // Si hay cambios sin guardar, preguntar
-    if (propositoUA || competenciaUA || evidencias || numUnidades || programaEducativo || planEstudios || competenciaGeneral) {
-      const shouldLeave = await confirm({
-        title: "¿Salir sin guardar?",
-        message: "Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?",
-        confirmText: "Sí, salir",
-        cancelText: "Cancelar",
-      });
-
-      if (!shouldLeave) return;
-    }
-
     router.push("/capturista/materias");
   };
 
@@ -109,6 +152,56 @@ export default function PuaMateria() {
     if (!materia) return;
 
     // Validaciones
+    if (!unidadAcademica.trim()) {
+      await confirm({
+        title: "Campo requerido",
+        message: "Por favor ingresa la Unidad Académica.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    if (!programaEducativo.trim()) {
+      await confirm({
+        title: "Campo requerido",
+        message: "Por favor ingresa el Programa Educativo.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    if (!planEstudios.trim()) {
+      await confirm({
+        title: "Campo requerido",
+        message: "Por favor ingresa el Plan de Estudios.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    if (!etapaFormacion.trim()) {
+      await confirm({
+        title: "Campo requerido",
+        message: "Por favor ingresa la Etapa de Formación.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    if (!caracterUA.trim()) {
+      await confirm({
+        title: "Campo requerido",
+        message: "Por favor ingresa el Carácter de la Unidad de Aprendizaje.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
     if (!propositoUA.trim()) {
       await confirm({
         title: "Campo requerido",
@@ -149,39 +242,60 @@ export default function PuaMateria() {
       return;
     }
 
-    // Confirmar antes de guardar
+    if (!requisitos.trim()) {
+      const shouldContinue = await confirm({
+        title: "Campo vacío",
+        message: "No has ingresado los requisitos para cursar la UA. Si no hay requisitos, puedes escribir 'Ninguno'. ¿Deseas continuar de todas formas?",
+        confirmText: "Sí, continuar",
+        cancelText: "Cancelar",
+      });
+
+      if (!shouldContinue) return;
+    }
+
     const shouldSave = await confirm({
-      title: "Guardar PUA",
-      message: "¿Deseas guardar la información del PUA y continuar con las unidades?",
-      confirmText: "Guardar y continuar",
+      title: puaExistente ? "Guardar cambios" : "Guardar PUA",
+      message: puaExistente 
+        ? "¿Deseas guardar los cambios realizados?" 
+        : "¿Deseas guardar la información del PUA y continuar con las unidades?",
+      confirmText: puaExistente ? "Guardar cambios" : "Guardar y continuar",
       cancelText: "Cancelar",
     });
 
     if (!shouldSave) return;
 
-    // Guardar
-    const programaId = await guardarPua({
+    const savedProgramaId = await guardarPua({
       materiaId: materia.id,
+      unidadAcademica,
       programaEducativo,
       planEstudios,
-      competenciaGeneral,
+      hc: Number(hc),
+      hl: Number(hl),
+      ht: Number(ht),
+      hpc: Number(hpc),
+      hcl: Number(hcl),
+      he: Number(he),
+      cr: Number(cr),
+      etapaFormacion,
+      caracterUA,
+      requisitos,
       propositoUA,
       competenciaUA,
       evidencias,
       numUnidades: Number(numUnidades),
     });
 
-    if (programaId) {
-      // Mostrar mensaje de éxito
+    if (savedProgramaId) {
       await confirm({
         title: "¡Guardado exitoso!",
         message: "El PUA se ha guardado correctamente.",
-        confirmText: "Continuar a unidades",
+        confirmText: puaExistente ? "Aceptar" : "Continuar a unidades",
         cancelText: "",
       });
 
-      // Ir a unidades
-      router.push(`/capturista/materias/${clave}/pua/unidades`);
+      if (!puaExistente) {
+        router.push(`/capturista/materias/${clave}/pua/unidades`);
+      }
     }
   };
 
@@ -260,46 +374,167 @@ export default function PuaMateria() {
             <CardTitle>I. Datos de identificación</CardTitle>
             <CardDescription>Información general del curso</CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-            <div className="sm:col-span-4">
-              <Label className="mb-2 block">Clave del curso</Label>
-              <Input value={materia.clave} disabled />
-            </div>
-            <div className="sm:col-span-8">
-              <Label className="mb-2 block">Nombre del curso</Label>
-              <Input value={materia.nombre} disabled />
-            </div>
-
-            <div className="sm:col-span-6">
-              <Label className="mb-2 block">Programa educativo</Label>
-              <Input
-                value={programaEducativo}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setProgramaEducativo(e.target.value)
-                }
-                placeholder="Programa educativo"
-              />
-            </div>
-            <div className="sm:col-span-6">
-              <Label className="mb-2 block">Plan de estudios</Label>
-              <Input
-                value={planEstudios}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setPlanEstudios(e.target.value)
-                }
-                placeholder="Plan de estudios"
-              />
-            </div>
-
-            <div className="sm:col-span-12">
-              <Label className="mb-2 block">Competencia general del curso</Label>
+          <CardContent className="space-y-4">
+            <div>
+              <Label className="mb-2 block">
+                1. Unidad Académica <span className="text-red-500">*</span>
+              </Label>
               <textarea
                 className={ta}
-                value={competenciaGeneral}
+                value={unidadAcademica}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setCompetenciaGeneral(e.target.value)
+                  setUnidadAcademica(e.target.value)
                 }
-                placeholder="Describe la competencia general del curso"
+                placeholder="Ej: Facultad de Ingeniería, Mexicali; Facultad de Ciencias Químicas e Ingeniería, Tijuana..."
+              />
+            </div>
+
+            <div>
+              <Label className="mb-2 block">
+                2. Programa Educativo <span className="text-red-500">*</span>
+              </Label>
+              <textarea
+                className={ta}
+                value={programaEducativo}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setProgramaEducativo(e.target.value)
+                }
+                placeholder="Ej: Ingeniero Aeroespacial, Ingeniero Civil, Ingeniero Eléctrico, Ingeniero en Computación..."
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="mb-2 block">
+                  3. Plan de Estudios <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  value={planEstudios}
+                  onChange={(e) => setPlanEstudios(e.target.value)}
+                  placeholder="2019-2"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+              <div className="sm:col-span-8">
+                <Label className="mb-2 block">4. Nombre de la Unidad de Aprendizaje</Label>
+                <Input value={materia.nombre} disabled />
+              </div>
+              <div className="sm:col-span-4">
+                <Label className="mb-2 block">5. Clave</Label>
+                <Input value={materia.clave} disabled />
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-2 block">6. Horas y Créditos</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
+                <div>
+                  <Label className="mb-1 block text-xs">HC</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={hc}
+                    onChange={(e) => setHc(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs">HL</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={hl}
+                    onChange={(e) => setHl(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs">HT</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={ht}
+                    onChange={(e) => setHt(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs">HPC</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={hpc}
+                    onChange={(e) => setHpc(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs">HCL</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={hcl}
+                    onChange={(e) => setHcl(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs">HE</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={he}
+                    onChange={(e) => setHe(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs">CR</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={cr}
+                    onChange={(e) => setCr(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                HC: Horas Clase | HL: Horas Laboratorio | HT: Horas Taller | HPC: Horas Práctica de Campo | HCL: Horas Clínicas | HE: Horas Extra Clase | CR: Créditos
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="mb-2 block">
+                  7. Etapa de Formación a la que Pertenece <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  value={etapaFormacion}
+                  onChange={(e) => setEtapaFormacion(e.target.value)}
+                  placeholder="Ej: Básica, Disciplinaria, Terminal"
+                />
+              </div>
+              <div>
+                <Label className="mb-2 block">
+                  8. Carácter de la Unidad de Aprendizaje <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  value={caracterUA}
+                  onChange={(e) => setCaracterUA(e.target.value)}
+                  placeholder="Ej: Obligatoria, Optativa"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-2 block">9. Requisitos para Cursar la Unidad de Aprendizaje</Label>
+              <Input
+                value={requisitos}
+                onChange={(e) => setRequisitos(e.target.value)}
+                placeholder="Ej: Ninguno, Cálculo I, etc."
               />
             </div>
           </CardContent>
@@ -365,8 +600,6 @@ export default function PuaMateria() {
           </CardContent>
         </Card>
 
-
-
         {/* V. Desarrollo por unidades */}
         <Card>
           <CardHeader>
@@ -400,13 +633,25 @@ export default function PuaMateria() {
           >
             Cancelar
           </Button>
+          
+          {puaCompleto && (
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/capturista/materias/${clave}/pua/unidades`)}
+              disabled={loading}
+              className="cursor-pointer border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
+            >
+              Editar unidades de aprendizaje
+            </Button>
+          )}
+          
           <Button
             className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
             onClick={handleContinuar}
             disabled={loading}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {loading ? "Guardando..." : "Guardar y continuar"}
+            {loading ? "Guardando..." : puaExistente ? "Guardar cambios" : "Guardar y continuar"}
           </Button>
         </div>
       </div>

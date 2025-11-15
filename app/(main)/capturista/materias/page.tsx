@@ -12,7 +12,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableCaption,
 } from "@/components/ui/table";
 import {
   Select,
@@ -23,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertCircle, Loader2, Search } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Search, FileText, ClipboardList } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
 type MateriaEstado = {
@@ -32,6 +31,10 @@ type MateriaEstado = {
   nombre: string;
   encuadreCompleto: boolean;
   puaCompleto: boolean;
+  editorPua?: string;
+  edicionPua?: Date;
+  editorEncuadre?: string;
+  edicionEncuadre?: Date;
 };
 
 type FiltroProgreso = 
@@ -45,89 +48,170 @@ export default function Materias() {
   const [materias, setMaterias] = useState<MateriaEstado[]>([]);
   const [materiasFiltradas, setMateriasFiltradas] = useState<MateriaEstado[]>([]);
   
-  // Estados de filtros
   const [busqueda, setBusqueda] = useState("");
   const [filtroProgreso, setFiltroProgreso] = useState<FiltroProgreso>("todas");
   
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchMaterias = async () => {
-      setLoading(true);
+  const fetchMaterias = async () => {
+    setLoading(true);
 
-      // 1. Obtener solo materias activas
-      const { data: materiasData, error: materiasError } = await supabase
-        .from("materias")
-        .select("id, clave, nombre_materia")
-        .eq("estado", "Activa");
+    const { data: materiasData, error: materiasError } = await supabase
+      .from("materias")
+      .select("id, clave, nombre_materia")
+      .eq("estado", "Activa");
 
-      if (materiasError) {
-        console.error("Error al obtener materias:", materiasError);
-        setMaterias([]);
-        setLoading(false);
-        return;
-      }
+    if (materiasError) {
+      console.error("Error al obtener materias:", materiasError);
+      setMaterias([]);
+      setLoading(false);
+      return;
+    }
 
-      // 2. Para cada materia, verificar estado de encuadre y PUA
-      const materiasConEstado = await Promise.all(
-        (materiasData || []).map(async (materia: any) => {
-          // Verificar si existe un programa
-          const { data: programa } = await supabase
-            .from("programas")
-            .select("id, proposito, competencia, evidencias, unidades")
-            .eq("materia_id", materia.id)
-            .single();
+    const materiasConEstado = await Promise.all(
+      (materiasData || []).map(async (materia: any) => {
+        const { data: programa } = await supabase
+          .from("programas")
+          .select(`
+            id, 
+            proposito, 
+            competencia, 
+            evidencias, 
+            unidades,
+            ultimo_editor_id,
+            ultima_edicion,
+            editor_pua:ultimo_editor_id(nombre)
+          `)
+          .eq("materia_id", materia.id)
+          .single();
 
-          let encuadreCompleto = false;
-          let puaCompleto = false;
+        let encuadreCompleto = false;
+        let puaCompleto = false;
+        let editorPua: string | undefined;
+        let edicionPua: Date | undefined;
+        let editorEncuadre: string | undefined;
+        let edicionEncuadre: Date | undefined;
 
-          if (programa) {
-            // Verificar encuadre
-            const { data: encuadre } = await supabase
-              .from("encuadres")
-              .select("usuario_id, grupo, periodo, seccion")
-              .eq("programa_id", programa.id)
-              .single();
-
-            encuadreCompleto = !!(
-              encuadre?.usuario_id &&
-              encuadre?.grupo &&
-              encuadre?.periodo &&
-              encuadre?.seccion
-            );
-
-            // Verificar PUA (campos básicos)
-            puaCompleto = !!(
-              programa.proposito &&
-              programa.competencia &&
-              programa.evidencias &&
-              programa.unidades > 0
-            );
+        if (programa) {
+          // Información del editor PUA
+          if (programa.ultimo_editor_id) {
+            editorPua = (programa.editor_pua as any)?.nombre;
+            edicionPua = programa.ultima_edicion ? new Date(programa.ultima_edicion) : undefined;
           }
 
-          return {
-            id: materia.id,
-            clave: materia.clave,
-            nombre: materia.nombre_materia,
-            encuadreCompleto,
-            puaCompleto,
-          };
-        })
-      );
+          // Verificar encuadre
+          const { data: encuadre } = await supabase
+            .from("encuadres")
+            .select(`
+              id,
+              usuario_id, 
+              grupo, 
+              periodo,
+              ultimo_editor_id,
+              ultima_edicion,
+              editor_encuadre:ultimo_editor_id(nombre)
+            `)
+            .eq("programa_id", programa.id)
+            .single();
 
-      setMaterias(materiasConEstado);
-      setMateriasFiltradas(materiasConEstado);
-      setLoading(false);
-    };
+          console.log("🔍 Encuadre para materia:", materia.clave, encuadre);
 
+          // Verificar criterios de evaluación
+          let criteriosCompletos = false;
+          if (encuadre?.id) {
+            const { data: criterios } = await supabase
+              .from("criterios_evaluacion")
+              .select("criterio, valor")
+              .eq("encuadre_id", encuadre.id);
+
+            console.log("🔍 Criterios para", materia.clave, ":", criterios);
+
+            if (criterios && criterios.length > 0) {
+              const criteriosConNombre = criterios.filter((c) => c.criterio?.trim());
+              const totalPorcentaje = criteriosConNombre.reduce((sum, c) => sum + (c.valor || 0), 0);
+              criteriosCompletos = criteriosConNombre.length > 0 && totalPorcentaje === 100;
+              
+              console.log("🔍 Total porcentaje:", totalPorcentaje, "para", materia.clave);
+              console.log("🔍 Criterios completos:", criteriosCompletos, "para", materia.clave);
+            }
+          }
+
+          console.log("🔍 Verificación final para", materia.clave, ":", {
+            usuario_id: !!encuadre?.usuario_id,
+            grupo: !!encuadre?.grupo,
+            periodo: !!encuadre?.periodo,
+            criteriosCompletos,
+            resultado: !!(encuadre?.usuario_id && encuadre?.grupo && encuadre?.periodo && criteriosCompletos)
+          });
+
+          encuadreCompleto = !!(
+            encuadre?.usuario_id &&
+            encuadre?.grupo &&
+            encuadre?.periodo &&
+            criteriosCompletos
+          );
+
+          // Información del editor Encuadre
+          if (encuadre?.ultimo_editor_id) {
+            editorEncuadre = (encuadre.editor_encuadre as any)?.nombre;
+            edicionEncuadre = encuadre.ultima_edicion ? new Date(encuadre.ultima_edicion) : undefined;
+          }
+
+          // Verificar PUA completo
+          const numUnidades = programa.unidades || 0;
+          const camposBasicosCompletos = !!(
+            programa.proposito &&
+            programa.competencia &&
+            programa.evidencias &&
+            numUnidades > 0
+          );
+
+          if (camposBasicosCompletos) {
+            const { data: unidades } = await supabase
+              .from("unidades")
+              .select("numero, nombre, competencia, contenido, duracion")
+              .eq("programa_id", programa.id);
+
+            const unidadesCompletas = (unidades || []).filter(
+              (u) =>
+                u.nombre?.trim() &&
+                u.competencia?.trim() &&
+                u.contenido?.trim() &&
+                u.duracion > 0
+            );
+
+            puaCompleto = unidadesCompletas.length === numUnidades;
+          } else {
+            puaCompleto = false;
+          }
+        }
+
+        return {
+          id: materia.id,
+          clave: materia.clave,
+          nombre: materia.nombre_materia,
+          encuadreCompleto,
+          puaCompleto,
+          editorPua,
+          edicionPua,
+          editorEncuadre,
+          edicionEncuadre,
+        };
+      })
+    );
+
+    setMaterias(materiasConEstado);
+    setMateriasFiltradas(materiasConEstado);
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchMaterias();
   }, []);
 
-  // Aplicar todos los filtros
   useEffect(() => {
     let filtradas = [...materias];
 
-    // Filtro por búsqueda (nombre o clave)
     if (busqueda.trim()) {
       const busquedaLower = busqueda.toLowerCase();
       filtradas = filtradas.filter(
@@ -137,7 +221,6 @@ export default function Materias() {
       );
     }
 
-    // Filtro por progreso
     switch (filtroProgreso) {
       case "ambos-completos":
         filtradas = filtradas.filter((m) => m.encuadreCompleto && m.puaCompleto);
@@ -161,6 +244,49 @@ export default function Materias() {
     setFiltroProgreso("todas");
   };
 
+  // Función para determinar qué mostrar
+  const obtenerInfoEdicion = (m: MateriaEstado) => {
+    const editoPua = !!m.editorPua;
+    const editoEncuadre = !!m.editorEncuadre;
+
+    if (editoPua && editoEncuadre) {
+      // Ambos editados - mostrar el más reciente
+      const puaMasReciente = m.edicionPua && m.edicionEncuadre && m.edicionPua > m.edicionEncuadre;
+      
+      if (puaMasReciente) {
+        return {
+          tipo: "Ambos",
+          editor: m.editorPua,
+          fecha: m.edicionPua,
+          icono: <FileText className="h-3 w-3" />
+        };
+      } else {
+        return {
+          tipo: "Ambos",
+          editor: m.editorEncuadre,
+          fecha: m.edicionEncuadre,
+          icono: <ClipboardList className="h-3 w-3" />
+        };
+      }
+    } else if (editoPua) {
+      return {
+        tipo: "PUA",
+        editor: m.editorPua,
+        fecha: m.edicionPua,
+        icono: <FileText className="h-3 w-3" />
+      };
+    } else if (editoEncuadre) {
+      return {
+        tipo: "Encuadre",
+        editor: m.editorEncuadre,
+        fecha: m.edicionEncuadre,
+        icono: <ClipboardList className="h-3 w-3" />
+      };
+    }
+
+    return null;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -175,10 +301,8 @@ export default function Materias() {
         Materias - Capturista
       </h1>
 
-      {/* Panel de Filtros */}
       <div className="mx-auto max-w-6xl mb-6 p-4 border rounded-lg bg-muted/30">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Búsqueda por texto */}
           <div className="md:col-span-2">
             <Label className="mb-2 block text-sm font-medium">
               Buscar por nombre o clave
@@ -195,7 +319,6 @@ export default function Materias() {
             </div>
           </div>
 
-          {/* Filtro por progreso */}
           <div>
             <Label className="mb-2 block text-sm font-medium">
               Filtrar por progreso
@@ -217,7 +340,6 @@ export default function Materias() {
           </div>
         </div>
 
-        {/* Contador y botón limpiar */}
         <div className="flex items-center justify-between mt-4 pt-4 border-t">
           <span className="text-sm text-muted-foreground">
             Mostrando <span className="font-semibold">{materiasFiltradas.length}</span> de{" "}
@@ -238,12 +360,12 @@ export default function Materias() {
 
       <div className="mx-auto max-w-6xl overflow-x-auto rounded-md border">
         <Table className="w-full text-sm">
-
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[35%]">Nombre del curso</TableHead>
-              <TableHead className="w-[20%] text-center">Clave</TableHead>
-              <TableHead className="w-[45%] text-center">Acciones</TableHead>
+              <TableHead className="w-[30%]">Nombre del curso</TableHead>
+              <TableHead className="w-[15%] text-center">Clave</TableHead>
+              <TableHead className="w-[20%] text-center">Última edición</TableHead>
+              <TableHead className="w-[35%] text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -251,95 +373,111 @@ export default function Materias() {
             {materiasFiltradas.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={3}
+                  colSpan={4}
                   className="py-6 text-center text-muted-foreground"
                 >
                   No hay materias que coincidan con los filtros aplicados.
                 </TableCell>
               </TableRow>
             ) : (
-              materiasFiltradas.map((m) => (
-                <TableRow key={m.id} className="hover:bg-muted/50">
-                  <TableCell className="font-medium">
-                    <span className="block truncate">
-                      {m.nombre}
-                    </span>
-                  </TableCell>
+              materiasFiltradas.map((m) => {
+                const infoEdicion = obtenerInfoEdicion(m);
+                
+                return (
+                  <TableRow key={m.id} className="hover:bg-muted/50">
+                    <TableCell className="font-medium">
+                      <span className="block truncate">{m.nombre}</span>
+                    </TableCell>
 
-                  <TableCell className="tabular-nums text-center">
-                    {m.clave}
-                  </TableCell>
+                    <TableCell className="tabular-nums text-center">
+                      {m.clave}
+                    </TableCell>
 
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      {/* Botón Encuadre */}
+                    <TableCell className="text-center">
                       <div className="flex flex-col items-center gap-1">
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="outline"
-                          className={`cursor-pointer ${
-                            m.encuadreCompleto
-                              ? "border-green-600 text-green-700 hover:bg-green-50"
-                              : "border-orange-600 text-orange-700 hover:bg-orange-50"
-                          }`}
-                        >
-                          <Link href={`/capturista/materias/${m.clave}/encuadre`}>
-                            {m.encuadreCompleto ? (
-                              <CheckCircle2 className="mr-1 h-4 w-4" />
-                            ) : (
-                              <AlertCircle className="mr-1 h-4 w-4" />
-                            )}
-                            Ver Encuadre
-                          </Link>
-                        </Button>
-                        <Badge
-                          variant={m.encuadreCompleto ? "default" : "secondary"}
-                          className={`text-xs ${
-                            m.encuadreCompleto
-                              ? "bg-green-600 hover:bg-green-700"
-                              : "bg-orange-500 hover:bg-orange-600"
-                          }`}
-                        >
-                          {m.encuadreCompleto ? "Completo" : "Pendiente"}
-                        </Badge>
+                        {infoEdicion ? (
+                          <>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              {infoEdicion.icono}
+                              <span className="font-medium text-[#00723F]">{infoEdicion.tipo}:</span>
+                              <span>{infoEdicion.editor}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Sin ediciones</span>
+                        )}
                       </div>
+                    </TableCell>
 
-                      {/* Botón PUA */}
-                      <div className="flex flex-col items-center gap-1">
-                        <Button
-                          asChild
-                          size="sm"
-                          className={`cursor-pointer ${
-                            m.puaCompleto
-                              ? "bg-green-600 text-white hover:bg-green-700"
-                              : "bg-orange-500 text-white hover:bg-orange-600"
-                          }`}
-                        >
-                          <Link href={`/capturista/materias/${m.clave}/pua`}>
-                            {m.puaCompleto ? (
-                              <CheckCircle2 className="mr-1 h-4 w-4" />
-                            ) : (
-                              <AlertCircle className="mr-1 h-4 w-4" />
-                            )}
-                            Ver PUA
-                          </Link>
-                        </Button>
-                        <Badge
-                          variant={m.puaCompleto ? "default" : "secondary"}
-                          className={`text-xs ${
-                            m.puaCompleto
-                              ? "bg-green-600 hover:bg-green-700"
-                              : "bg-orange-500 hover:bg-orange-600"
-                          }`}
-                        >
-                          {m.puaCompleto ? "Completo" : "Pendiente"}
-                        </Badge>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="flex flex-col items-center gap-1">
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="outline"
+                            className={`cursor-pointer ${
+                              m.encuadreCompleto
+                                ? "border-green-600 text-green-700 hover:bg-green-50"
+                                : "border-orange-600 text-orange-700 hover:bg-orange-50"
+                            }`}
+                          >
+                            <Link href={`/capturista/materias/${m.clave}/encuadre`}>
+                              {m.encuadreCompleto ? (
+                                <CheckCircle2 className="mr-1 h-4 w-4" />
+                              ) : (
+                                <AlertCircle className="mr-1 h-4 w-4" />
+                              )}
+                              Ver Encuadre
+                            </Link>
+                          </Button>
+                          <Badge
+                            variant={m.encuadreCompleto ? "default" : "secondary"}
+                            className={`text-xs ${
+                              m.encuadreCompleto
+                                ? "bg-green-600 hover:bg-green-700"
+                                : "bg-orange-500 hover:bg-orange-600"
+                            }`}
+                          >
+                            {m.encuadreCompleto ? "Completo" : "Pendiente"}
+                          </Badge>
+                        </div>
+
+                        <div className="flex flex-col items-center gap-1">
+                          <Button
+                            asChild
+                            size="sm"
+                            className={`cursor-pointer ${
+                              m.puaCompleto
+                                ? "bg-green-600 text-white hover:bg-green-700"
+                                : "bg-orange-500 text-white hover:bg-orange-600"
+                            }`}
+                          >
+                            <Link href={`/capturista/materias/${m.clave}/pua`}>
+                              {m.puaCompleto ? (
+                                <CheckCircle2 className="mr-1 h-4 w-4" />
+                              ) : (
+                                <AlertCircle className="mr-1 h-4 w-4" />
+                              )}
+                              Ver PUA
+                            </Link>
+                          </Button>
+                          <Badge
+                            variant={m.puaCompleto ? "default" : "secondary"}
+                            className={`text-xs ${
+                              m.puaCompleto
+                                ? "bg-green-600 hover:bg-green-700"
+                                : "bg-orange-500 hover:bg-orange-600"
+                            }`}
+                          >
+                            {m.puaCompleto ? "Completo" : "Pendiente"}
+                          </Badge>
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

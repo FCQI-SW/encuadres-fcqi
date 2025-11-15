@@ -1,33 +1,120 @@
-"use client"
+"use client";
 
-import { Input } from "./ui/input"
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ContenidoEditor } from "@/components/contenido-editor";
 
-export function Unidad({ nUnidad }: { nUnidad: number }) {
-    return (<>
+type UnidadProps = {
+  nUnidad: number;
+  value?: {
+    nombre: string;
+    competencia: string;
+    contenido: string;
+    duracion: number;
+  };
+  onChange?: (data: {
+    numero: number;
+    nombre: string;
+    competencia: string;
+    contenido: string;
+    duracion: number;
+  }) => void;
+};
 
-        <div className="grid grid-cols-4 items-center border-2 border-black bg-gray-200 justify-items-center py-8 gap-y-8 mx-24 my-12 font-[family-name:var(--font-geist-sans)]">
-            <h1 className="text-center font-bold text-2xl col-span-4 pb-8">Unidad {nUnidad}</h1>
+export function Unidad({ nUnidad, value, onChange }: UnidadProps) {
+  const [nombre, setNombre] = useState(value?.nombre || "");
+  const [competencia, setCompetencia] = useState(value?.competencia || "");
+  const [contenido, setContenido] = useState(value?.contenido || "");
+  const [duracion, setDuracion] = useState<string>(String(value?.duracion || ""));
 
-            <div className="col-span-2 grid grid-cols-2 mx-12">
-                <h1>Nombre de la unidad: </h1>
-                <Input className="w-[75%] border-black bg-gray-50" />
-            </div>
+  // Notificar cambios al padre
+  useEffect(() => {
+    if (onChange) {
+      onChange({
+        numero: nUnidad,
+        nombre,
+        competencia,
+        contenido,
+        duracion: Number(duracion) || 0,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nombre, competencia, contenido, duracion, nUnidad]);
 
-            <div className="col-span-2 grid grid-cols-3 mx-12">
-                <h1>Duración de la unidad: </h1>
-                <Input className="w-[75%] border-black bg-gray-50" type="number"/>
-                <h1 className="self-center">Horas</h1>
-            </div>
+  const ta =
+    "min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm " +
+    "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 " +
+    "focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background " +
+    "disabled:cursor-not-allowed disabled:opacity-50";
 
-            <div className="col-span-4 grid grid-cols-4 ">
-                <h1 className="self-center mx-12">Competencia de la unidad: </h1>
-                <Input className="self-center min-h-24 border-black bg-gray-50 col-span-3 w-[90%]" placeholder="Ingresar propósito..." />
-            </div>
-
-            <h1 className="self-center text-2xl col-span-4">Contenido de la unidad: </h1>
-            <Input className="min-h-36 border-black bg-gray-50 col-span-4 w-[90%]" placeholder="[+] Agregar tema (1.1)" />
-
+  return (
+    <Card className="border-2">
+      <CardHeader>
+        <CardTitle className="text-xl text-center">
+          {nombre ? `UNIDAD ${nUnidad}. ${nombre}` : `UNIDAD ${nUnidad}`}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6 space-y-4">
+        {/* Nombre de la unidad */}
+        <div>
+          <Label className="mb-2 block">
+            Nombre de la unidad <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej: Funciones de una variable"
+          />
         </div>
-    </>
-    )
+
+        {/* Competencia */}
+        <div>
+          <Label className="mb-2 block">
+            Competencia <span className="text-red-500">*</span>
+          </Label>
+          <textarea
+            className={ta}
+            value={competencia}
+            onChange={(e) => setCompetencia(e.target.value)}
+            placeholder="Describe la competencia que se desarrollará en esta unidad..."
+          />
+        </div>
+
+        {/* Contenido - Editor estructurado */}
+        <div>
+          <Label className="mb-2 block">
+            Contenido <span className="text-red-500">*</span>
+          </Label>
+          <ContenidoEditor
+            numeroUnidad={nUnidad}
+            value={contenido}
+            onChange={setContenido}
+          />
+        </div>
+
+        {/* Duración */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div>
+            <Label className="mb-2 block">
+              Duración (horas) <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              value={duracion}
+              onChange={(e) => setDuracion(e.target.value)}
+              placeholder="10"
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }

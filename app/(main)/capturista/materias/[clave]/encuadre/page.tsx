@@ -58,12 +58,11 @@ export default function EncuadreMateria() {
 
   const [loadingData, setLoadingData] = useState(true);
   const [materia, setMateria] = useState<Materia | null>(null);
+  const [programaId, setProgramaId] = useState<string>("");
   const [profesores, setProfesores] = useState<Profesor[]>([]);
   const [profesorId, setProfesorId] = useState("");
   const [periodo, setPeriodo] = useState("");
   const [grupo, setGrupo] = useState("");
-  const [seccion, setSeccion] = useState("");
-  const [competenciaGeneral, setCompetenciaGeneral] = useState("");
   const [descripcionEvaluacion, setDescripcionEvaluacion] = useState("");
   const [derechoOrdinario, setDerechoOrdinario] = useState("");
   const [derechoExtraordinario, setDerechoExtraordinario] = useState("");
@@ -79,9 +78,7 @@ export default function EncuadreMateria() {
     { criterio: "", valor: 0, descripcion: "" },
   ]);
 
-  const { guardarEncuadre, cargarEncuadre, loading, error } = useEncuadreForm(
-    materia?.id || ""
-  );
+  const { guardarEncuadre, cargarEncuadre, loading, error } = useEncuadreForm(programaId);
 
   useEffect(() => {
     let isMounted = true;
@@ -104,6 +101,17 @@ export default function EncuadreMateria() {
       if (matData && matData.length > 0) {
         const m = matData[0] as any;
         setMateria({ id: m.id, clave: m.clave, nombre: m.nombre_materia });
+
+        // Obtener el programa_id
+        const { data: programaData } = await supabase
+          .from("programas")
+          .select("id")
+          .eq("materia_id", m.id)
+          .single();
+
+        if (programaData) {
+          setProgramaId(programaData.id);
+        }
       } else {
         setMateria(null);
       }
@@ -125,7 +133,7 @@ export default function EncuadreMateria() {
 
   // Cargar encuadre existente
   useEffect(() => {
-    if (!materia?.id) return;
+    if (!programaId) return;
 
     (async () => {
       const encuadre = await cargarEncuadre();
@@ -133,8 +141,6 @@ export default function EncuadreMateria() {
         setProfesorId(encuadre.usuario_id || "");
         setGrupo(encuadre.grupo || "");
         setPeriodo(encuadre.periodo || "");
-        setSeccion(encuadre.seccion || "");
-        setCompetenciaGeneral(encuadre.competencia_general || "");
         setDescripcionEvaluacion(encuadre.descripcion_evaluacion || "");
         setDerechoOrdinario(encuadre.derecho_ordinario || "");
         setDerechoExtraordinario(encuadre.derecho_extraordinario || "");
@@ -144,9 +150,9 @@ export default function EncuadreMateria() {
         setProfesorPuedeModificar(encuadre.profesor_puede_modificar_criterios ?? true);
         
         // Cargar criterios
-        if (encuadre.criterios_evaluacion && encuadre.criterios_evaluacion.length > 0) {
+        if (encuadre.criterios && encuadre.criterios.length > 0) {
           setCriteriosCalificacion(
-            encuadre.criterios_evaluacion.map((c: any) => ({
+            encuadre.criterios.map((c: any) => ({
               criterio: c.criterio,
               valor: c.valor,
               descripcion: c.descripcion || "",
@@ -155,10 +161,10 @@ export default function EncuadreMateria() {
         }
       }
     })();
-  }, [materia?.id, cargarEncuadre]);
+  }, [programaId, cargarEncuadre]);
 
   const handleBack = async () => {
-    if (profesorId || periodo || grupo || seccion) {
+    if (profesorId || periodo || grupo) {
       const shouldLeave = await confirm({
         title: "¿Salir sin guardar?",
         message: "Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?",
@@ -173,7 +179,7 @@ export default function EncuadreMateria() {
   };
 
   const handleGuardar = async () => {
-    if (!materia) return;
+    if (!materia || !programaId) return;
 
     // ========================================
     // VALIDACIONES BÁSICAS (Campos requeridos)
@@ -209,16 +215,6 @@ export default function EncuadreMateria() {
       return;
     }
 
-    if (!seccion.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa la sección.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
     // ========================================
     // VALIDACIONES DE CRITERIOS DE CALIFICACIÓN
     // ========================================
@@ -228,12 +224,12 @@ export default function EncuadreMateria() {
 
     // Si hay al menos un criterio con nombre, validar que todos tengan datos completos
     if (criteriosConValor.length > 0) {
-      // Verificar que todos los criterios con nombre tengan porcentaje > 0
-      const criterioSinPorcentaje = criteriosConValor.find((c) => c.valor <= 0);
-      if (criterioSinPorcentaje) {
+      // Verificar que todos los criterios con nombre tengan valor > 0
+      const criterioSinValor = criteriosConValor.find((c) => c.valor <= 0);
+      if (criterioSinValor) {
         await confirm({
           title: "Porcentaje inválido",
-          message: `El criterio "${criterioSinPorcentaje.criterio}" debe tener un porcentaje mayor a 0.`,
+          message: `El criterio "${criterioSinValor.criterio}" debe tener un porcentaje mayor a 0.`,
           confirmText: "Entendido",
           cancelText: "",
         });
@@ -280,18 +276,6 @@ export default function EncuadreMateria() {
     // ADVERTENCIAS OPCIONALES (No bloquean guardado)
     // ========================================
 
-    // Advertir si no hay competencia general
-    if (!competenciaGeneral.trim()) {
-      const shouldContinue = await confirm({
-        title: "Campo vacío",
-        message: "No has ingresado la Competencia General del Curso. ¿Deseas continuar de todas formas?",
-        confirmText: "Sí, continuar",
-        cancelText: "Cancelar",
-      });
-
-      if (!shouldContinue) return;
-    }
-
     // Advertir si no hay descripción de evaluación
     if (!descripcionEvaluacion.trim()) {
       const shouldContinue = await confirm({
@@ -337,13 +321,11 @@ export default function EncuadreMateria() {
     const criteriosAGuardar = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
 
     // Guardar
-    const encuadreId = await guardarEncuadre({
-      materiaId: materia.id,
-      profesorId,
+    const success = await guardarEncuadre({
+      programaId: programaId,
+      usuarioId: profesorId,
       periodo,
       grupo,
-      seccion,
-      competenciaGeneral,
       descripcionEvaluacion,
       derechoOrdinario,
       derechoExtraordinario,
@@ -351,10 +333,10 @@ export default function EncuadreMateria() {
       bibliografiaBasica,
       normasConducta,
       profesorPuedeModificarCriterios: profesorPuedeModificar,
-      criteriosCalificacion: criteriosAGuardar,
+      criterios: criteriosAGuardar,
     });
 
-    if (encuadreId) {
+    if (success) {
       await confirm({
         title: "¡Guardado exitoso!",
         message: "El encuadre se ha guardado correctamente.",
@@ -519,21 +501,6 @@ export default function EncuadreMateria() {
           </CardContent>
         </Card>
 
-        {/* Competencia General */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Competencia General del Curso</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <textarea
-              className={ta}
-              value={competenciaGeneral}
-              onChange={(e) => setCompetenciaGeneral(e.target.value)}
-              placeholder="Describe la competencia general del curso..."
-            />
-          </CardContent>
-        </Card>
-
         {/* Evaluación de Curso */}
         <Card>
           <CardHeader>
@@ -580,11 +547,11 @@ export default function EncuadreMateria() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {criteriosCalificacion.map((criterio, index) => (
+                  {criteriosCalificacion.map((crit, index) => (
                     <TableRow key={index}>
                       <TableCell>
                         <Input
-                          value={criterio.criterio}
+                          value={crit.criterio}
                           onChange={(e) =>
                             actualizarCriterioCalificacion(index, "criterio", e.target.value)
                           }
@@ -596,7 +563,7 @@ export default function EncuadreMateria() {
                           type="number"
                           min={0}
                           max={100}
-                          value={criterio.valor}
+                          value={crit.valor}
                           onChange={(e) =>
                             actualizarCriterioCalificacion(index, "valor", Number(e.target.value))
                           }
@@ -606,7 +573,7 @@ export default function EncuadreMateria() {
                       </TableCell>
                       <TableCell>
                         <Input
-                          value={criterio.descripcion}
+                          value={crit.descripcion}
                           onChange={(e) =>
                             actualizarCriterioCalificacion(index, "descripcion", e.target.value)
                           }
@@ -655,7 +622,7 @@ export default function EncuadreMateria() {
               className="cursor-pointer"
             >
               <Plus className="mr-2 h-4 w-4" />
-              Agregar fila
+              Agregar criterio
             </Button>
           </CardContent>
         </Card>

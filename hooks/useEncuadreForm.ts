@@ -1,16 +1,30 @@
-"use client";
-
-import { useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-type EncuadreFormData = {
-  materiaId: string;
-  profesorId: string;
+type EncuadreData = {
+  usuario_id: string;
+  grupo: string;
+  periodo: string;
+  descripcion_evaluacion: string;
+  derecho_ordinario: string;
+  derecho_extraordinario: string;
+  descripcion_producto: string;
+  bibliografia_basica: string;
+  normas_conducta: string;
+  profesor_puede_modificar_criterios: boolean;
+  criterios?: Array<{
+    id?: string;
+    criterio: string;
+    valor: number;
+    descripcion: string;
+  }>;
+};
+
+type GuardarEncuadreParams = {
+  programaId: string;
+  usuarioId: string;
   periodo: string;
   grupo: string;
-  seccion: string;
-  competenciaGeneral: string;
   descripcionEvaluacion: string;
   derechoOrdinario: string;
   derechoExtraordinario: string;
@@ -18,202 +32,185 @@ type EncuadreFormData = {
   bibliografiaBasica: string;
   normasConducta: string;
   profesorPuedeModificarCriterios: boolean;
-  criteriosCalificacion: Array<{ criterio: string; valor: number; descripcion: string }>;
+  criterios: Array<{
+    id?: string;
+    criterio: string;
+    valor: number;
+    descripcion: string;
+  }>;
 };
 
-export function useEncuadreForm(materiaId: string) {
-  const { data: session } = useSession();
-  const [encuadreId, setEncuadreId] = useState<string | null>(null);
-  const [programaId, setProgramaId] = useState<string | null>(null);
+export function useEncuadreForm(programaId: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Guardar o actualizar el encuadre
-  const guardarEncuadre = useCallback(async (data: EncuadreFormData) => {
-    if (!session?.user?.id) {
-      setError("No hay sesión activa");
-      return null;
-    }
-
+  const guardarEncuadre = async (params: GuardarEncuadreParams): Promise<boolean> => {
     setLoading(true);
     setError(null);
 
     try {
-      // 1. Verificar si existe un programa para esta materia
-      let currentProgramaId = programaId;
-      
-      if (!currentProgramaId) {
-        const { data: existingPrograma } = await supabase
-          .from("programas")
-          .select("id")
-          .eq("materia_id", data.materiaId)
-          .single();
+      // Intentar obtener el usuario actual, pero no bloquear si no existe
+      const { data: { user } } = await supabase.auth.getUser();
+      const editorId = user?.id || null;
 
-        if (existingPrograma) {
-          currentProgramaId = existingPrograma.id;
-          setProgramaId(existingPrograma.id);
-        } else {
-          // Crear programa mínimo si no existe
-          const { data: newPrograma, error: programaError } = await supabase
-            .from("programas")
-            .insert({
-              materia_id: data.materiaId,
-              unidades: 1,
-              proposito: "",
-              competencia: "",
-              evidencias: "",
-              estado_programa: "borrador",
-              creado_por: session.user.id,
-            })
-            .select()
-            .single();
+      // Verificar si ya existe un encuadre para este programa
+      const { data: encuadreExistente, error: errorBuscar } = await supabase
+        .from("encuadres")
+        .select("id")
+        .eq("programa_id", params.programaId)
+        .single();
 
-          if (programaError) throw programaError;
-          
-          currentProgramaId = newPrograma.id;
-          setProgramaId(newPrograma.id);
-        }
-      }
+      let encuadreId: string;
 
-      // 2. Verificar si ya existe un encuadre
-      if (encuadreId) {
+      if (encuadreExistente) {
         // Actualizar encuadre existente
-        const { error: updateError } = await supabase
+        const { error: errorActualizar } = await supabase
           .from("encuadres")
           .update({
-            usuario_id: data.profesorId,
-            grupo: data.grupo,
-            periodo: data.periodo,
-            seccion: data.seccion,
-            competencia_general: data.competenciaGeneral,
-            descripcion_evaluacion: data.descripcionEvaluacion,
-            derecho_ordinario: data.derechoOrdinario,
-            derecho_extraordinario: data.derechoExtraordinario,
-            descripcion_producto: data.descripcionProducto,
-            bibliografia_basica: data.bibliografiaBasica,
-            normas_conducta: data.normasConducta,
-            profesor_puede_modificar_criterios: data.profesorPuedeModificarCriterios,
+            usuario_id: params.usuarioId,
+            grupo: params.grupo,
+            periodo: params.periodo,
+            descripcion_evaluacion: params.descripcionEvaluacion,
+            derecho_ordinario: params.derechoOrdinario,
+            derecho_extraordinario: params.derechoExtraordinario,
+            descripcion_producto: params.descripcionProducto,
+            bibliografia_basica: params.bibliografiaBasica,
+            normas_conducta: params.normasConducta,
+            profesor_puede_modificar_criterios: params.profesorPuedeModificarCriterios,
+            ultimo_editor_id: editorId,
+            ultima_edicion: new Date().toISOString(),
           })
-          .eq("id", encuadreId);
+          .eq("id", encuadreExistente.id);
 
-        if (updateError) throw updateError;
-
-        // Actualizar criterios de calificación
-        await supabase.from("criterios_evaluacion").delete().eq("encuadre_id", encuadreId);
-
-        if (data.criteriosCalificacion.length > 0) {
-          const criteriosToInsert = data.criteriosCalificacion.map((c) => ({
-            encuadre_id: encuadreId,
-            criterio: c.criterio,
-            valor: c.valor,
-            descripcion: c.descripcion || null,
-          }));
-
-          const { error: criteriosError } = await supabase
-            .from("criterios_evaluacion")
-            .insert(criteriosToInsert);
-
-          if (criteriosError) throw criteriosError;
+        if (errorActualizar) {
+          console.error("Error al actualizar encuadre:", errorActualizar);
+          setError("Error al actualizar el encuadre");
+          setLoading(false);
+          return false;
         }
-        
-        return encuadreId;
+
+        encuadreId = encuadreExistente.id;
+
+        // Eliminar criterios antiguos
+        await supabase
+          .from("criterios_evaluacion")
+          .delete()
+          .eq("encuadre_id", encuadreId);
+      } else {
+        // Crear nuevo encuadre
+        const { data: nuevoEncuadre, error: errorCrear } = await supabase
+          .from("encuadres")
+          .insert({
+            programa_id: params.programaId,
+            usuario_id: params.usuarioId,
+            grupo: params.grupo,
+            periodo: params.periodo,
+            descripcion_evaluacion: params.descripcionEvaluacion,
+            derecho_ordinario: params.derechoOrdinario,
+            derecho_extraordinario: params.derechoExtraordinario,
+            descripcion_producto: params.descripcionProducto,
+            bibliografia_basica: params.bibliografiaBasica,
+            normas_conducta: params.normasConducta,
+            profesor_puede_modificar_criterios: params.profesorPuedeModificarCriterios,
+            ultimo_editor_id: editorId,
+            ultima_edicion: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+
+        if (errorCrear || !nuevoEncuadre) {
+          console.error("Error al crear encuadre:", errorCrear);
+          setError("Error al crear el encuadre");
+          setLoading(false);
+          return false;
+        }
+
+        encuadreId = nuevoEncuadre.id;
       }
 
-      // 3. Crear nuevo encuadre
-      const { data: nuevoEncuadre, error: insertError } = await supabase
-        .from("encuadres")
-        .insert({
-          programa_id: currentProgramaId,
-          usuario_id: data.profesorId,
-          grupo: data.grupo,
-          periodo: data.periodo,
-          seccion: data.seccion,
-          competencia_general: data.competenciaGeneral,
-          descripcion_evaluacion: data.descripcionEvaluacion,
-          derecho_ordinario: data.derechoOrdinario,
-          derecho_extraordinario: data.derechoExtraordinario,
-          descripcion_producto: data.descripcionProducto,
-          bibliografia_basica: data.bibliografiaBasica,
-          normas_conducta: data.normasConducta,
-          profesor_puede_modificar_criterios: data.profesorPuedeModificarCriterios,
-          estado_encuadre: "borrador",
-          creado_por: session.user.id,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      setEncuadreId(nuevoEncuadre.id);
-
-      // Guardar criterios de calificación
-      if (data.criteriosCalificacion.length > 0) {
-        const criteriosToInsert = data.criteriosCalificacion.map((c) => ({
-          encuadre_id: nuevoEncuadre.id,
+      // Insertar criterios de evaluación - CORREGIDO: usar 'criterio' y 'valor'
+      if (params.criterios.length > 0) {
+        const criteriosParaInsertar = params.criterios.map((c) => ({
+          encuadre_id: encuadreId,
           criterio: c.criterio,
           valor: c.valor,
-          descripcion: c.descripcion || null,
+          descripcion: c.descripcion,
         }));
 
-        const { error: criteriosError } = await supabase
+        const { error: errorCriterios } = await supabase
           .from("criterios_evaluacion")
-          .insert(criteriosToInsert);
+          .insert(criteriosParaInsertar);
 
-        if (criteriosError) throw criteriosError;
+        if (errorCriterios) {
+          console.error("Error al guardar criterios:", errorCriterios);
+          setError("Error al guardar los criterios de evaluación");
+          setLoading(false);
+          return false;
+        }
       }
 
-      return nuevoEncuadre.id;
-    } catch (err: any) {
-      console.error("Error al guardar encuadre:", err);
-      setError(err.message || "Error al guardar");
-      return null;
-    } finally {
       setLoading(false);
+      return true;
+    } catch (err) {
+      console.error("Error en guardarEncuadre:", err);
+      setError("Error inesperado al guardar el encuadre");
+      setLoading(false);
+      return false;
     }
-  }, [session?.user?.id, programaId, encuadreId]);
+  };
 
-  // Cargar encuadre existente
-  const cargarEncuadre = useCallback(async () => {
-    if (!materiaId) return null;
-    
-    setLoading(true);
+  const cargarEncuadre = async (): Promise<EncuadreData | null> => {
+    if (!programaId) return null;
+
     try {
-      const { data: programa } = await supabase
-        .from("programas")
-        .select("id")
-        .eq("materia_id", materiaId)
-        .single();
-
-      if (!programa) return null;
-      
-      setProgramaId(programa.id);
-
-      const { data: encuadre, error } = await supabase
+      const { data: encuadre, error: errorEncuadre } = await supabase
         .from("encuadres")
-        .select("*, criterios_evaluacion(*)")
-        .eq("programa_id", programa.id)
+        .select("*")
+        .eq("programa_id", programaId)
         .single();
 
-      if (error) {
-        if (error.code === "PGRST116") return null;
-        throw error;
+      if (errorEncuadre) {
+        if (errorEncuadre.code === "PGRST116") {
+          return null;
+        }
+        console.error("Error al cargar encuadre:", errorEncuadre);
+        return null;
       }
 
-      setEncuadreId(encuadre.id);
-      return encuadre;
-    } catch (err: any) {
-      console.error("Error al cargar encuadre:", err);
+      // Cargar criterios de evaluación - CORREGIDO: usar 'criterio' y 'valor'
+      const { data: criterios, error: errorCriterios } = await supabase
+        .from("criterios_evaluacion")
+        .select("id, criterio, valor, descripcion")
+        .eq("encuadre_id", encuadre.id)
+        .order("id", { ascending: true });
+
+      if (errorCriterios) {
+        console.error("Error al cargar criterios:", errorCriterios);
+      }
+
+      return {
+        usuario_id: encuadre.usuario_id,
+        grupo: encuadre.grupo,
+        periodo: encuadre.periodo,
+        descripcion_evaluacion: encuadre.descripcion_evaluacion || "",
+        derecho_ordinario: encuadre.derecho_ordinario || "",
+        derecho_extraordinario: encuadre.derecho_extraordinario || "",
+        descripcion_producto: encuadre.descripcion_producto || "",
+        bibliografia_basica: encuadre.bibliografia_basica || "",
+        normas_conducta: encuadre.normas_conducta || "",
+        profesor_puede_modificar_criterios: encuadre.profesor_puede_modificar_criterios ?? true,
+        criterios: criterios || [],
+      };
+    } catch (err) {
+      console.error("Error en cargarEncuadre:", err);
       return null;
-    } finally {
-      setLoading(false);
     }
-  }, [materiaId]);
+  };
 
   return {
-    encuadreId,
-    loading,
-    error,
     guardarEncuadre,
     cargarEncuadre,
+    loading,
+    error,
   };
 }
