@@ -58,14 +58,6 @@ export default function EncuadreMateria() {
   const confirm = useConfirm();
   const { data: session, status } = useSession();
 
-  // DEBUG: Ver qué contiene la sesión
-  useEffect(() => {
-    console.log("🔍 Estado de sesión:", status);
-    console.log("🔍 Sesión completa:", session);
-    console.log("🔍 Usuario:", session?.user);
-    console.log("🔍 User ID:", session?.user?.id);
-  }, [session, status]);
-
   const [loadingData, setLoadingData] = useState(true);
   const [materia, setMateria] = useState<Materia | null>(null);
   const [programaId, setProgramaId] = useState<string>("");
@@ -192,28 +184,28 @@ export default function EncuadreMateria() {
   const handleGuardar = async () => {
     if (!materia || !programaId) return;
 
-    // DEBUG: Ver estado de sesión antes de guardar
-    console.log("🔍 Intentando guardar...");
-    console.log("🔍 Status:", status);
-    console.log("🔍 Session:", session);
-    console.log("🔍 User:", session?.user);
-    console.log("🔍 User ID directo:", session?.user?.id);
-    console.log("🔍 User sub:", (session?.user as any)?.sub);
-
-    // Validar que haya sesión (más flexible)
-    const userId = session?.user?.id || (session?.user as any)?.sub || null;
-    
-    console.log("🔍 User ID final:", userId);
-
-    if (!userId) {
+    // Esperar a que la sesión esté completamente cargada
+    if (status === "loading") {
       await confirm({
-        title: "Error de sesión",
-        message: `No se pudo obtener tu ID de usuario. Status: ${status}. Por favor, cierra sesión y vuelve a iniciar.`,
+        title: "Cargando sesión",
+        message: "Por favor espera un momento mientras se carga tu sesión.",
         confirmText: "Entendido",
         cancelText: "",
       });
       return;
     }
+
+    if (status === "unauthenticated" || !session?.user?.id) {
+      await confirm({
+        title: "Sesión no válida",
+        message: "No se pudo verificar tu sesión. Por favor, cierra sesión y vuelve a iniciar.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    const userId = session.user.id;
 
     // ========================================
     // VALIDACIONES BÁSICAS (Campos requeridos)
@@ -253,12 +245,9 @@ export default function EncuadreMateria() {
     // VALIDACIONES DE CRITERIOS DE CALIFICACIÓN
     // ========================================
 
-    // Filtrar solo los criterios que tienen nombre
     const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
 
-    // Si hay al menos un criterio con nombre, validar que todos tengan datos completos
     if (criteriosConValor.length > 0) {
-      // Verificar que todos los criterios con nombre tengan valor > 0
       const criterioSinValor = criteriosConValor.find((c) => c.valor <= 0);
       if (criterioSinValor) {
         await confirm({
@@ -270,7 +259,6 @@ export default function EncuadreMateria() {
         return;
       }
 
-      // Verificar que los porcentajes sumen 100%
       const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
       if (totalPorcentaje !== 100) {
         await confirm({
@@ -282,7 +270,6 @@ export default function EncuadreMateria() {
         return;
       }
 
-      // Verificar que no haya porcentajes mayores a 100
       const criterioExcesivo = criteriosConValor.find((c) => c.valor > 100);
       if (criterioExcesivo) {
         await confirm({
@@ -295,7 +282,6 @@ export default function EncuadreMateria() {
       }
     }
 
-    // Validar que haya al menos un criterio de calificación
     if (criteriosConValor.length === 0) {
       await confirm({
         title: "Sin criterios de calificación",
@@ -307,10 +293,9 @@ export default function EncuadreMateria() {
     }
 
     // ========================================
-    // ADVERTENCIAS OPCIONALES (No bloquean guardado)
+    // ADVERTENCIAS OPCIONALES
     // ========================================
 
-    // Advertir si no hay descripción de evaluación
     if (!descripcionEvaluacion.trim()) {
       const shouldContinue = await confirm({
         title: "Campo vacío",
@@ -322,7 +307,6 @@ export default function EncuadreMateria() {
       if (!shouldContinue) return;
     }
 
-    // Advertir si faltan derechos de examen
     if (!derechoOrdinario.trim() || !derechoExtraordinario.trim()) {
       const shouldContinue = await confirm({
         title: "Información incompleta",
@@ -351,12 +335,8 @@ export default function EncuadreMateria() {
     // PREPARAR Y GUARDAR DATOS
     // ========================================
 
-    // Filtrar solo criterios completos
     const criteriosAGuardar = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
 
-    console.log("📝 Guardando con editorId:", userId);
-
-    // Guardar con el editorId del usuario de NextAuth
     const success = await guardarEncuadre({
       programaId: programaId,
       usuarioId: profesorId,
@@ -370,7 +350,7 @@ export default function EncuadreMateria() {
       normasConducta,
       profesorPuedeModificarCriterios: profesorPuedeModificar,
       criterios: criteriosAGuardar,
-      editorId: userId,
+     
     });
 
     if (success) {

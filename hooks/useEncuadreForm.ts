@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 
 type EncuadreData = {
@@ -38,10 +39,10 @@ type GuardarEncuadreParams = {
     valor: number;
     descripcion: string;
   }>;
-  editorId?: string; // ← AGREGAR ESTA LÍNEA
 };
 
 export function useEncuadreForm(programaId: string) {
+  const { data: session } = useSession(); // ← IGUAL QUE PUA
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,23 +51,14 @@ export function useEncuadreForm(programaId: string) {
     setError(null);
 
     try {
-      // Obtener el usuario actual (capturista)
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      console.log("🔍 DEBUG - User completo:", user);
-      console.log("🔍 DEBUG - User ID:", user?.id);
-      console.log("🔍 DEBUG - User error:", userError);
-      console.log("🔍 DEBUG - Params.usuarioId (profesor):", params.usuarioId);
-
-      if (!user?.id) {
-        console.error("❌ No se pudo obtener el usuario autenticado");
-        setError("No se pudo obtener el usuario autenticado. Por favor, recarga la página e intenta de nuevo.");
+      // Obtener usuario de NextAuth (igual que PUA)
+      if (!session?.user?.id) {
+        setError("No hay usuario autenticado");
         setLoading(false);
         return false;
       }
 
-      const editorId = user.id;
-      console.log("✅ Editor ID (capturista):", editorId);
+      const userId = session.user.id;
 
       // Verificar si ya existe un encuadre para este programa
       const { data: encuadreExistente } = await supabase
@@ -88,11 +80,9 @@ export function useEncuadreForm(programaId: string) {
         bibliografia_basica: params.bibliografiaBasica,
         normas_conducta: params.normasConducta,
         profesor_puede_modificar_criterios: params.profesorPuedeModificarCriterios,
-        ultimo_editor_id: editorId, // Capturista que está editando
+        ultimo_editor_id: userId, // Capturista de NextAuth
         ultima_edicion: new Date().toISOString(),
       };
-
-      console.log("📝 Datos a guardar:", encuadreData);
 
       if (encuadreExistente) {
         // Actualizar encuadre existente
@@ -108,7 +98,6 @@ export function useEncuadreForm(programaId: string) {
           return false;
         }
 
-        console.log("✅ Encuadre actualizado con ID:", encuadreExistente.id);
         encuadreId = encuadreExistente.id;
 
         // Eliminar criterios antiguos
@@ -134,7 +123,6 @@ export function useEncuadreForm(programaId: string) {
           return false;
         }
 
-        console.log("✅ Encuadre creado con ID:", nuevoEncuadre.id);
         encuadreId = nuevoEncuadre.id;
       }
 
@@ -157,15 +145,12 @@ export function useEncuadreForm(programaId: string) {
           setLoading(false);
           return false;
         }
-
-        console.log("✅ Criterios guardados:", params.criterios.length);
       }
 
-      console.log("✅✅ Encuadre guardado exitosamente");
       setLoading(false);
       return true;
     } catch (err) {
-      console.error("❌ Error en guardarEncuadre:", err);
+      console.error("Error en guardarEncuadre:", err);
       setError("Error inesperado al guardar el encuadre");
       setLoading(false);
       return false;

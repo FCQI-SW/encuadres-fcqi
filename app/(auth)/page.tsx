@@ -36,7 +36,9 @@ export default function LoginPage() {
         setError("Credenciales inválidas. Por favor intente de nuevo.");
         console.error("Error de inicio de sesión:", result.error);
       } else if (result?.ok) {
-        router.push("/admin");
+        // CAMBIO: Usar window.location en lugar de router.push
+        // Esto fuerza una recarga completa de la página y actualiza la sesión
+        window.location.href = "/admin";
       }
     } catch (error) {
       console.error("Error al iniciar sesión:", error);

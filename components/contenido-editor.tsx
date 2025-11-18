@@ -23,17 +23,20 @@ export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEdit
   const [inicializado, setInicializado] = useState(false);
 
   // Cargar contenido inicial desde value
-  useEffect(() => {
-    if (!inicializado && value && value.trim()) {
+useEffect(() => {
+  if (!inicializado) {
+    if (value && value.trim()) {
       console.log('📥 Cargando contenido:', value);
       const temasParseados = parseContenidoATexto(value);
       console.log('✅ Temas parseados:', temasParseados);
       if (temasParseados.length > 0) {
         setTemas(temasParseados);
       }
-      setInicializado(true);
     }
-  }, [value, inicializado]);
+    // IMPORTANTE: Inicializar SIEMPRE, aunque no haya value
+    setInicializado(true);
+  }
+}, [value, inicializado]);
 
   // Notificar cambios al padre
   useEffect(() => {
