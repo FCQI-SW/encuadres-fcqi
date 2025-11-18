@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 
 type PuaData = {
@@ -43,6 +44,7 @@ type GuardarPuaParams = {
 };
 
 export function usePuaForm(materiaId: string) {
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,12 +53,14 @@ export function usePuaForm(materiaId: string) {
     setError(null);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // Obtener usuario de NextAuth
+      if (!session?.user?.id) {
         setError("No hay usuario autenticado");
         setLoading(false);
         return null;
       }
+
+      const userId = session.user.id;
 
       // Verificar si ya existe un programa para esta materia
       const { data: programaExistente, error: errorBuscar } = await supabase
@@ -89,7 +93,7 @@ export function usePuaForm(materiaId: string) {
             competencia: params.competenciaUA,
             evidencias: params.evidencias,
             unidades: params.numUnidades,
-            ultimo_editor_id: user.id,
+            ultimo_editor_id: userId,
             ultima_edicion: new Date().toISOString(),
           })
           .eq("id", programaExistente.id);
@@ -125,7 +129,7 @@ export function usePuaForm(materiaId: string) {
             competencia: params.competenciaUA,
             evidencias: params.evidencias,
             unidades: params.numUnidades,
-            ultimo_editor_id: user.id,
+            ultimo_editor_id: userId,
             ultima_edicion: new Date().toISOString(),
           })
           .select("id")

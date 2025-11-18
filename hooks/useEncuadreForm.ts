@@ -38,6 +38,7 @@ type GuardarEncuadreParams = {
     valor: number;
     descripcion: string;
   }>;
+  editorId?: string; // ← AGREGAR ESTA LÍNEA
 };
 
 export function useEncuadreForm(programaId: string) {
@@ -49,12 +50,26 @@ export function useEncuadreForm(programaId: string) {
     setError(null);
 
     try {
-      // Intentar obtener el usuario actual, pero no bloquear si no existe
-      const { data: { user } } = await supabase.auth.getUser();
-      const editorId = user?.id || null;
+      // Obtener el usuario actual (capturista)
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      console.log("🔍 DEBUG - User completo:", user);
+      console.log("🔍 DEBUG - User ID:", user?.id);
+      console.log("🔍 DEBUG - User error:", userError);
+      console.log("🔍 DEBUG - Params.usuarioId (profesor):", params.usuarioId);
+
+      if (!user?.id) {
+        console.error("❌ No se pudo obtener el usuario autenticado");
+        setError("No se pudo obtener el usuario autenticado. Por favor, recarga la página e intenta de nuevo.");
+        setLoading(false);
+        return false;
+      }
+
+      const editorId = user.id;
+      console.log("✅ Editor ID (capturista):", editorId);
 
       // Verificar si ya existe un encuadre para este programa
-      const { data: encuadreExistente, error: errorBuscar } = await supabase
+      const { data: encuadreExistente } = await supabase
         .from("encuadres")
         .select("id")
         .eq("programa_id", params.programaId)
@@ -62,24 +77,28 @@ export function useEncuadreForm(programaId: string) {
 
       let encuadreId: string;
 
+      const encuadreData = {
+        usuario_id: params.usuarioId, // Profesor seleccionado
+        grupo: params.grupo,
+        periodo: params.periodo,
+        descripcion_evaluacion: params.descripcionEvaluacion,
+        derecho_ordinario: params.derechoOrdinario,
+        derecho_extraordinario: params.derechoExtraordinario,
+        descripcion_producto: params.descripcionProducto,
+        bibliografia_basica: params.bibliografiaBasica,
+        normas_conducta: params.normasConducta,
+        profesor_puede_modificar_criterios: params.profesorPuedeModificarCriterios,
+        ultimo_editor_id: editorId, // Capturista que está editando
+        ultima_edicion: new Date().toISOString(),
+      };
+
+      console.log("📝 Datos a guardar:", encuadreData);
+
       if (encuadreExistente) {
         // Actualizar encuadre existente
         const { error: errorActualizar } = await supabase
           .from("encuadres")
-          .update({
-            usuario_id: params.usuarioId,
-            grupo: params.grupo,
-            periodo: params.periodo,
-            descripcion_evaluacion: params.descripcionEvaluacion,
-            derecho_ordinario: params.derechoOrdinario,
-            derecho_extraordinario: params.derechoExtraordinario,
-            descripcion_producto: params.descripcionProducto,
-            bibliografia_basica: params.bibliografiaBasica,
-            normas_conducta: params.normasConducta,
-            profesor_puede_modificar_criterios: params.profesorPuedeModificarCriterios,
-            ultimo_editor_id: editorId,
-            ultima_edicion: new Date().toISOString(),
-          })
+          .update(encuadreData)
           .eq("id", encuadreExistente.id);
 
         if (errorActualizar) {
@@ -89,6 +108,7 @@ export function useEncuadreForm(programaId: string) {
           return false;
         }
 
+        console.log("✅ Encuadre actualizado con ID:", encuadreExistente.id);
         encuadreId = encuadreExistente.id;
 
         // Eliminar criterios antiguos
@@ -101,19 +121,8 @@ export function useEncuadreForm(programaId: string) {
         const { data: nuevoEncuadre, error: errorCrear } = await supabase
           .from("encuadres")
           .insert({
+            ...encuadreData,
             programa_id: params.programaId,
-            usuario_id: params.usuarioId,
-            grupo: params.grupo,
-            periodo: params.periodo,
-            descripcion_evaluacion: params.descripcionEvaluacion,
-            derecho_ordinario: params.derechoOrdinario,
-            derecho_extraordinario: params.derechoExtraordinario,
-            descripcion_producto: params.descripcionProducto,
-            bibliografia_basica: params.bibliografiaBasica,
-            normas_conducta: params.normasConducta,
-            profesor_puede_modificar_criterios: params.profesorPuedeModificarCriterios,
-            ultimo_editor_id: editorId,
-            ultima_edicion: new Date().toISOString(),
           })
           .select("id")
           .single();
@@ -125,10 +134,11 @@ export function useEncuadreForm(programaId: string) {
           return false;
         }
 
+        console.log("✅ Encuadre creado con ID:", nuevoEncuadre.id);
         encuadreId = nuevoEncuadre.id;
       }
 
-      // Insertar criterios de evaluación - CORREGIDO: usar 'criterio' y 'valor'
+      // Insertar criterios de evaluación
       if (params.criterios.length > 0) {
         const criteriosParaInsertar = params.criterios.map((c) => ({
           encuadre_id: encuadreId,
@@ -147,12 +157,15 @@ export function useEncuadreForm(programaId: string) {
           setLoading(false);
           return false;
         }
+
+        console.log("✅ Criterios guardados:", params.criterios.length);
       }
 
+      console.log("✅✅ Encuadre guardado exitosamente");
       setLoading(false);
       return true;
     } catch (err) {
-      console.error("Error en guardarEncuadre:", err);
+      console.error("❌ Error en guardarEncuadre:", err);
       setError("Error inesperado al guardar el encuadre");
       setLoading(false);
       return false;
@@ -177,7 +190,7 @@ export function useEncuadreForm(programaId: string) {
         return null;
       }
 
-      // Cargar criterios de evaluación - CORREGIDO: usar 'criterio' y 'valor'
+      // Cargar criterios de evaluación
       const { data: criterios, error: errorCriterios } = await supabase
         .from("criterios_evaluacion")
         .select("id, criterio, valor, descripcion")

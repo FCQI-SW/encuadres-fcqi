@@ -79,8 +79,7 @@ export default function Materias() {
             evidencias, 
             unidades,
             ultimo_editor_id,
-            ultima_edicion,
-            editor_pua:ultimo_editor_id(nombre)
+            ultima_edicion
           `)
           .eq("materia_id", materia.id)
           .single();
@@ -95,7 +94,13 @@ export default function Materias() {
         if (programa) {
           // Información del editor PUA
           if (programa.ultimo_editor_id) {
-            editorPua = (programa.editor_pua as any)?.nombre;
+            const { data: editorData } = await supabase
+              .from("usuarios")
+              .select("nombre")
+              .eq("id", programa.ultimo_editor_id)
+              .single();
+            
+            editorPua = editorData?.nombre;
             edicionPua = programa.ultima_edicion ? new Date(programa.ultima_edicion) : undefined;
           }
 
@@ -108,13 +113,10 @@ export default function Materias() {
               grupo, 
               periodo,
               ultimo_editor_id,
-              ultima_edicion,
-              editor_encuadre:ultimo_editor_id(nombre)
+              ultima_edicion
             `)
             .eq("programa_id", programa.id)
             .single();
-
-          console.log("🔍 Encuadre para materia:", materia.clave, encuadre);
 
           // Verificar criterios de evaluación
           let criteriosCompletos = false;
@@ -124,25 +126,12 @@ export default function Materias() {
               .select("criterio, valor")
               .eq("encuadre_id", encuadre.id);
 
-            console.log("🔍 Criterios para", materia.clave, ":", criterios);
-
             if (criterios && criterios.length > 0) {
               const criteriosConNombre = criterios.filter((c) => c.criterio?.trim());
               const totalPorcentaje = criteriosConNombre.reduce((sum, c) => sum + (c.valor || 0), 0);
               criteriosCompletos = criteriosConNombre.length > 0 && totalPorcentaje === 100;
-              
-              console.log("🔍 Total porcentaje:", totalPorcentaje, "para", materia.clave);
-              console.log("🔍 Criterios completos:", criteriosCompletos, "para", materia.clave);
             }
           }
-
-          console.log("🔍 Verificación final para", materia.clave, ":", {
-            usuario_id: !!encuadre?.usuario_id,
-            grupo: !!encuadre?.grupo,
-            periodo: !!encuadre?.periodo,
-            criteriosCompletos,
-            resultado: !!(encuadre?.usuario_id && encuadre?.grupo && encuadre?.periodo && criteriosCompletos)
-          });
 
           encuadreCompleto = !!(
             encuadre?.usuario_id &&
@@ -153,7 +142,13 @@ export default function Materias() {
 
           // Información del editor Encuadre
           if (encuadre?.ultimo_editor_id) {
-            editorEncuadre = (encuadre.editor_encuadre as any)?.nombre;
+            const { data: editorData } = await supabase
+              .from("usuarios")
+              .select("nombre")
+              .eq("id", encuadre.ultimo_editor_id)
+              .single();
+            
+            editorEncuadre = editorData?.nombre;
             edicionEncuadre = encuadre.ultima_edicion ? new Date(encuadre.ultima_edicion) : undefined;
           }
 
@@ -244,43 +239,51 @@ export default function Materias() {
     setFiltroProgreso("todas");
   };
 
+  // Función para formatear fecha
+  const formatearFecha = (fecha: Date) => {
+    const opciones: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+    return fecha.toLocaleDateString('es-MX', opciones);
+  };
+
   // Función para determinar qué mostrar
   const obtenerInfoEdicion = (m: MateriaEstado) => {
     const editoPua = !!m.editorPua;
     const editoEncuadre = !!m.editorEncuadre;
 
     if (editoPua && editoEncuadre) {
-      // Ambos editados - mostrar el más reciente
-      const puaMasReciente = m.edicionPua && m.edicionEncuadre && m.edicionPua > m.edicionEncuadre;
-      
-      if (puaMasReciente) {
-        return {
-          tipo: "Ambos",
-          editor: m.editorPua,
-          fecha: m.edicionPua,
-          icono: <FileText className="h-3 w-3" />
-        };
-      } else {
-        return {
-          tipo: "Ambos",
-          editor: m.editorEncuadre,
-          fecha: m.edicionEncuadre,
-          icono: <ClipboardList className="h-3 w-3" />
-        };
-      }
+      // Ambos editados - mostrar ambos
+      return {
+        tipo: "ambos",
+        pua: {
+          editor: m.editorPua!,
+          fecha: m.edicionPua!,
+        },
+        encuadre: {
+          editor: m.editorEncuadre!,
+          fecha: m.edicionEncuadre!,
+        }
+      };
     } else if (editoPua) {
       return {
-        tipo: "PUA",
-        editor: m.editorPua,
-        fecha: m.edicionPua,
-        icono: <FileText className="h-3 w-3" />
+        tipo: "pua",
+        pua: {
+          editor: m.editorPua!,
+          fecha: m.edicionPua!,
+        }
       };
     } else if (editoEncuadre) {
       return {
-        tipo: "Encuadre",
-        editor: m.editorEncuadre,
-        fecha: m.edicionEncuadre,
-        icono: <ClipboardList className="h-3 w-3" />
+        tipo: "encuadre",
+        encuadre: {
+          editor: m.editorEncuadre!,
+          fecha: m.edicionEncuadre!,
+        }
       };
     }
 
@@ -394,14 +397,45 @@ export default function Materias() {
                     </TableCell>
 
                     <TableCell className="text-center">
-                      <div className="flex flex-col items-center gap-1">
+                      <div className="flex flex-col items-center gap-2">
                         {infoEdicion ? (
                           <>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              {infoEdicion.icono}
-                              <span className="font-medium text-[#00723F]">{infoEdicion.tipo}:</span>
-                              <span>{infoEdicion.editor}</span>
-                            </div>
+                            {infoEdicion.tipo === "ambos" && infoEdicion.pua && infoEdicion.encuadre ? (
+                              <>
+                                {/* PUA */}
+                                <div className="flex items-center gap-2 text-xs">
+                                  <FileText className="h-3 w-3 text-[#00723F]" />
+                                  <div className="flex flex-col items-start">
+                                    <span className="font-medium text-[#00723F]">PUA: {infoEdicion.pua.editor}</span>
+                                    <span className="text-muted-foreground">{formatearFecha(infoEdicion.pua.fecha)}</span>
+                                  </div>
+                                </div>
+                                {/* Encuadre */}
+                                <div className="flex items-center gap-2 text-xs">
+                                  <ClipboardList className="h-3 w-3 text-blue-600" />
+                                  <div className="flex flex-col items-start">
+                                    <span className="font-medium text-blue-600">Encuadre: {infoEdicion.encuadre.editor}</span>
+                                    <span className="text-muted-foreground">{formatearFecha(infoEdicion.encuadre.fecha)}</span>
+                                  </div>
+                                </div>
+                              </>
+                            ) : infoEdicion.tipo === "pua" && infoEdicion.pua ? (
+                              <div className="flex items-center gap-2 text-xs">
+                                <FileText className="h-3 w-3 text-[#00723F]" />
+                                <div className="flex flex-col items-start">
+                                  <span className="font-medium text-[#00723F]">PUA: {infoEdicion.pua.editor}</span>
+                                  <span className="text-muted-foreground">{formatearFecha(infoEdicion.pua.fecha)}</span>
+                                </div>
+                              </div>
+                            ) : infoEdicion.tipo === "encuadre" && infoEdicion.encuadre ? (
+                              <div className="flex items-center gap-2 text-xs">
+                                <ClipboardList className="h-3 w-3 text-blue-600" />
+                                <div className="flex flex-col items-start">
+                                  <span className="font-medium text-blue-600">Encuadre: {infoEdicion.encuadre.editor}</span>
+                                  <span className="text-muted-foreground">{formatearFecha(infoEdicion.encuadre.fecha)}</span>
+                                </div>
+                              </div>
+                            ) : null}
                           </>
                         ) : (
                           <span className="text-xs text-muted-foreground">Sin ediciones</span>

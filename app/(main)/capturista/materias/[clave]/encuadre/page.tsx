@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,15 @@ export default function EncuadreMateria() {
   const params = useParams<{ clave: string }>();
   const clave = params?.clave as string;
   const confirm = useConfirm();
+  const { data: session, status } = useSession();
+
+  // DEBUG: Ver qué contiene la sesión
+  useEffect(() => {
+    console.log("🔍 Estado de sesión:", status);
+    console.log("🔍 Sesión completa:", session);
+    console.log("🔍 Usuario:", session?.user);
+    console.log("🔍 User ID:", session?.user?.id);
+  }, [session, status]);
 
   const [loadingData, setLoadingData] = useState(true);
   const [materia, setMateria] = useState<Materia | null>(null);
@@ -161,7 +171,8 @@ export default function EncuadreMateria() {
         }
       }
     })();
-  }, [programaId, cargarEncuadre]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programaId]);
 
   const handleBack = async () => {
     if (profesorId || periodo || grupo) {
@@ -180,6 +191,29 @@ export default function EncuadreMateria() {
 
   const handleGuardar = async () => {
     if (!materia || !programaId) return;
+
+    // DEBUG: Ver estado de sesión antes de guardar
+    console.log("🔍 Intentando guardar...");
+    console.log("🔍 Status:", status);
+    console.log("🔍 Session:", session);
+    console.log("🔍 User:", session?.user);
+    console.log("🔍 User ID directo:", session?.user?.id);
+    console.log("🔍 User sub:", (session?.user as any)?.sub);
+
+    // Validar que haya sesión (más flexible)
+    const userId = session?.user?.id || (session?.user as any)?.sub || null;
+    
+    console.log("🔍 User ID final:", userId);
+
+    if (!userId) {
+      await confirm({
+        title: "Error de sesión",
+        message: `No se pudo obtener tu ID de usuario. Status: ${status}. Por favor, cierra sesión y vuelve a iniciar.`,
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
 
     // ========================================
     // VALIDACIONES BÁSICAS (Campos requeridos)
@@ -320,7 +354,9 @@ export default function EncuadreMateria() {
     // Filtrar solo criterios completos
     const criteriosAGuardar = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
 
-    // Guardar
+    console.log("📝 Guardando con editorId:", userId);
+
+    // Guardar con el editorId del usuario de NextAuth
     const success = await guardarEncuadre({
       programaId: programaId,
       usuarioId: profesorId,
@@ -334,6 +370,7 @@ export default function EncuadreMateria() {
       normasConducta,
       profesorPuedeModificarCriterios: profesorPuedeModificar,
       criterios: criteriosAGuardar,
+      editorId: userId,
     });
 
     if (success) {

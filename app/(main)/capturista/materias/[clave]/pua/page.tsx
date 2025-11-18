@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardHeader,
@@ -32,7 +40,6 @@ export default function PuaMateria() {
 
   const [loadingData, setLoadingData] = useState(true);
   const [materia, setMateria] = useState<Materia | null>(null);
-  const [puaExistente, setPuaExistente] = useState(false);
   const [puaCompleto, setPuaCompleto] = useState(false);
   const [programaId, setProgramaId] = useState<string>("");
 
@@ -93,7 +100,6 @@ export default function PuaMateria() {
     (async () => {
       const pua = await cargarPua();
       if (pua) {
-        setPuaExistente(true);
         setUnidadAcademica(pua.unidad_academica || "");
         setProgramaEducativo(pua.programa_educativo || "");
         setPlanEstudios(pua.plan_estudios || "");
@@ -142,7 +148,8 @@ export default function PuaMateria() {
         }
       }
     })();
-  }, [materia?.id, cargarPua]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materia?.id]);
 
   const handleBack = async () => {
     router.push("/capturista/materias");
@@ -185,7 +192,7 @@ export default function PuaMateria() {
     if (!etapaFormacion.trim()) {
       await confirm({
         title: "Campo requerido",
-        message: "Por favor ingresa la Etapa de Formación.",
+        message: "Por favor selecciona la Etapa de Formación.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -195,7 +202,7 @@ export default function PuaMateria() {
     if (!caracterUA.trim()) {
       await confirm({
         title: "Campo requerido",
-        message: "Por favor ingresa el Carácter de la Unidad de Aprendizaje.",
+        message: "Por favor selecciona el Carácter de la Unidad de Aprendizaje.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -253,17 +260,7 @@ export default function PuaMateria() {
       if (!shouldContinue) return;
     }
 
-    const shouldSave = await confirm({
-      title: puaExistente ? "Guardar cambios" : "Guardar PUA",
-      message: puaExistente 
-        ? "¿Deseas guardar los cambios realizados?" 
-        : "¿Deseas guardar la información del PUA y continuar con las unidades?",
-      confirmText: puaExistente ? "Guardar cambios" : "Guardar y continuar",
-      cancelText: "Cancelar",
-    });
-
-    if (!shouldSave) return;
-
+    // Guardar directamente sin modal de confirmación
     const savedProgramaId = await guardarPua({
       materiaId: materia.id,
       unidadAcademica,
@@ -286,16 +283,7 @@ export default function PuaMateria() {
     });
 
     if (savedProgramaId) {
-      await confirm({
-        title: "¡Guardado exitoso!",
-        message: "El PUA se ha guardado correctamente.",
-        confirmText: puaExistente ? "Aceptar" : "Continuar a unidades",
-        cancelText: "",
-      });
-
-      if (!puaExistente) {
-        router.push(`/capturista/materias/${clave}/pua/unidades`);
-      }
+      router.push(`/capturista/materias/${clave}/pua/unidades`);
     }
   };
 
@@ -511,21 +499,40 @@ export default function PuaMateria() {
                 <Label className="mb-2 block">
                   7. Etapa de Formación a la que Pertenece <span className="text-red-500">*</span>
                 </Label>
-                <Input
+                <Select
                   value={etapaFormacion}
-                  onChange={(e) => setEtapaFormacion(e.target.value)}
-                  placeholder="Ej: Básica, Disciplinaria, Terminal"
-                />
+                  onValueChange={setEtapaFormacion}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleccione una etapa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="Básica">Básica</SelectItem>
+                      <SelectItem value="Disciplinaria">Disciplinaria</SelectItem>
+                      <SelectItem value="Terminal">Terminal</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label className="mb-2 block">
                   8. Carácter de la Unidad de Aprendizaje <span className="text-red-500">*</span>
                 </Label>
-                <Input
+                <Select
                   value={caracterUA}
-                  onChange={(e) => setCaracterUA(e.target.value)}
-                  placeholder="Ej: Obligatoria, Optativa"
-                />
+                  onValueChange={setCaracterUA}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleccione el carácter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="Obligatoria">Obligatoria</SelectItem>
+                      <SelectItem value="Optativa">Optativa</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -641,7 +648,7 @@ export default function PuaMateria() {
               disabled={loading}
               className="cursor-pointer border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
             >
-              Editar unidades de aprendizaje
+              Editar unidades
             </Button>
           )}
           
@@ -651,7 +658,7 @@ export default function PuaMateria() {
             disabled={loading}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {loading ? "Guardando..." : puaExistente ? "Guardar cambios" : "Guardar y continuar"}
+            {loading ? "Guardando..." : "Guardar y continuar"}
           </Button>
         </div>
       </div>

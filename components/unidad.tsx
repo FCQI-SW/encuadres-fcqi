@@ -34,6 +34,16 @@ export function Unidad({ nUnidad, value, onChange }: UnidadProps) {
   const [contenido, setContenido] = useState(value?.contenido || "");
   const [duracion, setDuracion] = useState<string>(String(value?.duracion || ""));
 
+  // NUEVO: Actualizar estados cuando value cambia (cuando se cargan datos de BD)
+  useEffect(() => {
+    if (value) {
+      setNombre(value.nombre || "");
+      setCompetencia(value.competencia || "");
+      setContenido(value.contenido || "");
+      setDuracion(String(value.duracion || ""));
+    }
+  }, [value]);
+
   // Notificar cambios al padre
   useEffect(() => {
     if (onChange) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
@@ -8,51 +8,47 @@ import { Plus, Trash2 } from "lucide-react";
 type Tema = {
   id: string;
   texto: string;
-  nivel: number; // 1, 2, o 3
+  nivel: number;
   hijos?: Tema[];
 };
 
 type ContenidoEditorProps = {
   numeroUnidad: number;
-  value?: string; // Texto estructurado guardado
+  value?: string;
   onChange?: (contenido: string) => void;
 };
 
 export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEditorProps) {
   const [temas, setTemas] = useState<Tema[]>([]);
-  const [cargado, setCargado] = useState(false);
-  const editadoManualmenteRef = useRef(false);
+  const [inicializado, setInicializado] = useState(false);
 
-  // Cargar contenido cuando llega desde la BD
+  // Cargar contenido inicial desde value
   useEffect(() => {
-    // Solo cargar si:
-    // 1. No se ha cargado antes
-    // 2. Hay un value
-    // 3. No se ha editado manualmente
-    if (!cargado && value && value.trim() && !editadoManualmenteRef.current) {
+    if (!inicializado && value && value.trim()) {
+      console.log('📥 Cargando contenido:', value);
       const temasParseados = parseContenidoATexto(value);
-      setTemas(temasParseados);
-      setCargado(true);
+      console.log('✅ Temas parseados:', temasParseados);
+      if (temasParseados.length > 0) {
+        setTemas(temasParseados);
+      }
+      setInicializado(true);
     }
-  }, [value, cargado]);
+  }, [value, inicializado]);
 
-  // Notificar cambios
+  // Notificar cambios al padre
   useEffect(() => {
-    if (onChange && (temas.length > 0 || editadoManualmenteRef.current)) {
+    if (inicializado && onChange) {
       const textoEstructurado = convertirTemasATexto(temas, numeroUnidad);
       onChange(textoEstructurado);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [temas, numeroUnidad]);
+  }, [temas, numeroUnidad, onChange, inicializado]);
 
   const agregarTemaPrincipal = () => {
-    editadoManualmenteRef.current = true;
     const nuevoId = `tema-${Date.now()}-${Math.random()}`;
     setTemas([...temas, { id: nuevoId, texto: "", nivel: 1, hijos: [] }]);
   };
 
   const agregarSubtema = (temaId: string) => {
-    editadoManualmenteRef.current = true;
     setTemas(
       temas.map((tema) => {
         if (tema.id === temaId) {
@@ -68,7 +64,6 @@ export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEdit
   };
 
   const agregarInciso = (temaId: string, subtemaId: string) => {
-    editadoManualmenteRef.current = true;
     setTemas(
       temas.map((tema) => {
         if (tema.id === temaId) {
@@ -92,12 +87,10 @@ export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEdit
   };
 
   const eliminarTema = (temaId: string) => {
-    editadoManualmenteRef.current = true;
     setTemas(temas.filter((t) => t.id !== temaId));
   };
 
   const eliminarSubtema = (temaId: string, subtemaId: string) => {
-    editadoManualmenteRef.current = true;
     setTemas(
       temas.map((tema) => {
         if (tema.id === temaId) {
@@ -112,7 +105,6 @@ export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEdit
   };
 
   const eliminarInciso = (temaId: string, subtemaId: string, incisoId: string) => {
-    editadoManualmenteRef.current = true;
     setTemas(
       temas.map((tema) => {
         if (tema.id === temaId) {
@@ -135,14 +127,12 @@ export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEdit
   };
 
   const actualizarTextoTema = (temaId: string, texto: string) => {
-    editadoManualmenteRef.current = true;
     setTemas(
       temas.map((tema) => (tema.id === temaId ? { ...tema, texto } : tema))
     );
   };
 
   const actualizarTextoSubtema = (temaId: string, subtemaId: string, texto: string) => {
-    editadoManualmenteRef.current = true;
     setTemas(
       temas.map((tema) => {
         if (tema.id === temaId) {
@@ -164,7 +154,6 @@ export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEdit
     incisoId: string,
     texto: string
   ) => {
-    editadoManualmenteRef.current = true;
     setTemas(
       temas.map((tema) => {
         if (tema.id === temaId) {
@@ -190,109 +179,115 @@ export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEdit
 
   return (
     <div className="space-y-2">
-      {temas.map((tema, temaIdx) => (
-        <div key={tema.id} className="space-y-2">
-          {/* Tema principal */}
-          <div className="flex items-start gap-2">
-            <span className="text-sm font-medium text-muted-foreground min-w-[60px] pt-2">
-              {numeroUnidad}.{temaIdx + 1}
-            </span>
-            <Input
-              value={tema.texto}
-              onChange={(e) => actualizarTextoTema(tema.id, e.target.value)}
-              placeholder="Nombre del tema"
-              className="flex-1"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => agregarSubtema(tema.id)}
-              className="cursor-pointer"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Subtema
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => eliminarTema(tema.id)}
-              className="cursor-pointer"
-            >
-              <Trash2 className="h-4 w-4 text-red-500" />
-            </Button>
-          </div>
-
-          {/* Subtemas */}
-          {tema.hijos?.map((subtema, subtemaIdx) => (
-            <div key={subtema.id} className="ml-8 space-y-2">
-              <div className="flex items-start gap-2">
-                <span className="text-sm font-medium text-muted-foreground min-w-[80px] pt-2">
-                  {numeroUnidad}.{temaIdx + 1}.{subtemaIdx + 1}
-                </span>
-                <Input
-                  value={subtema.texto}
-                  onChange={(e) =>
-                    actualizarTextoSubtema(tema.id, subtema.id, e.target.value)
-                  }
-                  placeholder="Nombre del subtema"
-                  className="flex-1"
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => agregarInciso(tema.id, subtema.id)}
-                  className="cursor-pointer"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Inciso
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => eliminarSubtema(tema.id, subtema.id)}
-                  className="cursor-pointer"
-                >
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </Button>
-              </div>
-
-              {/* Incisos */}
-              {subtema.hijos?.map((inciso, incisoIdx) => (
-                <div key={inciso.id} className="ml-8">
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm font-medium text-muted-foreground min-w-[100px] pt-2">
-                      {numeroUnidad}.{temaIdx + 1}.{subtemaIdx + 1}.{incisoIdx + 1}
-                    </span>
-                    <Input
-                      value={inciso.texto}
-                      onChange={(e) =>
-                        actualizarTextoInciso(
-                          tema.id,
-                          subtema.id,
-                          inciso.id,
-                          e.target.value
-                        )
-                      }
-                      placeholder="Nombre del inciso"
-                      className="flex-1"
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        eliminarInciso(tema.id, subtema.id, inciso.id)
-                      }
-                      className="cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
+      {temas.length === 0 ? (
+        <div className="text-sm text-muted-foreground text-center py-4 border-2 border-dashed rounded-md">
+          No hay temas agregados. Haz clic en "Agregar tema" para comenzar.
         </div>
-      ))}
+      ) : (
+        temas.map((tema, temaIdx) => (
+          <div key={tema.id} className="space-y-2">
+            {/* Tema principal */}
+            <div className="flex items-start gap-2">
+              <span className="text-sm font-medium text-muted-foreground min-w-[60px] pt-2">
+                {numeroUnidad}.{temaIdx + 1}
+              </span>
+              <Input
+                value={tema.texto}
+                onChange={(e) => actualizarTextoTema(tema.id, e.target.value)}
+                placeholder="Nombre del tema"
+                className="flex-1"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => agregarSubtema(tema.id)}
+                className="cursor-pointer"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Subtema
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => eliminarTema(tema.id)}
+                className="cursor-pointer"
+              >
+                <Trash2 className="h-4 w-4 text-red-500" />
+              </Button>
+            </div>
+
+            {/* Subtemas */}
+            {tema.hijos?.map((subtema, subtemaIdx) => (
+              <div key={subtema.id} className="ml-8 space-y-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-sm font-medium text-muted-foreground min-w-[80px] pt-2">
+                    {numeroUnidad}.{temaIdx + 1}.{subtemaIdx + 1}
+                  </span>
+                  <Input
+                    value={subtema.texto}
+                    onChange={(e) =>
+                      actualizarTextoSubtema(tema.id, subtema.id, e.target.value)
+                    }
+                    placeholder="Nombre del subtema"
+                    className="flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => agregarInciso(tema.id, subtema.id)}
+                    className="cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Inciso
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => eliminarSubtema(tema.id, subtema.id)}
+                    className="cursor-pointer"
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+
+                {/* Incisos */}
+                {subtema.hijos?.map((inciso, incisoIdx) => (
+                  <div key={inciso.id} className="ml-8">
+                    <div className="flex items-start gap-2">
+                      <span className="text-sm font-medium text-muted-foreground min-w-[100px] pt-2">
+                        {numeroUnidad}.{temaIdx + 1}.{subtemaIdx + 1}.{incisoIdx + 1}
+                      </span>
+                      <Input
+                        value={inciso.texto}
+                        onChange={(e) =>
+                          actualizarTextoInciso(
+                            tema.id,
+                            subtema.id,
+                            inciso.id,
+                            e.target.value
+                          )
+                        }
+                        placeholder="Nombre del inciso"
+                        className="flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          eliminarInciso(tema.id, subtema.id, inciso.id)
+                        }
+                        className="cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ))
+      )}
 
       <Button
         variant="outline"
@@ -333,34 +328,60 @@ function convertirTemasATexto(temas: Tema[], numeroUnidad: number): string {
 
 // Función para parsear texto estructurado a temas
 function parseContenidoATexto(contenido: string): Tema[] {
+  if (!contenido || !contenido.trim()) return [];
+
   const lineas = contenido.split("\n").filter((l) => l.trim());
   const temas: Tema[] = [];
   let temaActual: Tema | null = null;
   let subtemaActual: Tema | null = null;
 
-  lineas.forEach((linea) => {
+  lineas.forEach((linea, index) => {
     // Extraer numeración y texto
-    const match = linea.trim().match(/^(\d+\.)+\s*(.+)$/);
-    if (!match) return;
+    const match = linea.trim().match(/^(\d+(?:\.\d+)+)\s+(.+)$/);
+    if (!match) {
+      console.warn('❌ No se pudo parsear línea:', linea);
+      return;
+    }
 
+    const numeracion = match[1];
     const texto = match[2];
-    const numeros = match[1].split(".").filter((n) => n).length;
+    const niveles = numeracion.split(".").filter((n) => n).length;
 
-    if (numeros === 2) {
+    console.log(`📝 Parseando: ${numeracion} - "${texto}" (${niveles} niveles)`);
+
+    if (niveles === 2) {
       // Tema principal (1.1)
-      temaActual = { id: `tema-${Date.now()}-${Math.random()}`, texto, nivel: 1, hijos: [] };
+      temaActual = { 
+        id: `tema-${index}-${Date.now()}-${Math.random()}`, 
+        texto, 
+        nivel: 1, 
+        hijos: [] 
+      };
       temas.push(temaActual);
       subtemaActual = null;
-    } else if (numeros === 3 && temaActual) {
+      console.log('✅ Tema creado:', temaActual.id);
+    } else if (niveles === 3 && temaActual) {
       // Subtema (1.1.1)
-      subtemaActual = { id: `subtema-${Date.now()}-${Math.random()}`, texto, nivel: 2, hijos: [] };
+      subtemaActual = { 
+        id: `subtema-${index}-${Date.now()}-${Math.random()}`, 
+        texto, 
+        nivel: 2, 
+        hijos: [] 
+      };
       temaActual.hijos = [...(temaActual.hijos || []), subtemaActual];
-    } else if (numeros === 4 && subtemaActual) {
+      console.log('✅ Subtema creado:', subtemaActual.id);
+    } else if (niveles === 4 && subtemaActual) {
       // Inciso (1.1.1.1)
-      const inciso = { id: `inciso-${Date.now()}-${Math.random()}`, texto, nivel: 3 };
+      const inciso = { 
+        id: `inciso-${index}-${Date.now()}-${Math.random()}`, 
+        texto, 
+        nivel: 3 
+      };
       subtemaActual.hijos = [...(subtemaActual.hijos || []), inciso];
+      console.log('✅ Inciso creado:', inciso.id);
     }
   });
 
+  console.log('🎯 Total de temas parseados:', temas.length);
   return temas;
 }
