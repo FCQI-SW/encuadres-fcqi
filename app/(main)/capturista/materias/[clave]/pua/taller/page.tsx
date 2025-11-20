@@ -1,98 +1,359 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabase";
-import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { ChevronLeft, Loader2, Plus } from "lucide-react";
+import { PracticaTaller } from "@/components/practica-taller";
+import {
+  useTallerForm,
+  type PracticaTaller as PracticaTallerType,
+} from "@/hooks/useTallerForm";
+import { useConfirm } from "@/components/global-confirm-modal";
 
-type Materia = {
+type Programa = {
   id: string;
-  clave: string;
+  materia_id: string;
   unidades: number;
 };
 
 export default function PuaMateriaTaller() {
+  const router = useRouter();
   const params = useParams<{ clave: string }>();
   const clave = params?.clave;
-  const [materia, setMateria] = useState<Materia>();
+  const confirm = useConfirm();
 
+  const [programa, setPrograma] = useState<Programa | null>(null);
+  const [loadingData, setLoadingData] = useState(true);
+
+  // Estado con TODAS las prácticas, agrupadas por unidad
+  const [practicasPorUnidad, setPracticasPorUnidad] = useState<
+    Record<number, PracticaTallerType[]>
+  >({});
+
+  // 👇 NUEVO: bandera para evitar recargar y sobreescribir el estado
+  const [practicasCargadas, setPracticasCargadas] = useState(false);
+
+  const { loading, guardarPracticas, cargarPracticas } = useTallerForm(
+    programa?.id || ""
+  );
+
+  // Obtener programa por clave de materia
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: materiaData, error: materiasError } = await supabase
-        .from("programas")
-        .select("id, materia_id, unidades")
-        .eq("materia_id", clave);
+    const fetchPrograma = async () => {
+      if (!clave) return;
 
-      if (materiasError) {
-        console.error("Error al obtener materias:", {
-          materiasError,
+      setLoadingData(true);
+      try {
+        const { data: materiaData } = await supabase
+          .from("materias")
+          .select("id")
+          .eq("clave", clave)
+          .single();
+
+        if (!materiaData) {
+          setPrograma(null);
+          setLoadingData(false);
+          return;
+        }
+
+        const { data: programaData, error } = await supabase
+          .from("programas")
+          .select("id, materia_id, unidades")
+          .eq("materia_id", materiaData.id)
+          .single();
+
+        if (error) {
+          console.error("Error al obtener programa:", error);
+          setPrograma(null);
+        } else {
+          setPrograma(programaData);
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        setPrograma(null);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchPrograma();
+  }, [clave]);
+
+  // Cargar prácticas existentes UNA SOLA VEZ
+  useEffect(() => {
+    if (!programa?.id || practicasCargadas) return;
+
+    (async () => {
+      const practicas = await cargarPracticas();
+
+      const agrupadas: Record<number, PracticaTallerType[]> = {};
+      practicas.forEach((p) => {
+        if (!agrupadas[p.unidad]) {
+          agrupadas[p.unidad] = [];
+        }
+        agrupadas[p.unidad].push(p);
+      });
+
+      setPracticasPorUnidad(agrupadas);
+      setPracticasCargadas(true); // 🔴 Ya no volvemos a sobreescribir
+    })();
+  }, [programa?.id, practicasCargadas, cargarPracticas]);
+
+  const handleBack = () => {
+    router.push(`/capturista/materias/${clave}/pua/unidades`);
+  };
+
+  const agregarPractica = (unidad: number) => {
+    setPracticasPorUnidad((prev) => {
+      const practicasUnidad = prev[unidad] || [];
+      const nuevoNumero = practicasUnidad.length + 1;
+
+      return {
+        ...prev,
+        [unidad]: [
+          ...practicasUnidad,
+          {
+            unidad,
+            numero: nuevoNumero,
+            competencia: "",
+            descripcion: "",
+            material_apoyo: "",
+            duracion: 0,
+          },
+        ],
+      };
+    });
+  };
+
+  const eliminarPractica = (unidad: number, numero: number) => {
+    setPracticasPorUnidad((prev) => {
+      const practicasUnidad = prev[unidad] || [];
+      const nuevasPracticas = practicasUnidad
+        .filter((p) => p.numero !== numero)
+        .map((p, index) => ({ ...p, numero: index + 1 })); // Renumerar
+
+      return {
+        ...prev,
+        [unidad]: nuevasPracticas,
+      };
+    });
+  };
+
+  const handlePracticaChange = (data: PracticaTallerType) => {
+    setPracticasPorUnidad((prev) => {
+      const practicasUnidad = [...(prev[data.unidad] || [])];
+      const index = practicasUnidad.findIndex(
+        (p) => p.numero === data.numero
+      );
+
+      if (index >= 0) {
+        // Actualizar práctica existente
+        practicasUnidad[index] = data;
+      } else {
+        // Agregar nueva práctica
+        practicasUnidad.push(data);
+      }
+
+      return {
+        ...prev,
+        [data.unidad]: practicasUnidad,
+      };
+    });
+  };
+
+  const handleGuardar = async () => {
+    if (!programa) return;
+
+    // Convertir a array plano
+    const todasLasPracticas: PracticaTallerType[] = [];
+    Object.values(practicasPorUnidad).forEach((practicas) => {
+      todasLasPracticas.push(...practicas);
+    });
+
+    // Validar cada práctica
+    for (const practica of todasLasPracticas) {
+      if (!practica.competencia.trim()) {
+        await confirm({
+          title: "Campo requerido",
+          message: `La Unidad ${practica.unidad}, Práctica ${practica.numero} debe tener una competencia.`,
+          confirmText: "Entendido",
+          cancelText: "",
         });
         return;
       }
 
-      const mappedMateria = (materiaData || []).map((m) => ({
-        id: m.id,
-        clave: m.materia_id,
-        unidades: m.unidades,
-      }));
+      if (!practica.descripcion.trim()) {
+        await confirm({
+          title: "Campo requerido",
+          message: `La Unidad ${practica.unidad}, Práctica ${practica.numero} debe tener una descripción.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
 
-      setMateria(mappedMateria[0]);
-    };
-
-    fetchData();
-  }, [clave]);
-
-  const nUnidades = [];
-
-  if (materia) {
-    for (let i = 1; i <= materia?.unidades; i++) {
-      nUnidades.push(i);
+      if (practica.duracion <= 0) {
+        await confirm({
+          title: "Duración inválida",
+          message: `La Unidad ${practica.unidad}, Práctica ${practica.numero} debe tener una duración mayor a 0 horas.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
     }
-  } else {
-    for (let i = 1; i <= 5; i++) {
-      nUnidades.push(i);
+
+    const shouldSave = await confirm({
+      title: "Guardar prácticas",
+      message: "¿Deseas guardar todas las prácticas de taller?",
+      confirmText: "Guardar",
+      cancelText: "Cancelar",
+    });
+
+    if (!shouldSave) return;
+
+    const success = await guardarPracticas(todasLasPracticas);
+
+    if (success) {
+      await confirm({
+        title: "¡Guardado exitoso!",
+        message: "Las prácticas de taller se han guardado correctamente.",
+        confirmText: "Continuar",
+        cancelText: "",
+      });
+
+      router.push(`/capturista/materias`);
     }
+  };
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
+  if (!programa) {
+    return (
+      <div className="px-4 py-8">
+        <div className="mx-auto max-w-3xl">
+          <Card>
+            <CardHeader>
+              <CardTitle>No se encontró el programa</CardTitle>
+              <CardDescription>
+                Por favor regresa y completa los datos del PUA primero.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                className="cursor-pointer"
+              >
+                Volver
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const nUnidades = Array.from({ length: programa.unidades }, (_, i) => i + 1);
+
   return (
-    <>
-      <div className="h-auto w-auto m-8">
-        <div className="items-center border-2 border-black bg-gray-200 justify-items-center py-8 gap-8 mx-24 my-12 font-[family-name:var(--font-geist-sans)]">
-          <h1 className="text-center font-bold text-2xl col-span-2">
-            VI. ESTRUCTURA DE LAS PRÁCTICAS DE TALLER
-          </h1>
-          {nUnidades.map((m) => {
-            return (
-              <div key={m} className="my-16">
-                <h1 className="text-center font-bold text-2xl pt-8">
-                  UNIDAD {m}
-                </h1>
-                <h2 className="text-center font-bold mt-8">Práctica #1</h2>
-                <div className="grid grid-cols-4 gap-x-4 my-8">
-                  <h2>Nombre de la práctica: </h2>
-                  <Input
-                    className="border-black bg-gray-50"
-                    placeholder="Ingresar nombre..."
-                  />
-                  <h2>Duración de la práctica: </h2>
-                  <Input className="border-black bg-gray-50" type="number" />
-                </div>
-                <h2 className="text-center font-bold mt-8">
-                  [+] Agregar práctica (#2)
-                </h2>
-              </div>
-            );
-          })}
+    <div className="px-4 py-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div>
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            className="cursor-pointer"
+          >
+            <ChevronLeft className="mr-2 h-5 w-5" />
+            Volver a unidades
+          </Button>
         </div>
 
-        <div className="pb-8 justify-self-center">
-          <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
-            <Link href={`/capturista/materias`}>Finalizar</Link>
+        <div className="text-center py-4">
+          <h1 className="text-2xl font-bold">
+            VI. ESTRUCTURA DE LAS PRÁCTICAS DE TALLER
+          </h1>
+        </div>
+
+        {nUnidades.map((unidad) => {
+          const practicas = practicasPorUnidad[unidad] || [];
+
+          return (
+            <div key={unidad} className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">UNIDAD {unidad}</h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => agregarPractica(unidad)}
+                  className="cursor-pointer"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Agregar práctica
+                </Button>
+              </div>
+
+              {practicas.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    No hay prácticas agregadas para esta unidad.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {practicas.map((practica) => (
+                    <PracticaTaller
+                      key={`${unidad}-${practica.numero}`}
+                      unidad={unidad}
+                      numero={practica.numero}
+                      value={practica}
+                      onChange={handlePracticaChange}
+                      onDelete={() =>
+                        eliminarPractica(unidad, practica.numero)
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="flex justify-end gap-2 pt-4">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={loading}
+            className="cursor-pointer"
+          >
+            Cancelar
+          </Button>
+          <Button
+            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+            onClick={handleGuardar}
+            disabled={loading}
+          >
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? "Guardando..." : "Guardar y finalizar"}
           </Button>
         </div>
       </div>
-    </>
+    </div>
   );
 }

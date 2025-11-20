@@ -105,90 +105,91 @@ export default function PuaMateriaUnidades() {
     }));
   };
 
-  const handleContinuar = async () => {
-    if (!programa) return;
+const handleContinuar = async () => {
+  if (!programa) return;
 
-    // Convertir unidadesData a array
-    const unidadesArray = Object.values(unidadesData);
+  // Convertir unidadesData a array
+  const unidadesArray = Object.values(unidadesData);
 
-    // Validar que todas las unidades estén completas
-    if (unidadesArray.length < programa.unidades) {
+  // Validar que todas las unidades estén completas
+  if (unidadesArray.length < programa.unidades) {
+    await confirm({
+      title: "Unidades incompletas",
+      message: `Debes completar todas las ${programa.unidades} unidades antes de continuar.`,
+      confirmText: "Entendido",
+      cancelText: "",
+    });
+    return;
+  }
+
+  // Validar cada unidad
+  for (const unidad of unidadesArray) {
+    if (!unidad.nombre.trim()) {
       await confirm({
-        title: "Unidades incompletas",
-        message: `Debes completar todas las ${programa.unidades} unidades antes de continuar.`,
+        title: "Campo requerido",
+        message: `La Unidad ${unidad.numero} debe tener un nombre.`,
         confirmText: "Entendido",
         cancelText: "",
       });
       return;
     }
 
-    // Validar cada unidad
-    for (const unidad of unidadesArray) {
-      if (!unidad.nombre.trim()) {
-        await confirm({
-          title: "Campo requerido",
-          message: `La Unidad ${unidad.numero} debe tener un nombre.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
-        return;
-      }
-
-      if (!unidad.competencia.trim()) {
-        await confirm({
-          title: "Campo requerido",
-          message: `La Unidad ${unidad.numero} debe tener una competencia.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
-        return;
-      }
-
-      if (!unidad.contenido.trim()) {
-        await confirm({
-          title: "Campo requerido",
-          message: `La Unidad ${unidad.numero} debe tener contenido.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
-        return;
-      }
-
-      if (unidad.duracion <= 0) {
-        await confirm({
-          title: "Duración inválida",
-          message: `La Unidad ${unidad.numero} debe tener una duración mayor a 0 horas.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
-        return;
-      }
-    }
-
-    // Confirmar guardado
-    const shouldSave = await confirm({
-      title: "Guardar unidades",
-      message: "¿Deseas guardar todas las unidades?",
-      confirmText: "Guardar",
-      cancelText: "Cancelar",
-    });
-
-    if (!shouldSave) return;
-
-    // Guardar
-    const success = await guardarUnidades(unidadesArray);
-
-    if (success) {
+    if (!unidad.competencia.trim()) {
       await confirm({
-        title: "¡Guardado exitoso!",
-        message: "Las unidades se han guardado correctamente.",
-        confirmText: "Continuar",
+        title: "Campo requerido",
+        message: `La Unidad ${unidad.numero} debe tener una competencia.`,
+        confirmText: "Entendido",
         cancelText: "",
       });
-
-      router.push(`/capturista/materias`);
+      return;
     }
-  };
+
+    if (!unidad.contenido.trim()) {
+      await confirm({
+        title: "Campo requerido",
+        message: `La Unidad ${unidad.numero} debe tener contenido.`,
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    if (unidad.duracion <= 0) {
+      await confirm({
+        title: "Duración inválida",
+        message: `La Unidad ${unidad.numero} debe tener una duración mayor a 0 horas.`,
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+  }
+
+  // Confirmar guardado
+  const shouldSave = await confirm({
+    title: "Guardar unidades",
+    message: "¿Deseas guardar todas las unidades?",
+    confirmText: "Guardar",
+    cancelText: "Cancelar",
+  });
+
+  if (!shouldSave) return;
+
+  // Guardar
+  const success = await guardarUnidades(unidadesArray);
+
+  if (success) {
+    await confirm({
+      title: "¡Guardado exitoso!",
+      message: "Las unidades se han guardado correctamente.",
+      confirmText: "Continuar",
+      cancelText: "",
+    });
+
+    // CAMBIO: Ir a taller en lugar de materias
+    router.push(`/capturista/materias/${clave}/pua/taller`);
+  }
+};
 
   if (loadingData) {
     return (

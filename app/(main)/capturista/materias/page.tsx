@@ -152,7 +152,7 @@ export default function Materias() {
             edicionEncuadre = encuadre.ultima_edicion ? new Date(encuadre.ultima_edicion) : undefined;
           }
 
-          // Verificar PUA completo
+          // Verificar PUA completo (incluyendo prácticas de taller)
           const numUnidades = programa.unidades || 0;
           const camposBasicosCompletos = !!(
             programa.proposito &&
@@ -162,6 +162,7 @@ export default function Materias() {
           );
 
           if (camposBasicosCompletos) {
+            // Verificar unidades completas
             const { data: unidades } = await supabase
               .from("unidades")
               .select("numero, nombre, competencia, contenido, duracion")
@@ -175,7 +176,30 @@ export default function Materias() {
                 u.duracion > 0
             );
 
-            puaCompleto = unidadesCompletas.length === numUnidades;
+            const todasUnidadesCompletas = unidadesCompletas.length === numUnidades;
+
+            // Verificar prácticas de taller completas
+            let practicasTallerCompletas = false;
+            const { data: practicasTaller } = await supabase
+              .from("practicas_taller")
+              .select("competencia, descripcion, duracion")
+              .eq("programa_id", programa.id);
+
+            if (practicasTaller && practicasTaller.length > 0) {
+              const practicasValidas = practicasTaller.filter(
+                (p) =>
+                  p.competencia?.trim() &&
+                  p.descripcion?.trim() &&
+                  p.duracion > 0
+              );
+              practicasTallerCompletas = practicasValidas.length === practicasTaller.length;
+            } else {
+              // Si no hay prácticas, considerar como completo
+              practicasTallerCompletas = false;
+            }
+
+            // PUA está completo solo si todo está completo
+            puaCompleto = todasUnidadesCompletas && practicasTallerCompletas;
           } else {
             puaCompleto = false;
           }

@@ -144,7 +144,27 @@ export default function PuaMateria() {
           );
 
           const todasUnidadesCompletas = unidadesCompletas.length === numUnidadesEsperadas;
-          setPuaCompleto(todasUnidadesCompletas);
+          
+          // Verificar prácticas de taller
+          let practicasTallerCompletas = false;
+          const { data: practicasTaller } = await supabase
+            .from("practicas_taller")
+            .select("competencia, descripcion, duracion")
+            .eq("programa_id", programaData.id);
+
+          if (practicasTaller && practicasTaller.length > 0) {
+            const practicasValidas = practicasTaller.filter(
+              (p) =>
+                p.competencia?.trim() &&
+                p.descripcion?.trim() &&
+                p.duracion > 0
+            );
+            practicasTallerCompletas = practicasValidas.length === practicasTaller.length;
+          } else {
+            practicasTallerCompletas = false;
+          }
+
+          setPuaCompleto(todasUnidadesCompletas && practicasTallerCompletas);
         }
       }
     })();
@@ -642,14 +662,25 @@ export default function PuaMateria() {
           </Button>
           
           {puaCompleto && (
-            <Button
-              variant="outline"
-              onClick={() => router.push(`/capturista/materias/${clave}/pua/unidades`)}
-              disabled={loading}
-              className="cursor-pointer border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
-            >
-              Editar unidades
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/capturista/materias/${clave}/pua/unidades`)}
+                disabled={loading}
+                className="cursor-pointer border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
+              >
+                Editar unidades
+              </Button>
+              
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/capturista/materias/${clave}/pua/taller`)}
+                disabled={loading}
+                className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white"
+              >
+                Editar prácticas de taller
+              </Button>
+            </>
           )}
           
           <Button
