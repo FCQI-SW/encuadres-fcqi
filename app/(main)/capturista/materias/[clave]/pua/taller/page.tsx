@@ -34,19 +34,22 @@ export default function PuaMateriaTaller() {
   const [programa, setPrograma] = useState<Programa | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Estado con TODAS las prácticas, agrupadas por unidad
   const [practicasPorUnidad, setPracticasPorUnidad] = useState<
     Record<number, PracticaTallerType[]>
   >({});
 
-  // 👇 NUEVO: bandera para evitar recargar y sobreescribir el estado
   const [practicasCargadas, setPracticasCargadas] = useState(false);
+
+  // NUEVO: estado de colapsado por práctica (unidad-numero)
+  const [collapsedState, setCollapsedState] = useState<Record<string, boolean>>(
+    {}
+  );
 
   const { loading, guardarPracticas, cargarPracticas } = useTallerForm(
     programa?.id || ""
   );
 
-  // Obtener programa por clave de materia
+  // Obtener programa
   useEffect(() => {
     const fetchPrograma = async () => {
       if (!clave) return;
@@ -88,7 +91,7 @@ export default function PuaMateriaTaller() {
     fetchPrograma();
   }, [clave]);
 
-  // Cargar prácticas existentes UNA SOLA VEZ
+  // Cargar prácticas existentes una sola vez
   useEffect(() => {
     if (!programa?.id || practicasCargadas) return;
 
@@ -96,17 +99,25 @@ export default function PuaMateriaTaller() {
       const practicas = await cargarPracticas();
 
       const agrupadas: Record<number, PracticaTallerType[]> = {};
+      const collapsedInicial: Record<string, boolean> = {};
+
       practicas.forEach((p) => {
         if (!agrupadas[p.unidad]) {
           agrupadas[p.unidad] = [];
         }
         agrupadas[p.unidad].push(p);
+
+        // si quieres que las que vienen de BD lleguen ya minimizadas:
+        const key = `${p.unidad}-${p.numero}`;
+        collapsedInicial[key] = true;
       });
 
       setPracticasPorUnidad(agrupadas);
-      setPracticasCargadas(true); // 🔴 Ya no volvemos a sobreescribir
+      setCollapsedState(collapsedInicial);
+      setPracticasCargadas(true);
     })();
-  }, [programa?.id, practicasCargadas, cargarPracticas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programa?.id, practicasCargadas]);
 
   const handleBack = () => {
     router.push(`/capturista/materias/${clave}/pua/unidades`);
@@ -117,19 +128,25 @@ export default function PuaMateriaTaller() {
       const practicasUnidad = prev[unidad] || [];
       const nuevoNumero = practicasUnidad.length + 1;
 
+      const nuevaPractica: PracticaTallerType = {
+        unidad,
+        numero: nuevoNumero,
+        competencia: "",
+        descripcion: "",
+        material_apoyo: "",
+        duracion: 0,
+      };
+
+      // La nueva práctica empieza expandida
+      const key = `${unidad}-${nuevoNumero}`;
+      setCollapsedState((prevCollapsed) => ({
+        ...prevCollapsed,
+        [key]: false,
+      }));
+
       return {
         ...prev,
-        [unidad]: [
-          ...practicasUnidad,
-          {
-            unidad,
-            numero: nuevoNumero,
-            competencia: "",
-            descripcion: "",
-            material_apoyo: "",
-            duracion: 0,
-          },
-        ],
+        [unidad]: [...practicasUnidad, nuevaPractica],
       };
     });
   };
@@ -139,7 +156,17 @@ export default function PuaMateriaTaller() {
       const practicasUnidad = prev[unidad] || [];
       const nuevasPracticas = practicasUnidad
         .filter((p) => p.numero !== numero)
-        .map((p, index) => ({ ...p, numero: index + 1 })); // Renumerar
+        .map((p, index) => ({ ...p, numero: index + 1 }));
+
+      // Limpiar estados de colapsado antiguos (opcional)
+      setCollapsedState((prevCollapsed) => {
+        const nuevo: Record<string, boolean> = {};
+        nuevasPracticas.forEach((p) => {
+          const key = `${p.unidad}-${p.numero}`;
+          nuevo[key] = prevCollapsed[key] ?? true;
+        });
+        return { ...prevCollapsed, ...nuevo };
+      });
 
       return {
         ...prev,
@@ -156,10 +183,8 @@ export default function PuaMateriaTaller() {
       );
 
       if (index >= 0) {
-        // Actualizar práctica existente
         practicasUnidad[index] = data;
       } else {
-        // Agregar nueva práctica
         practicasUnidad.push(data);
       }
 
@@ -170,16 +195,23 @@ export default function PuaMateriaTaller() {
     });
   };
 
+  // Toggle colapsado
+  const toggleCollapse = (unidad: number, numero: number) => {
+    const key = `${unidad}-${numero}`;
+    setCollapsedState((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
   const handleGuardar = async () => {
     if (!programa) return;
 
-    // Convertir a array plano
     const todasLasPracticas: PracticaTallerType[] = [];
     Object.values(practicasPorUnidad).forEach((practicas) => {
       todasLasPracticas.push(...practicas);
     });
 
-    // Validar cada práctica
     for (const practica of todasLasPracticas) {
       if (!practica.competencia.trim()) {
         await confirm({
@@ -317,18 +349,27 @@ export default function PuaMateriaTaller() {
                 </Card>
               ) : (
                 <div className="space-y-4">
-                  {practicas.map((practica) => (
-                    <PracticaTaller
-                      key={`${unidad}-${practica.numero}`}
-                      unidad={unidad}
-                      numero={practica.numero}
-                      value={practica}
-                      onChange={handlePracticaChange}
-                      onDelete={() =>
-                        eliminarPractica(unidad, practica.numero)
-                      }
-                    />
-                  ))}
+                  {practicas.map((practica) => {
+                    const key = `${unidad}-${practica.numero}`;
+                    const isCollapsed = collapsedState[key] ?? false;
+
+                    return (
+                      <PracticaTaller
+                        key={key}
+                        unidad={unidad}
+                        numero={practica.numero}
+                        value={practica}
+                        collapsed={isCollapsed}
+                        onToggleCollapse={() =>
+                          toggleCollapse(unidad, practica.numero)
+                        }
+                        onChange={handlePracticaChange}
+                        onDelete={() =>
+                          eliminarPractica(unidad, practica.numero)
+                        }
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -38,10 +38,23 @@ export default function PuaMateriaUnidades() {
 
   const [programa, setPrograma] = useState<Programa | null>(null);
   const [loadingData, setLoadingData] = useState(true);
-  const [unidadesData, setUnidadesData] = useState<Record<number, UnidadData>>({});
+
+  // Datos que se van editando en esta pantalla
+  const [unidadesData, setUnidadesData] = useState<Record<number, UnidadData>>(
+    {}
+  );
+
+  // Unidades cargadas desde BD
   const [unidadesCargadas, setUnidadesCargadas] = useState<UnidadData[]>([]);
 
-  const { loading, guardarUnidades, cargarUnidades } = useUnidadesForm(programa?.id || "");
+  // NUEVO: estado de colapsado por unidad (1,2,3...)
+  const [collapsedState, setCollapsedState] = useState<Record<number, boolean>>(
+    {}
+  );
+
+  const { loading, guardarUnidades, cargarUnidades } = useUnidadesForm(
+    programa?.id || ""
+  );
 
   useEffect(() => {
     const fetchPrograma = async () => {
@@ -91,6 +104,15 @@ export default function PuaMateriaUnidades() {
     (async () => {
       const unidades = await cargarUnidades();
       setUnidadesCargadas(unidades);
+
+      // NUEVO: las unidades que ya tienen info llegan minimizadas
+      const collapsedInicial: Record<number, boolean> = {};
+      unidades.forEach((u) => {
+        const tieneAlgo =
+          !!u.nombre || !!u.competencia || !!u.contenido || !!u.duracion;
+        collapsedInicial[u.numero] = tieneAlgo;
+      });
+      setCollapsedState(collapsedInicial);
     })();
   }, [programa?.id, cargarUnidades]);
 
@@ -105,91 +127,94 @@ export default function PuaMateriaUnidades() {
     }));
   };
 
-const handleContinuar = async () => {
-  if (!programa) return;
+  // NUEVO: alternar colapsado
+  const toggleCollapse = (numero: number) => {
+    setCollapsedState((prev) => ({
+      ...prev,
+      [numero]: !prev[numero],
+    }));
+  };
 
-  // Convertir unidadesData a array
-  const unidadesArray = Object.values(unidadesData);
+  const handleContinuar = async () => {
+    if (!programa) return;
 
-  // Validar que todas las unidades estén completas
-  if (unidadesArray.length < programa.unidades) {
-    await confirm({
-      title: "Unidades incompletas",
-      message: `Debes completar todas las ${programa.unidades} unidades antes de continuar.`,
-      confirmText: "Entendido",
-      cancelText: "",
-    });
-    return;
-  }
+    // Tomar lo que se ha editado en esta pantalla
+    const unidadesArray = Object.values(unidadesData);
 
-  // Validar cada unidad
-  for (const unidad of unidadesArray) {
-    if (!unidad.nombre.trim()) {
+    if (unidadesArray.length < programa.unidades) {
       await confirm({
-        title: "Campo requerido",
-        message: `La Unidad ${unidad.numero} debe tener un nombre.`,
+        title: "Unidades incompletas",
+        message: `Debes completar todas las ${programa.unidades} unidades antes de continuar.`,
         confirmText: "Entendido",
         cancelText: "",
       });
       return;
     }
 
-    if (!unidad.competencia.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: `La Unidad ${unidad.numero} debe tener una competencia.`,
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
+    for (const unidad of unidadesArray) {
+      if (!unidad.nombre.trim()) {
+        await confirm({
+          title: "Campo requerido",
+          message: `La Unidad ${unidad.numero} debe tener un nombre.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      if (!unidad.competencia.trim()) {
+        await confirm({
+          title: "Campo requerido",
+          message: `La Unidad ${unidad.numero} debe tener una competencia.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      if (!unidad.contenido.trim()) {
+        await confirm({
+          title: "Campo requerido",
+          message: `La Unidad ${unidad.numero} debe tener contenido.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      if (unidad.duracion <= 0) {
+        await confirm({
+          title: "Duración inválida",
+          message: `La Unidad ${unidad.numero} debe tener una duración mayor a 0 horas.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
     }
 
-    if (!unidad.contenido.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: `La Unidad ${unidad.numero} debe tener contenido.`,
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
-    if (unidad.duracion <= 0) {
-      await confirm({
-        title: "Duración inválida",
-        message: `La Unidad ${unidad.numero} debe tener una duración mayor a 0 horas.`,
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-  }
-
-  // Confirmar guardado
-  const shouldSave = await confirm({
-    title: "Guardar unidades",
-    message: "¿Deseas guardar todas las unidades?",
-    confirmText: "Guardar",
-    cancelText: "Cancelar",
-  });
-
-  if (!shouldSave) return;
-
-  // Guardar
-  const success = await guardarUnidades(unidadesArray);
-
-  if (success) {
-    await confirm({
-      title: "¡Guardado exitoso!",
-      message: "Las unidades se han guardado correctamente.",
-      confirmText: "Continuar",
-      cancelText: "",
+    const shouldSave = await confirm({
+      title: "Guardar unidades",
+      message: "¿Deseas guardar todas las unidades?",
+      confirmText: "Guardar",
+      cancelText: "Cancelar",
     });
 
-    // CAMBIO: Ir a taller en lugar de materias
-    router.push(`/capturista/materias/${clave}/pua/taller`);
-  }
-};
+    if (!shouldSave) return;
+
+    const success = await guardarUnidades(unidadesArray);
+
+    if (success) {
+      await confirm({
+        title: "¡Guardado exitoso!",
+        message: "Las unidades se han guardado correctamente.",
+        confirmText: "Continuar",
+        cancelText: "",
+      });
+
+      router.push(`/capturista/materias/${clave}/pua/taller`);
+    }
+  };
 
   if (loadingData) {
     return (
@@ -207,7 +232,8 @@ const handleContinuar = async () => {
             <CardHeader>
               <CardTitle>No se encontró el programa</CardTitle>
               <CardDescription>
-                Por favor regresa y completa los datos generales del PUA primero.
+                Por favor regresa y completa los datos generales del PUA
+                primero.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-end gap-2">
@@ -242,7 +268,7 @@ const handleContinuar = async () => {
           </Button>
         </div>
 
-        {/* Título principal - Sin marco ni fondo */}
+        {/* Título */}
         <div className="text-center py-4">
           <h1 className="text-2xl font-bold">V. DESARROLLO POR UNIDADES</h1>
         </div>
@@ -250,13 +276,20 @@ const handleContinuar = async () => {
         {/* Unidades */}
         <div className="space-y-8">
           {nUnidades.map((num) => {
-            const unidadCargada = unidadesCargadas.find((u) => u.numero === num);
+            const unidadCargada = unidadesCargadas.find(
+              (u) => u.numero === num
+            );
+
+            const isCollapsed = collapsedState[num] ?? false;
+
             return (
               <Unidad
                 key={num}
                 nUnidad={num}
                 value={unidadCargada}
                 onChange={handleUnidadChange}
+                collapsed={isCollapsed}
+                onToggleCollapse={() => toggleCollapse(num)}
               />
             );
           })}

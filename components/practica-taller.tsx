@@ -30,6 +30,10 @@ type PracticaTallerProps = {
     duracion: number;
   }) => void;
   onDelete?: () => void;
+
+  // NUEVO: colapsar / expandir
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 };
 
 export function PracticaTaller({
@@ -38,6 +42,8 @@ export function PracticaTaller({
   value,
   onChange,
   onDelete,
+  collapsed = false,
+  onToggleCollapse,
 }: PracticaTallerProps) {
   const [competencia, setCompetencia] = useState(value?.competencia || "");
   const [descripcion, setDescripcion] = useState(value?.descripcion || "");
@@ -48,7 +54,7 @@ export function PracticaTaller({
     String(value?.duracion || "")
   );
 
-  // Sincronizar con el value que viene del padre
+  // Sincronizar con value
   useEffect(() => {
     if (value) {
       setCompetencia(value.competencia || "");
@@ -58,7 +64,7 @@ export function PracticaTaller({
     }
   }, [value]);
 
-  // Avisar al padre cuando cambian los campos
+  // Avisar al padre cuando algo cambie
   useEffect(() => {
     if (onChange) {
       onChange({
@@ -70,7 +76,7 @@ export function PracticaTaller({
         duracion: Number(duracion) || 0,
       });
     }
-    // IMPORTANTE: NO incluir onChange aquí para evitar el bucle infinito
+    // Importante: no poner onChange en deps para evitar bucle
   }, [competencia, descripcion, materialApoyo, duracion, unidad, numero]);
 
   const ta =
@@ -81,69 +87,97 @@ export function PracticaTaller({
 
   return (
     <Card className="border-2">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">Práctica {numero}</CardTitle>
-        {onDelete && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDelete}
-            className="cursor-pointer"
-          >
-            <Trash2 className="h-4 w-4 text-red-500" />
-          </Button>
-        )}
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <div className="flex flex-col">
+          <CardTitle className="text-lg">Práctica {numero}</CardTitle>
+          {collapsed && (
+            <p className="text-xs text-muted-foreground line-clamp-2">
+              {competencia || "Sin competencia capturada"}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {onToggleCollapse && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onToggleCollapse}
+              className="cursor-pointer"
+            >
+              {collapsed ? "Editar" : "Minimizar"}
+            </Button>
+          )}
+
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              className="cursor-pointer"
+            >
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <Label className="mb-2 block">
-            Competencia <span className="text-red-500">*</span>
-          </Label>
-          <textarea
-            className={ta}
-            value={competencia}
-            onChange={(e) => setCompetencia(e.target.value)}
-            placeholder="Describe la competencia a desarrollar..."
-          />
-        </div>
 
-        <div>
-          <Label className="mb-2 block">
-            Descripción <span className="text-red-500">*</span>
-          </Label>
-          <textarea
-            className={ta}
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Describe las actividades de la práctica..."
-          />
-        </div>
-
-        <div>
-          <Label className="mb-2 block">Material de Apoyo</Label>
-          <textarea
-            className={ta}
-            value={materialApoyo}
-            onChange={(e) => setMaterialApoyo(e.target.value)}
-            placeholder="Lista los materiales necesarios..."
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      {/* Solo mostramos el formulario si NO está colapsada */}
+      {!collapsed && (
+        <CardContent className="space-y-4">
           <div>
             <Label className="mb-2 block">
-              Duración (horas) <span className="text-red-500">*</span>
+              Competencia <span className="text-red-500">*</span>
             </Label>
-            <Input
-              type="number"
-              min={0}
-              value={duracion}
-              onChange={(e) => setDuracion(e.target.value)}
-              placeholder="2"
+            <textarea
+              className={ta}
+              value={competencia}
+              onChange={(e) => setCompetencia(e.target.value)}
+              placeholder="Describe la competencia a desarrollar..."
             />
           </div>
-        </div>
-      </CardContent>
+
+          <div>
+            <Label className="mb-2 block">
+              Descripción <span className="text-red-500">*</span>
+            </Label>
+            <textarea
+              className={ta}
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="Describe las actividades de la práctica..."
+            />
+          </div>
+
+          <div>
+            <Label className="mb-2 block">Material de Apoyo</Label>
+            <textarea
+              className={ta}
+              value={materialApoyo}
+              onChange={(e) => setMaterialApoyo(e.target.value)}
+              placeholder="Lista los materiales necesarios..."
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div>
+              <Label className="mb-2 block">
+                Duración (horas) <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                value={duracion}
+                onChange={(e) => setDuracion(e.target.value)}
+                placeholder="2"
+              />
+            </div>
+          </div>
+
+          {/* si quisieras, aquí podrías poner otro botón que diga "Guardar práctica y minimizar"
+          pero funcionalmente sería lo mismo que el botón de arriba */}
+        </CardContent>
+      )}
     </Card>
   );
 }
