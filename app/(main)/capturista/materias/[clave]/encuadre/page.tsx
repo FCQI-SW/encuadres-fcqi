@@ -436,12 +436,15 @@ export default function EncuadreMateria() {
           </Button>
         </div>
 
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Encuadre de la Unidad de Aprendizaje</h1>
-          <p className="text-sm text-muted-foreground">
-            Completa la información del encuadre del curso.
-          </p>
-        </div>
+ <div className="text-center">
+  <h1 className="text-2xl font-bold">Encuadre de la Unidad de Aprendizaje</h1>
+  <p className="text-lg font-semibold text-[#00723F] mt-2">
+    {materia.clave} - {materia.nombre}
+  </p>
+  <p className="text-sm text-muted-foreground mt-1">
+    Completa la información del encuadre del curso.
+  </p>
+</div>
 
         {error && (
           <Card className="border-red-500 bg-red-50">

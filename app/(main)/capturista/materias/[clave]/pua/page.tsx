@@ -64,6 +64,18 @@ export default function PuaMateria() {
   const [evidencias, setEvidencias] = useState("");
   const [numUnidades, setNumUnidades] = useState<string>("");
 
+  // Estados para las secciones VII, VIII, IX
+  const [metodoEncuadre, setMetodoEncuadre] = useState("");
+  const [metodoEstrategiaDocente, setMetodoEstrategiaDocente] = useState("");
+  const [metodoEstrategiaAlumno, setMetodoEstrategiaAlumno] = useState("");
+  const [referenciaBasicas, setReferenciaBasicas] = useState("");
+  const [referenciasComplementarias, setReferenciasComplementarias] = useState("");
+  const [perfilDocente, setPerfilDocente] = useState("");
+
+  // Estados para detectar cambios sin guardar
+  const [valoresOriginales, setValoresOriginales] = useState<any>(null);
+  const [hayCambiosSinGuardar, setHayCambiosSinGuardar] = useState(false);
+
   const { guardarPua, cargarPua, loading, error } = usePuaForm(materia?.id || "");
 
   useEffect(() => {
@@ -118,6 +130,41 @@ export default function PuaMateria() {
         setEvidencias(pua.evidencias || "");
         setNumUnidades(String(pua.unidades || ""));
 
+        // Cargar nuevos campos (VII, VIII, IX)
+        setMetodoEncuadre(pua.metodo_encuadre || "");
+        setMetodoEstrategiaDocente(pua.metodo_estrategia_docente || "");
+        setMetodoEstrategiaAlumno(pua.metodo_estrategia_alumno || "");
+        setReferenciaBasicas(pua.referencias_basicas || "");
+        setReferenciasComplementarias(pua.referencias_complementarias || "");
+        setPerfilDocente(pua.perfil_docente || "");
+
+        // Guardar valores originales para detectar cambios
+        setValoresOriginales({
+          unidadAcademica: pua.unidad_academica || "",
+          programaEducativo: pua.programa_educativo || "",
+          planEstudios: pua.plan_estudios || "",
+          hc: String(pua.hc || 0),
+          hl: String(pua.hl || 0),
+          ht: String(pua.ht || 0),
+          hpc: String(pua.hpc || 0),
+          hcl: String(pua.hcl || 0),
+          he: String(pua.he || 0),
+          cr: String(pua.cr || 0),
+          etapaFormacion: pua.etapa_formacion || "",
+          caracterUA: pua.caracter_ua || "",
+          requisitos: pua.requisitos || "",
+          propositoUA: pua.proposito || "",
+          competenciaUA: pua.competencia || "",
+          evidencias: pua.evidencias || "",
+          numUnidades: String(pua.unidades || ""),
+          metodoEncuadre: pua.metodo_encuadre || "",
+          metodoEstrategiaDocente: pua.metodo_estrategia_docente || "",
+          metodoEstrategiaAlumno: pua.metodo_estrategia_alumno || "",
+          referenciaBasicas: pua.referencias_basicas || "",
+          referenciasComplementarias: pua.referencias_complementarias || "",
+          perfilDocente: pua.perfil_docente || "",
+        });
+
         // Obtener el programa_id y verificar si está completo
         const { data: programaData } = await supabase
           .from("programas")
@@ -171,8 +218,152 @@ export default function PuaMateria() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materia?.id]);
 
+  // Detectar cambios sin guardar
+  useEffect(() => {
+    if (!valoresOriginales) {
+      setHayCambiosSinGuardar(false);
+      return;
+    }
+
+    const valoresActuales = {
+      unidadAcademica,
+      programaEducativo,
+      planEstudios,
+      hc,
+      hl,
+      ht,
+      hpc,
+      hcl,
+      he,
+      cr,
+      etapaFormacion,
+      caracterUA,
+      requisitos,
+      propositoUA,
+      competenciaUA,
+      evidencias,
+      numUnidades,
+      metodoEncuadre,
+      metodoEstrategiaDocente,
+      metodoEstrategiaAlumno,
+      referenciaBasicas,
+      referenciasComplementarias,
+      perfilDocente,
+    };
+
+    const hayCambios = JSON.stringify(valoresOriginales) !== JSON.stringify(valoresActuales);
+    setHayCambiosSinGuardar(hayCambios);
+  }, [
+    valoresOriginales,
+    unidadAcademica,
+    programaEducativo,
+    planEstudios,
+    hc,
+    hl,
+    ht,
+    hpc,
+    hcl,
+    he,
+    cr,
+    etapaFormacion,
+    caracterUA,
+    requisitos,
+    propositoUA,
+    competenciaUA,
+    evidencias,
+    numUnidades,
+    metodoEncuadre,
+    metodoEstrategiaDocente,
+    metodoEstrategiaAlumno,
+    referenciaBasicas,
+    referenciasComplementarias,
+    perfilDocente,
+  ]);
+
+  const handleNavegacion = async (ruta: string) => {
+    if (hayCambiosSinGuardar) {
+      const shouldLeave = await confirm({
+        title: "Cambios sin guardar",
+        message: "Tienes cambios sin guardar. ¿Deseas salir sin guardar?",
+        confirmText: "Sí, salir",
+        cancelText: "Cancelar",
+      });
+
+      if (!shouldLeave) return;
+    }
+
+    router.push(ruta);
+  };
+
   const handleBack = async () => {
-    router.push("/capturista/materias");
+    await handleNavegacion("/capturista/materias");
+  };
+
+  const handleGuardarSoloEnEdicion = async () => {
+    if (!materia) return;
+
+    const savedProgramaId = await guardarPua({
+      materiaId: materia.id,
+      unidadAcademica,
+      programaEducativo,
+      planEstudios,
+      hc: Number(hc),
+      hl: Number(hl),
+      ht: Number(ht),
+      hpc: Number(hpc),
+      hcl: Number(hcl),
+      he: Number(he),
+      cr: Number(cr),
+      etapaFormacion,
+      caracterUA,
+      requisitos,
+      propositoUA,
+      competenciaUA,
+      evidencias,
+      numUnidades: Number(numUnidades),
+      metodoEncuadre,
+      metodoEstrategiaDocente,
+      metodoEstrategiaAlumno,
+      referenciaBasicas,
+      referenciasComplementarias,
+      perfilDocente,
+    });
+
+    if (savedProgramaId) {
+      // Actualizar valores originales
+      setValoresOriginales({
+        unidadAcademica,
+        programaEducativo,
+        planEstudios,
+        hc,
+        hl,
+        ht,
+        hpc,
+        hcl,
+        he,
+        cr,
+        etapaFormacion,
+        caracterUA,
+        requisitos,
+        propositoUA,
+        competenciaUA,
+        evidencias,
+        numUnidades,
+        metodoEncuadre,
+        metodoEstrategiaDocente,
+        metodoEstrategiaAlumno,
+        referenciaBasicas,
+        referenciasComplementarias,
+        perfilDocente,
+      });
+
+      await confirm({
+        title: "¡Guardado exitoso!",
+        message: "Los cambios se han guardado correctamente.",
+        confirmText: "Aceptar",
+        cancelText: "",
+      });
+    }
   };
 
   const handleContinuar = async () => {
@@ -280,7 +471,7 @@ export default function PuaMateria() {
       if (!shouldContinue) return;
     }
 
-    // Guardar directamente sin modal de confirmación
+    // Guardar y continuar
     const savedProgramaId = await guardarPua({
       materiaId: materia.id,
       unidadAcademica,
@@ -300,6 +491,12 @@ export default function PuaMateria() {
       competenciaUA,
       evidencias,
       numUnidades: Number(numUnidades),
+      metodoEncuadre,
+      metodoEstrategiaDocente,
+      metodoEstrategiaAlumno,
+      referenciaBasicas,
+      referenciasComplementarias,
+      perfilDocente,
     });
 
     if (savedProgramaId) {
@@ -361,12 +558,15 @@ export default function PuaMateria() {
           </Button>
         </div>
 
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Plan de Unidad de Aprendizaje (PUA)</h1>
-          <p className="text-sm text-muted-foreground">
-            Completa la información de la unidad de aprendizaje antes de continuar.
-          </p>
-        </div>
+<div className="text-center">
+  <h1 className="text-2xl font-bold">Plan de Unidad de Aprendizaje (PUA)</h1>
+  <p className="text-lg font-semibold text-[#00723F] mt-2">
+    {materia.clave} - {materia.nombre}
+  </p>
+  <p className="text-sm text-muted-foreground mt-1">
+    Completa la información de la unidad de aprendizaje antes de continuar.
+  </p>
+</div>
 
         {error && (
           <Card className="border-red-500 bg-red-50">
@@ -651,6 +851,105 @@ export default function PuaMateria() {
           </CardContent>
         </Card>
 
+        {/* VII. Método de Trabajo */}
+        <Card>
+          <CardHeader>
+            <CardTitle>VII. Método de Trabajo</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label className="mb-2 block font-semibold">Encuadre</Label>
+              <textarea
+                className={ta}
+                value={metodoEncuadre}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setMetodoEncuadre(e.target.value)
+                }
+                placeholder="Ingresar encuadre del método de trabajo..."
+              />
+            </div>
+
+            <div>
+              <Label className="mb-2 block font-semibold">Estrategia de enseñanza (docente)</Label>
+              <textarea
+                className={ta}
+                value={metodoEstrategiaDocente}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setMetodoEstrategiaDocente(e.target.value)
+                }
+                placeholder="Ingresar estrategia de enseñanza del docente..."
+              />
+            </div>
+
+            <div>
+              <Label className="mb-2 block font-semibold">Estrategia de aprendizaje (alumno)</Label>
+              <textarea
+                className={ta}
+                value={metodoEstrategiaAlumno}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setMetodoEstrategiaAlumno(e.target.value)
+                }
+                placeholder="Ingresar estrategia de aprendizaje del alumno..."
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* VIII. Referencias */}
+        <Card>
+          <CardHeader>
+            <CardTitle>VIII. Referencias</CardTitle>
+            <CardDescription>
+              Bibliografía básica y complementaria del curso
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div>
+              <Label className="mb-2 block font-semibold">Básicas</Label>
+              <textarea
+                className={ta}
+                value={referenciaBasicas}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setReferenciaBasicas(e.target.value)
+                }
+                placeholder="Ingresar referencias bibliográficas básicas..."
+              />
+            </div>
+            <div>
+              <Label className="mb-2 block font-semibold">Complementarias</Label>
+              <textarea
+                className={ta}
+                value={referenciasComplementarias}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setReferenciasComplementarias(e.target.value)
+                }
+                placeholder="Ingresar referencias bibliográficas complementarias..."
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* IX. Perfil del Docente */}
+        <Card>
+          <CardHeader>
+            <CardTitle>IX. Perfil del Docente</CardTitle>
+            <CardDescription>
+              Requisitos y características del docente para impartir esta UA
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className={ta}
+              value={perfilDocente}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setPerfilDocente(e.target.value)
+              }
+              placeholder="Ingresar perfil del docente..."
+            />
+          </CardContent>
+        </Card>
+
+        {/* Botones de acción */}
         <div className="flex justify-end gap-2">
           <Button
             variant="outline"
@@ -661,36 +960,45 @@ export default function PuaMateria() {
             Cancelar
           </Button>
           
-          {puaCompleto && (
+          {puaCompleto ? (
             <>
               <Button
                 variant="outline"
-                onClick={() => router.push(`/capturista/materias/${clave}/pua/unidades`)}
+                onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/unidades`)}
                 disabled={loading}
                 className="cursor-pointer border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
               >
-                Editar unidades
+                Ver Unidades →
               </Button>
               
               <Button
                 variant="outline"
-                onClick={() => router.push(`/capturista/materias/${clave}/pua/taller`)}
+                onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/taller`)}
                 disabled={loading}
                 className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white"
               >
-                Editar prácticas de taller
+                Ver Prácticas de Taller →
+              </Button>
+
+              <Button
+                className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+                onClick={handleGuardarSoloEnEdicion}
+                disabled={loading}
+              >
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {loading ? "Guardando..." : "Guardar Cambios"}
               </Button>
             </>
+          ) : (
+            <Button
+              className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+              onClick={handleContinuar}
+              disabled={loading}
+            >
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {loading ? "Guardando..." : "Guardar y Continuar →"}
+            </Button>
           )}
-          
-          <Button
-            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
-            onClick={handleContinuar}
-            disabled={loading}
-          >
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {loading ? "Guardando..." : "Guardar y continuar"}
-          </Button>
         </div>
       </div>
     </div>

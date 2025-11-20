@@ -20,6 +20,12 @@ type PuaData = {
   competencia: string;
   evidencias: string;
   unidades: number;
+  metodo_encuadre: string;
+  metodo_estrategia_docente: string;
+  metodo_estrategia_alumno: string;
+  referencias_basicas: string;
+  referencias_complementarias: string;
+  perfil_docente: string;
 };
 
 type GuardarPuaParams = {
@@ -41,6 +47,12 @@ type GuardarPuaParams = {
   competenciaUA: string;
   evidencias: string;
   numUnidades: number;
+  metodoEncuadre: string;
+  metodoEstrategiaDocente: string;
+  metodoEstrategiaAlumno: string;
+  referenciaBasicas: string;
+  referenciasComplementarias: string;
+  perfilDocente: string;
 };
 
 export function usePuaForm(materiaId: string) {
@@ -53,7 +65,6 @@ export function usePuaForm(materiaId: string) {
     setError(null);
 
     try {
-      // Obtener usuario de NextAuth
       if (!session?.user?.id) {
         setError("No hay usuario autenticado");
         setLoading(false);
@@ -62,7 +73,6 @@ export function usePuaForm(materiaId: string) {
 
       const userId = session.user.id;
 
-      // Verificar si ya existe un programa para esta materia
       const { data: programaExistente, error: errorBuscar } = await supabase
         .from("programas")
         .select("id")
@@ -71,31 +81,38 @@ export function usePuaForm(materiaId: string) {
 
       let programaId: string;
 
+      const programaData = {
+        unidad_academica: params.unidadAcademica,
+        programa_educativo: params.programaEducativo,
+        plan_estudios: params.planEstudios,
+        hc: params.hc,
+        hl: params.hl,
+        ht: params.ht,
+        hpc: params.hpc,
+        hcl: params.hcl,
+        he: params.he,
+        cr: params.cr,
+        etapa_formacion: params.etapaFormacion,
+        caracter_ua: params.caracterUA,
+        requisitos: params.requisitos,
+        proposito: params.propositoUA,
+        competencia: params.competenciaUA,
+        evidencias: params.evidencias,
+        unidades: params.numUnidades,
+        metodo_encuadre: params.metodoEncuadre,
+        metodo_estrategia_docente: params.metodoEstrategiaDocente,
+        metodo_estrategia_alumno: params.metodoEstrategiaAlumno,
+        referencias_basicas: params.referenciaBasicas,
+        referencias_complementarias: params.referenciasComplementarias,
+        perfil_docente: params.perfilDocente,
+        ultimo_editor_id: userId,
+        ultima_edicion: new Date().toISOString(),
+      };
+
       if (programaExistente) {
-        // Actualizar programa existente
         const { error: errorActualizar } = await supabase
           .from("programas")
-          .update({
-            unidad_academica: params.unidadAcademica,
-            programa_educativo: params.programaEducativo,
-            plan_estudios: params.planEstudios,
-            hc: params.hc,
-            hl: params.hl,
-            ht: params.ht,
-            hpc: params.hpc,
-            hcl: params.hcl,
-            he: params.he,
-            cr: params.cr,
-            etapa_formacion: params.etapaFormacion,
-            caracter_ua: params.caracterUA,
-            requisitos: params.requisitos,
-            proposito: params.propositoUA,
-            competencia: params.competenciaUA,
-            evidencias: params.evidencias,
-            unidades: params.numUnidades,
-            ultimo_editor_id: userId,
-            ultima_edicion: new Date().toISOString(),
-          })
+          .update(programaData)
           .eq("id", programaExistente.id);
 
         if (errorActualizar) {
@@ -107,30 +124,11 @@ export function usePuaForm(materiaId: string) {
 
         programaId = programaExistente.id;
       } else {
-        // Crear nuevo programa
         const { data: nuevoPrograma, error: errorCrear } = await supabase
           .from("programas")
           .insert({
+            ...programaData,
             materia_id: params.materiaId,
-            unidad_academica: params.unidadAcademica,
-            programa_educativo: params.programaEducativo,
-            plan_estudios: params.planEstudios,
-            hc: params.hc,
-            hl: params.hl,
-            ht: params.ht,
-            hpc: params.hpc,
-            hcl: params.hcl,
-            he: params.he,
-            cr: params.cr,
-            etapa_formacion: params.etapaFormacion,
-            caracter_ua: params.caracterUA,
-            requisitos: params.requisitos,
-            proposito: params.propositoUA,
-            competencia: params.competenciaUA,
-            evidencias: params.evidencias,
-            unidades: params.numUnidades,
-            ultimo_editor_id: userId,
-            ultima_edicion: new Date().toISOString(),
           })
           .select("id")
           .single();

@@ -1,3 +1,4 @@
+// useTallerForm.ts
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
@@ -26,6 +27,8 @@ export function useTallerForm(programaId: string) {
         return false;
       }
 
+      const userId = session.user.id;
+
       // Eliminar prácticas existentes
       await supabase
         .from("practicas_taller")
@@ -53,6 +56,20 @@ export function useTallerForm(programaId: string) {
           setLoading(false);
           return false;
         }
+      }
+
+      // Actualizar auditoría en el PUA
+      const { error: errorAuditoria } = await supabase
+        .from("programas")
+        .update({
+          ultimo_editor_id: userId,
+          ultima_edicion: new Date().toISOString(),
+        })
+        .eq("id", programaId);
+
+      if (errorAuditoria) {
+        console.error("Error al actualizar auditoría del PUA:", errorAuditoria);
+        // No retornamos false aquí porque las prácticas sí se guardaron
       }
 
       setLoading(false);

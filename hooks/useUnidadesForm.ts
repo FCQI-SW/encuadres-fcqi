@@ -1,6 +1,8 @@
+// useUnidadesForm.ts
 "use client";
 
 import { useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 
 type UnidadData = {
@@ -12,6 +14,7 @@ type UnidadData = {
 };
 
 export function useUnidadesForm(programaId: string) {
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,10 +24,17 @@ export function useUnidadesForm(programaId: string) {
       return false;
     }
 
+    if (!session?.user?.id) {
+      setError("No hay usuario autenticado");
+      return false;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
+      const userId = session.user.id;
+
       // Eliminar unidades existentes
       await supabase
         .from("unidades")
@@ -47,6 +57,20 @@ export function useUnidadesForm(programaId: string) {
 
       if (insertError) throw insertError;
 
+      // Actualizar auditoría en el PUA
+      const { error: errorAuditoria } = await supabase
+        .from("programas")
+        .update({
+          ultimo_editor_id: userId,
+          ultima_edicion: new Date().toISOString(),
+        })
+        .eq("id", programaId);
+
+      if (errorAuditoria) {
+        console.error("Error al actualizar auditoría del PUA:", errorAuditoria);
+        // No retornamos false aquí porque las unidades sí se guardaron
+      }
+
       return true;
     } catch (err: any) {
       console.error("Error al guardar unidades:", err);
@@ -55,7 +79,7 @@ export function useUnidadesForm(programaId: string) {
     } finally {
       setLoading(false);
     }
-  }, [programaId]);
+  }, [programaId, session?.user?.id]);
 
   const cargarUnidades = useCallback(async () => {
     if (!programaId) return [];
