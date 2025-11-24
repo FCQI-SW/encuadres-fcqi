@@ -36,7 +36,7 @@ const menuItemsByRole = {
     },
     {
       title: "Manejo de materias",
-      url: "/admin/subjects",
+      url: "/admin/materias",
       icon: BookOpen,
     },
     {

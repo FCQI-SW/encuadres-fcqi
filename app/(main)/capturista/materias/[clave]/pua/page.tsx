@@ -84,7 +84,7 @@ export default function PuaMateria() {
 
       const { data, error } = await supabase
         .from("materias")
-        .select("id, clave, nombre_materia")
+        .select("id, clave, nombre_materia, categoria, requisito")
         .eq("clave", clave);
 
       if (error) {
@@ -97,6 +97,10 @@ export default function PuaMateria() {
       if (data && data.length > 0) {
         const m = data[0] as any;
         setMateria({ id: m.id, clave: m.clave, nombre: m.nombre_materia });
+        
+        // Pre-cargar categoría y requisito desde la materia
+        setEtapaFormacion(m.categoria || "");
+        setCaracterUA(m.requisito === "obligatoria" ? "Obligatoria" : "Optativa");
       } else {
         setMateria(null);
       }
@@ -122,8 +126,10 @@ export default function PuaMateria() {
         setHcl(String(pua.hcl || 0));
         setHe(String(pua.he || 0));
         setCr(String(pua.cr || 0));
-        setEtapaFormacion(pua.etapa_formacion || "");
-        setCaracterUA(pua.caracter_ua || "");
+        
+        // NO sobrescribir etapaFormacion y caracterUA porque ya vienen de la materia
+        // Estos campos se cargan del primer useEffect
+        
         setRequisitos(pua.requisitos || "");
         setPropositoUA(pua.proposito || "");
         setCompetenciaUA(pua.competencia || "");
@@ -150,8 +156,8 @@ export default function PuaMateria() {
           hcl: String(pua.hcl || 0),
           he: String(pua.he || 0),
           cr: String(pua.cr || 0),
-          etapaFormacion: pua.etapa_formacion || "",
-          caracterUA: pua.caracter_ua || "",
+          etapaFormacion: etapaFormacion,
+          caracterUA: caracterUA,
           requisitos: pua.requisitos || "",
           propositoUA: pua.proposito || "",
           competenciaUA: pua.competencia || "",
@@ -400,26 +406,6 @@ export default function PuaMateria() {
       return;
     }
 
-    if (!etapaFormacion.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor selecciona la Etapa de Formación.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
-    if (!caracterUA.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor selecciona el Carácter de la Unidad de Aprendizaje.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
     if (!propositoUA.trim()) {
       await confirm({
         title: "Campo requerido",
@@ -558,15 +544,15 @@ export default function PuaMateria() {
           </Button>
         </div>
 
-<div className="text-center">
-  <h1 className="text-2xl font-bold">Plan de Unidad de Aprendizaje (PUA)</h1>
-  <p className="text-lg font-semibold text-[#00723F] mt-2">
-    {materia.clave} - {materia.nombre}
-  </p>
-  <p className="text-sm text-muted-foreground mt-1">
-    Completa la información de la unidad de aprendizaje antes de continuar.
-  </p>
-</div>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Plan de Unidad de Aprendizaje (PUA)</h1>
+          <p className="text-lg font-semibold text-[#00723F] mt-2">
+            {materia.clave} - {materia.nombre}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Completa la información de la unidad de aprendizaje antes de continuar.
+          </p>
+        </div>
 
         {error && (
           <Card className="border-red-500 bg-red-50">
@@ -722,18 +708,22 @@ export default function PuaMateria() {
                 <Select
                   value={etapaFormacion}
                   onValueChange={setEtapaFormacion}
+                  disabled={true}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full bg-gray-50">
                     <SelectValue placeholder="Seleccione una etapa" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="Básica">Básica</SelectItem>
+                      <SelectItem value="Basica">Básica</SelectItem>
                       <SelectItem value="Disciplinaria">Disciplinaria</SelectItem>
                       <SelectItem value="Terminal">Terminal</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Este campo se define al crear la materia y no puede modificarse aquí.
+                </p>
               </div>
               <div>
                 <Label className="mb-2 block">
@@ -742,8 +732,9 @@ export default function PuaMateria() {
                 <Select
                   value={caracterUA}
                   onValueChange={setCaracterUA}
+                  disabled={true}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full bg-gray-50">
                     <SelectValue placeholder="Seleccione el carácter" />
                   </SelectTrigger>
                   <SelectContent>
@@ -753,6 +744,9 @@ export default function PuaMateria() {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Este campo se define al crear la materia y no puede modificarse aquí.
+                </p>
               </div>
             </div>
 

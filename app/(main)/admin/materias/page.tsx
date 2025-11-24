@@ -24,8 +24,8 @@ import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 
 import { useConfirm } from "@/components/global-confirm-modal";
-import { AddSubjectModal } from "./add-subject-modal";
-import { EditSubjectModal } from "./edit-subject-modal";
+import { ModalAgregarMateria } from "../../../../components/modal-agregar-materia";
+import { ModalEditarMateria } from "../../../../components/modal-editar-materia";
 
 export type Materia = {
   clave: string;
@@ -177,6 +177,19 @@ export default function Page() {
 
   async function handleUpdateMateria() {
     if (!editMateria) return;
+
+    // Validaciones básicas
+    const tempErrors: string[] = [];
+    if (!editMateria.nombre_materia.trim())
+      tempErrors.push("El nombre de la materia es obligatorio.");
+    if (!editMateria.licenciatura.trim())
+      tempErrors.push("Debe seleccionar una licenciatura.");
+
+    if (tempErrors.length > 0) {
+      setEditErrors(tempErrors);
+      return;
+    }
+
     const { error } = await supabase
       .from("materias")
       .update({
@@ -187,12 +200,16 @@ export default function Page() {
         estado: editMateria.estado,
       })
       .eq("clave", editMateria.clave);
+
     if (error) {
       console.error("Error al actualizar materia:", error);
-      setEditErrors([`Error de BD: ${error.message}`]);
+      const mensajeError = traducirErrorBD(error);
+      setEditErrors([mensajeError]);
       return;
     }
+
     setShowEditForm(false);
+    setSuccessMessage(`Materia ${editMateria.clave} actualizada con éxito.`);
     await fetchMaterias();
   }
 
@@ -238,28 +255,67 @@ export default function Page() {
     }));
   }
 
+  // Función para traducir errores de BD a mensajes amigables
+  function traducirErrorBD(error: any): string {
+    const errorMessage = error.message || "";
+    const errorCode = error.code || "";
+
+    // Error de clave duplicada
+    if (errorCode === "23505" || errorMessage.includes("duplicate key")) {
+      return `La clave "${newMateria.clave}" ya existe. Por favor usa una clave diferente.`;
+    }
+
+    // Error de violación de constraint
+    if (errorCode === "23503") {
+      return "Error de integridad referencial. Verifica que los datos sean correctos.";
+    }
+
+    // Error de not null
+    if (errorCode === "23502") {
+      return "Faltan campos obligatorios. Por favor completa todos los campos requeridos.";
+    }
+
+    // Error genérico
+    return `Error al guardar: ${errorMessage}`;
+  }
+
   // Validaciones y creación de una materia individual
   async function handleSaveMateria() {
     setErrors([]);
     const tempErrors: string[] = [];
 
+    // Validaciones del lado del cliente
     if (!newMateria.clave.trim())
       tempErrors.push("La clave es obligatoria.");
     if (!newMateria.nombre_materia.trim())
       tempErrors.push("El nombre de la materia es obligatorio.");
     if (!newMateria.licenciatura.trim())
       tempErrors.push("Seleccione una licenciatura.");
-    // Puedes agregar más validaciones según necesidad
 
     if (tempErrors.length > 0) {
       setErrors(tempErrors);
       return;
     }
 
+    // Verificar si la clave ya existe (validación previa)
+    const { data: materiaExistente } = await supabase
+      .from("materias")
+      .select("clave")
+      .eq("clave", newMateria.clave.trim())
+      .single();
+
+    if (materiaExistente) {
+      setErrors([`La clave "${newMateria.clave}" ya existe. Por favor usa una clave diferente.`]);
+      return;
+    }
+
+    // Intentar insertar
     const { error } = await supabase.from("materias").insert([newMateria]);
+    
     if (error) {
       console.error("Error al agregar materia:", error.message);
-      setErrors([`Error de BD: ${error.message}`]);
+      const mensajeError = traducirErrorBD(error);
+      setErrors([mensajeError]);
       return;
     }
 
@@ -279,7 +335,13 @@ export default function Page() {
       const sheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
       const rows = jsonData.slice(1);
-      // Se espera que el Excel tenga columnas: clave, nombre_materia, licenciatura, categoria, requisito, estado
+      
+      // Validar que haya datos
+      if (rows.length === 0) {
+        setErrors(["El archivo Excel está vacío o no tiene datos válidos."]);
+        return;
+      }
+
       const bulkMaterias = rows.map((row: any) => ({
         clave: row[0] || "",
         nombre_materia: row[1] || "",
@@ -289,25 +351,29 @@ export default function Page() {
         estado: row[5] || "Activa",
       }));
 
-      const { error } = await supabase.from("materias").insert(bulkMaterias);
-      if (error) {
-        console.error("Error al importar materias:"); //error
-        setErrors([`Error al importar materias`]); //: ${error.message}
+      // Validar que todas tengan clave
+      const sinClave = bulkMaterias.filter(m => !m.clave.trim());
+      if (sinClave.length > 0) {
+        setErrors(["Algunas materias en el Excel no tienen clave. Todas las materias deben tener una clave."]);
         return;
       }
+
+      const { error } = await supabase.from("materias").insert(bulkMaterias);
+      
+      if (error) {
+        console.error("Error al importar materias:", error);
+        const mensajeError = traducirErrorBD(error);
+        setErrors([`Error al importar: ${mensajeError}`]);
+        return;
+      }
+
       setShowForm(false);
       setErrors([]);
       setSuccessMessage(`Se importaron ${bulkMaterias.length} materias correctamente.`);
-      const { data: materiasData } = await supabase
-        .from("materias")
-        .select("clave, nombre_materia, licenciatura, categoria, requisito, estado");
-      if (materiasData) {
-        setData(materiasData);
-        setFilteredData(materiasData);
-      }
+      await fetchMaterias();
     } catch (err: any) {
       console.error("Error leyendo Excel:", err);
-      setErrors(["Error leyendo el archivo Excel."]);
+      setErrors(["Error al leer el archivo Excel. Verifica que el formato sea correcto."]);
     }
   }
 
@@ -316,7 +382,7 @@ export default function Page() {
     <div className="p-6">
       {/* ENCABEZADO */}
       <div className="flex justify-between mb-4">
-        <Button variant="outline" onClick={() => router.push("/admin")}>
+        <Button variant="outline" onClick={() => router.push("/admin")} className="cursor-pointer">
           <ChevronLeft className="mr-2 h-5 w-5" />
           Regresar
         </Button>
@@ -334,7 +400,7 @@ export default function Page() {
         <div className="mb-4 p-3 border border-green-500 bg-green-50 text-green-800 rounded">
           <div className="flex items-center justify-between">
             <span>{successMessage}</span>
-            <Button variant="outline" size="sm" onClick={() => setSuccessMessage("")}>
+            <Button variant="outline" size="sm" onClick={() => setSuccessMessage("")} className="cursor-pointer">
               Cerrar
             </Button>
           </div>
@@ -413,7 +479,7 @@ export default function Page() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-blue-600 hover:text-blue-800"
+                          className="text-blue-600 hover:text-blue-800 cursor-pointer"
                           title="Editar"
                           onClick={() => handleEdit(materia)}
                         >
@@ -422,7 +488,7 @@ export default function Page() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-red-600 hover:text-red-800"
+                          className="text-red-600 hover:text-red-800 cursor-pointer"
                           title="Eliminar"
                           onClick={() => handleDelete(materia.clave)}
                         >
@@ -431,7 +497,7 @@ export default function Page() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-gray-600 hover:text-gray-800"
+                          className="text-gray-600 hover:text-gray-800 cursor-pointer"
                           title="Cambiar estado"
                           onClick={() => toggleEstado(materia.clave)}
                         >
@@ -494,25 +560,25 @@ export default function Page() {
       )}
 
       {/* MODAL AGREGAR MATERIA */}
-      <AddSubjectModal
-        isOpen={showForm}
-        newMateria={newMateria}
-        onClose={handleCloseForm}
-        onInputChange={handleInputChange}
-        onSave={handleSaveMateria}
-        errors={errors}
-        onImportFromExcel={handleImportFromExcel}
+      <ModalAgregarMateria
+        estaAbierto={showForm}
+        nuevaMateria={newMateria}
+        alCerrar={handleCloseForm}
+        alCambiarInput={handleInputChange}
+        alGuardar={handleSaveMateria}
+        errores={errors}
+        alImportarDesdeExcel={handleImportFromExcel}
       />
 
       {/* MODAL EDITAR MATERIA */}
       {showEditForm && editMateria && (
-        <EditSubjectModal
-          isOpen={showEditForm}
-          editMateria={editMateria}
-          onClose={handleCloseEditForm}
-          onInputChange={handleEditInputChange}
-          onUpdate={handleUpdateMateria}
-          errors={editErrors}
+        <ModalEditarMateria
+          estaAbierto={showEditForm}
+          materiaAEditar={editMateria}
+          alCerrar={handleCloseEditForm}
+          alCambiarInput={handleEditInputChange}
+          alActualizar={handleUpdateMateria}
+          errores={editErrors}
         />
       )}
     </div>
