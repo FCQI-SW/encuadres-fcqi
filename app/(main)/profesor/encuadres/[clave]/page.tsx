@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { ChevronLeft, Loader2, Plus, Trash2, Lock } from "lucide-react";
 import { useEncuadreProfesor } from "@/hooks/useEncuadreProfesor";
 import { useConfirm } from "@/components/global-confirm-modal";
+import AlumnosEncuadreCard from "@/components/alumnosEncuadreCard";
 
 type CriterioCalificacion = {
   criterio: string;
@@ -35,7 +36,7 @@ export default function Page() {
   const router = useRouter();
   const params = useParams();
   const encuadreId = params.clave as string;
-  
+
   const confirm = useConfirm();
   const { data: session, status } = useSession();
 
@@ -77,7 +78,7 @@ export default function Page() {
   const cargarDatos = async () => {
     console.log("=== INICIO cargarDatos ===");
     console.log("ID a cargar:", encuadreId);
-    
+
     setLoadingData(true);
     const encuadre = await obtenerEncuadre(encuadreId);
 
@@ -350,7 +351,7 @@ export default function Page() {
                     Permisos de edición limitados
                   </h3>
                   <p className="text-sm text-yellow-800">
-                    El capturista ha restringido la edición de los criterios de evaluación. 
+                    El capturista ha restringido la edición de los criterios de evaluación.
                     Solo podrás editar las descripciones y contenidos generales del encuadre.
                   </p>
                 </div>
@@ -600,6 +601,14 @@ export default function Page() {
             />
           </CardContent>
         </Card>
+
+        {/* Card de Gestión de Alumnos */}
+        <AlumnosEncuadreCard
+          encuadreId={encuadreId}
+          materiaNombre={materiaNombre}
+          grupo={grupo}
+          periodo={periodo}
+        />
 
         <div className="flex justify-end gap-2">
           <Button
