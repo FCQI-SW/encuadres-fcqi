@@ -28,10 +28,6 @@ import {
   Copy,
   Check,
   Users,
-  Mail,
-  Clock,
-  XCircle,
-  CheckCircle,
   AlertCircle,
 } from "lucide-react";
 import { useEncuadreAlumnos, AlumnoEncuadre } from "@/hooks/useEncuadreAlumnos";
@@ -52,7 +48,6 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
     obtenerAlumnos,
     registrarAlumno,
     regenerarClave,
-    enviarCorreo,
     revocarAcceso,
     reactivarAcceso,
     loading,
@@ -157,16 +152,14 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
   };
 
   const handleRegenerarClave = async (alumno: AlumnoEncuadre) => {
-    if (alumno.estado === "activa" || alumno.estado === "enviada") {
-      const shouldRegenerate = await confirm({
-        title: "¿Reemplazar clave existente?",
-        message: "El alumno tiene una clave activa. ¿Estás seguro de que deseas reemplazarla? Esta acción no se puede deshacer.",
-        confirmText: "Sí, reemplazar",
-        cancelText: "Cancelar",
-      });
+    const shouldRegenerate = await confirm({
+      title: "¿Regenerar clave?",
+      message: `¿Deseas generar una nueva clave para ${alumno.correo}? La clave anterior dejará de funcionar.`,
+      confirmText: "Sí, regenerar",
+      cancelText: "Cancelar",
+    });
 
-      if (!shouldRegenerate) return;
-    }
+    if (!shouldRegenerate) return;
 
     const result = await regenerarClave(
       alumno.alumno_id,
@@ -230,41 +223,6 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
         confirmText: "Entendido",
         cancelText: "",
       });
-    }
-  };
-
-  const getEstadoBadge = (estado: string) => {
-    switch (estado) {
-      case "pendiente":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-            <Clock className="h-3 w-3" />
-            Pendiente
-          </span>
-        );
-      case "enviada":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            <Mail className="h-3 w-3" />
-            Enviada
-          </span>
-        );
-      case "activa":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            <CheckCircle className="h-3 w-3" />
-            Activa
-          </span>
-        );
-      case "revocada":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-            <XCircle className="h-3 w-3" />
-            Revocada
-          </span>
-        );
-      default:
-        return estado;
     }
   };
 
@@ -428,7 +386,6 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
               <TableHeader>
                 <TableRow>
                   <TableHead>Correo</TableHead>
-                  <TableHead>Estado</TableHead>
                   <TableHead>Registrado</TableHead>
                   <TableHead>Último acceso</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -438,7 +395,6 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
                 {alumnos.map((alumno) => (
                   <TableRow key={alumno.id}>
                     <TableCell className="font-medium">{alumno.correo}</TableCell>
-                    <TableCell>{getEstadoBadge(alumno.estado)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatearFecha(alumno.invitado_at)}
                     </TableCell>

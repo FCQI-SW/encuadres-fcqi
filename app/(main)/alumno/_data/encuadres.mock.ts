@@ -1,4 +1,4 @@
-import { FullEncuadreProps } from "../_components/FullEncuadreTable";
+import { FullEncuadreProps } from "../../../../components/FullEncuadreTable";
 
 type DataMap = Record<
   string,

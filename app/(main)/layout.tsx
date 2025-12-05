@@ -23,14 +23,6 @@ export default function Layout({ children }: { children: ReactNode }) {
     }
   }, [status, session, router]);
 
-  // 2. Mientras carga
-  if (status === "loading") {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        Cargando...
-      </div>
-    );
-  }
 
   // 3. Si no hay sesión, no mostramos nada (o redirigimos)
   if (!session) {

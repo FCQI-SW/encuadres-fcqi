@@ -1,5 +1,5 @@
 // app/(main)/alumno/_data/planes.mock.ts
-import type { CourseHeader, PlanRow } from "../_components/LearningPlanTable";
+import type { CourseHeader, PlanRow } from "../../../../components/LearningPlanTable";
 
 /**
  * Relación encuadre_id -> plan_id

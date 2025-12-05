@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import FullEncuadreTable from "../../_components/FullEncuadreTable";
+import FullEncuadreTable from "../../../../../components/FullEncuadreTable";
 import { ENCUADRES_MOCK } from "../../_data/encuadres.mock";
 
 export default function SubjectEncuadrePage() {

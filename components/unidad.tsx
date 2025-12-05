@@ -1,3 +1,4 @@
+// components/unidad.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -27,8 +28,6 @@ type UnidadProps = {
     contenido: string;
     duracion: number;
   }) => void;
-
-  // NUEVO: colapsar / expandir
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 };
@@ -47,7 +46,6 @@ export function Unidad({
     String(value?.duracion || "")
   );
 
-  // Actualizar estados cuando value cambia (cuando se cargan datos de BD)
   useEffect(() => {
     if (value) {
       setNombre(value.nombre || "");
@@ -57,7 +55,6 @@ export function Unidad({
     }
   }, [value]);
 
-  // Notificar cambios al padre
   useEffect(() => {
     if (onChange) {
       onChange({
@@ -68,7 +65,6 @@ export function Unidad({
         duracion: Number(duracion) || 0,
       });
     }
-    // No incluimos onChange en deps para evitar bucles
   }, [nombre, competencia, contenido, duracion, nUnidad]);
 
   const ta =
@@ -107,10 +103,8 @@ export function Unidad({
         )}
       </CardHeader>
 
-      {/* Solo se muestra el formulario cuando NO está colapsado */}
       {!collapsed && (
         <CardContent className="pt-6 space-y-4">
-          {/* Nombre de la unidad */}
           <div>
             <Label className="mb-2 block">
               Nombre de la unidad <span className="text-red-500">*</span>
@@ -122,7 +116,6 @@ export function Unidad({
             />
           </div>
 
-          {/* Competencia */}
           <div>
             <Label className="mb-2 block">
               Competencia <span className="text-red-500">*</span>
@@ -135,11 +128,13 @@ export function Unidad({
             />
           </div>
 
-          {/* Contenido - Editor estructurado */}
           <div>
             <Label className="mb-2 block">
               Contenido <span className="text-red-500">*</span>
             </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Los temas agregados aquí se usarán en el registro de avances
+            </p>
             <ContenidoEditor
               numeroUnidad={nUnidad}
               value={contenido}
@@ -147,7 +142,6 @@ export function Unidad({
             />
           </div>
 
-          {/* Duración */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
               <Label className="mb-2 block">

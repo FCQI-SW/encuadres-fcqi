@@ -5,7 +5,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SubjectGrid } from "../_components/SubjectGrid";
+import { SubjectGrid } from "../../../../components/SubjectGrid";
 import type { MateriaAsignada } from "../_data/types";
 import { fetchMateriasMock } from "../_data/data.mock";
 

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { SubjectCard } from "./SubjectCard";
-import { MateriaAsignada } from "../_data/types";
+import { MateriaAsignada } from "../app/(main)/alumno/_data/types";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Props = {

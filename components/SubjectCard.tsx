@@ -4,7 +4,7 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { MateriaAsignada } from "../_data/types";
+import { MateriaAsignada } from "../app/(main)/alumno/_data/types";
 
 type Props = {
   materia: MateriaAsignada;

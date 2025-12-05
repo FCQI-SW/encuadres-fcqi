@@ -30,7 +30,6 @@ type Curso = {
   materia_nombre: string;
   grupo: string;
   periodo: string;
-  estado_encuadre: string;
   total_alumnos: number;
 };
 
@@ -56,10 +55,9 @@ export default function CursosProfesorPage() {
     setLoading(true);
 
     try {
-      // Obtener encuadres del profesor
       const { data: encuadres, error: errorEncuadres } = await supabase
         .from("encuadres")
-        .select("id, programa_id, grupo, periodo, estado_encuadre")
+        .select("id, programa_id, grupo, periodo")
         .eq("usuario_id", session.user.id)
         .order("periodo", { ascending: false });
 
@@ -76,21 +74,18 @@ export default function CursosProfesorPage() {
         return;
       }
 
-      // Obtener programas
       const programaIds = encuadres.map((e) => e.programa_id);
       const { data: programas } = await supabase
         .from("programas")
         .select("id, materia_id")
         .in("id", programaIds);
 
-      // Obtener materias
       const materiaIds = (programas || []).map((p: any) => p.materia_id);
       const { data: materias } = await supabase
         .from("materias")
         .select("id, clave, nombre_materia")
         .in("id", materiaIds);
 
-      // Obtener conteo de alumnos por encuadre
       const encuadreIds = encuadres.map((e) => e.id);
       const { data: alumnosCounts } = await supabase
         .from("encuadre_alumnos")
@@ -98,18 +93,15 @@ export default function CursosProfesorPage() {
         .in("encuadre_id", encuadreIds)
         .neq("estado", "revocada");
 
-      // Crear mapas
       const programaMap = new Map((programas || []).map((p: any) => [p.id, p]));
       const materiaMap = new Map((materias || []).map((m: any) => [m.id, m]));
       
-      // Contar alumnos por encuadre
       const alumnosCountMap = new Map<string, number>();
       (alumnosCounts || []).forEach((a: any) => {
         const count = alumnosCountMap.get(a.encuadre_id) || 0;
         alumnosCountMap.set(a.encuadre_id, count + 1);
       });
 
-      // Formatear cursos
       const cursosFormateados: Curso[] = encuadres.map((e: any) => {
         const programa = programaMap.get(e.programa_id);
         const materia = programa ? materiaMap.get(programa.materia_id) : null;
@@ -121,7 +113,6 @@ export default function CursosProfesorPage() {
           materia_nombre: materia?.nombre_materia || "Sin información",
           grupo: e.grupo,
           periodo: e.periodo,
-          estado_encuadre: e.estado_encuadre,
           total_alumnos: alumnosCountMap.get(e.id) || 0,
         };
       });
@@ -228,7 +219,6 @@ export default function CursosProfesorPage() {
                       <TableHead>Periodo</TableHead>
                       <TableHead>Grupo</TableHead>
                       <TableHead>Alumnos</TableHead>
-                      <TableHead>Estado</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -250,19 +240,6 @@ export default function CursosProfesorPage() {
                             <Users className="h-4 w-4 text-gray-400" />
                             <span>{curso.total_alumnos}</span>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              curso.estado_encuadre === "publicado"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {curso.estado_encuadre === "publicado"
-                              ? "Publicado"
-                              : "Borrador"}
-                          </span>
                         </TableCell>
                         <TableCell className="text-right">
                           <Button

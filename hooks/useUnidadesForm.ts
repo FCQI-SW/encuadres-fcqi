@@ -1,4 +1,4 @@
-// useUnidadesForm.ts
+// hooks/useUnidadesForm.ts
 "use client";
 
 import { useState, useCallback } from "react";
@@ -12,6 +12,34 @@ type UnidadData = {
   contenido: string;
   duracion: number;
 };
+
+// Función para extraer temas del contenido
+function extraerTemasDeContenido(contenido: string, numeroUnidad: number): { numero: string; nombre: string }[] {
+  if (!contenido || !contenido.trim()) return [];
+
+  const lineas = contenido.split("\n").filter((l) => l.trim());
+  const temas: { numero: string; nombre: string }[] = [];
+
+  lineas.forEach((linea) => {
+    const match = linea.trim().match(/^(\d+(?:\.\d+)+)\s+(.+)$/);
+    if (!match) return;
+
+    const numeracion = match[1];
+    const texto = match[2];
+    const niveles = numeracion.split(".").filter((n) => n).length;
+
+    // Solo guardamos temas de primer nivel (1.1, 1.2, etc.) y subtemas (1.1.1, 1.1.2)
+    // Los incisos (1.1.1.1) no los guardamos como temas separados
+    if (niveles === 2 || niveles === 3) {
+      temas.push({
+        numero: numeracion,
+        nombre: texto,
+      });
+    }
+  });
+
+  return temas;
+}
 
 export function useUnidadesForm(programaId: string) {
   const { data: session } = useSession();
@@ -35,13 +63,28 @@ export function useUnidadesForm(programaId: string) {
     try {
       const userId = session.user.id;
 
-      // Eliminar unidades existentes
+      // 1. Obtener IDs de unidades existentes para eliminar sus temas
+      const { data: unidadesExistentes } = await supabase
+        .from("unidades")
+        .select("id")
+        .eq("programa_id", programaId);
+
+      // 2. Eliminar temas de las unidades existentes
+      if (unidadesExistentes && unidadesExistentes.length > 0) {
+        const unidadIds = unidadesExistentes.map((u) => u.id);
+        await supabase
+          .from("temas")
+          .delete()
+          .in("unidad_id", unidadIds);
+      }
+
+      // 3. Eliminar unidades existentes
       await supabase
         .from("unidades")
         .delete()
         .eq("programa_id", programaId);
 
-      // Insertar nuevas unidades
+      // 4. Insertar nuevas unidades
       const unidadesParaGuardar = unidades.map((u) => ({
         programa_id: programaId,
         numero: u.numero,
@@ -51,25 +94,55 @@ export function useUnidadesForm(programaId: string) {
         duracion: u.duracion,
       }));
 
-      const { error: insertError } = await supabase
+      const { data: unidadesInsertadas, error: insertError } = await supabase
         .from("unidades")
-        .insert(unidadesParaGuardar);
+        .insert(unidadesParaGuardar)
+        .select("id, numero");
 
       if (insertError) throw insertError;
 
-      // Actualizar auditoría en el PUA
-      const { error: errorAuditoria } = await supabase
+      // 5. Extraer y guardar temas de cada unidad
+      if (unidadesInsertadas) {
+        const temasParaGuardar: { unidad_id: number; numero: string; nombre: string }[] = [];
+
+        unidadesInsertadas.forEach((unidadInsertada) => {
+          const unidadOriginal = unidades.find((u) => u.numero === unidadInsertada.numero);
+          if (unidadOriginal?.contenido) {
+            // Extraer temas del contenido
+            const temasExtraidos = extraerTemasDeContenido(
+              unidadOriginal.contenido,
+              unidadOriginal.numero
+            );
+
+            temasExtraidos.forEach((tema) => {
+              temasParaGuardar.push({
+                unidad_id: unidadInsertada.id,
+                numero: tema.numero,
+                nombre: tema.nombre,
+              });
+            });
+          }
+        });
+
+        if (temasParaGuardar.length > 0) {
+          const { error: temasError } = await supabase
+            .from("temas")
+            .insert(temasParaGuardar);
+
+          if (temasError) {
+            console.error("Error al guardar temas:", temasError);
+          }
+        }
+      }
+
+      // 6. Actualizar auditoría en el PUA
+      await supabase
         .from("programas")
         .update({
           ultimo_editor_id: userId,
           ultima_edicion: new Date().toISOString(),
         })
         .eq("id", programaId);
-
-      if (errorAuditoria) {
-        console.error("Error al actualizar auditoría del PUA:", errorAuditoria);
-        // No retornamos false aquí porque las unidades sí se guardaron
-      }
 
       return true;
     } catch (err: any) {

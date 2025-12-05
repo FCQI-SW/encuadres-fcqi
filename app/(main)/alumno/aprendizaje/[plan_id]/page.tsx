@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import LearningPlanTable from "../../_components/LearningPlanTable";
+import LearningPlanTable from "../../../../../components/LearningPlanTable";
 import { PLANES_MOCK, ENC_TO_PLAN } from "../../_data/planes.mock";
 
 export default function AprendizajeDetallePage() {

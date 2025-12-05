@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const { data: rolAlumno, error: errorRol } = await supabaseAdmin
       .from("roles")
       .select("id")
-      .eq("nombre", "Alumno")
+      .eq("nombre", "alumno")
       .single();
 
     if (errorRol || !rolAlumno) {

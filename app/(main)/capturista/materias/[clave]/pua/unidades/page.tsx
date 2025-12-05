@@ -28,6 +28,7 @@ type UnidadData = {
   competencia: string;
   contenido: string;
   duracion: number;
+  temas?: { numero: string; nombre: string }[];
 };
 
 export default function PuaMateriaUnidades() {

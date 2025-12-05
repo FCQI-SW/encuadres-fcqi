@@ -40,7 +40,6 @@ export default function CursoDetallePage() {
     setLoading(true);
 
     try {
-      // Obtener encuadre
       const { data: encuadre, error: errorEncuadre } = await supabase
         .from("encuadres")
         .select("id, programa_id, grupo, periodo, usuario_id")
@@ -53,21 +52,18 @@ export default function CursoDetallePage() {
         return;
       }
 
-      // Verificar que el encuadre pertenece al profesor
       if (encuadre.usuario_id !== session?.user?.id) {
         console.error("No tienes permiso para ver este curso");
         router.push("/profesor/cursos");
         return;
       }
 
-      // Obtener programa
       const { data: programa } = await supabase
         .from("programas")
         .select("id, materia_id")
         .eq("id", encuadre.programa_id)
         .single();
 
-      // Obtener materia
       const { data: materia } = await supabase
         .from("materias")
         .select("clave, nombre_materia")
@@ -117,24 +113,26 @@ export default function CursoDetallePage() {
   return (
     <div className="px-4 py-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <Button
-              variant="ghost"
-              onClick={() => router.push("/profesor/cursos")}
-              className="mb-2 -ml-2 cursor-pointer"
-            >
-              <ChevronLeft className="mr-1 h-4 w-4" />
-              Regresar a Mis Cursos
-            </Button>
-            <h1 className="text-2xl font-bold text-gray-800">
-              {cursoInfo.materia_clave} - {cursoInfo.materia_nombre}
-            </h1>
-            <p className="text-gray-600">
-              Grupo {cursoInfo.grupo} • Periodo {cursoInfo.periodo}
-            </p>
-          </div>
+        {/* Botón regresar */}
+        <div>
+          <Button
+            variant="ghost"
+            onClick={() => router.push("/profesor/cursos")}
+            className="-ml-2 cursor-pointer"
+          >
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            Regresar a Mis Cursos
+          </Button>
+        </div>
+
+        {/* Header centrado */}
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-800">
+            {cursoInfo.materia_clave} - {cursoInfo.materia_nombre}
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Grupo {cursoInfo.grupo} • Periodo {cursoInfo.periodo}
+          </p>
         </div>
 
         {/* Tabs */}
@@ -144,13 +142,13 @@ export default function CursoDetallePage() {
               <BookOpen className="h-4 w-4" />
               Encuadre
             </TabsTrigger>
-            <TabsTrigger value="alumnos" className="flex items-center gap-2 cursor-pointer">
-              <Users className="h-4 w-4" />
-              Alumnos
-            </TabsTrigger>
             <TabsTrigger value="avances" className="flex items-center gap-2 cursor-pointer">
               <ClipboardList className="h-4 w-4" />
               Registro de Avances
+            </TabsTrigger>
+            <TabsTrigger value="alumnos" className="flex items-center gap-2 cursor-pointer">
+              <Users className="h-4 w-4" />
+              Alumnos
             </TabsTrigger>
           </TabsList>
 
@@ -158,8 +156,8 @@ export default function CursoDetallePage() {
             <EncuadreTab encuadreId={encuadreId} />
           </TabsContent>
 
-          <TabsContent value="alumnos">
-            <AlumnosTab
+          <TabsContent value="avances">
+            <AvancesTab
               encuadreId={encuadreId}
               materiaNombre={cursoInfo.materia_nombre}
               grupo={cursoInfo.grupo}
@@ -167,8 +165,8 @@ export default function CursoDetallePage() {
             />
           </TabsContent>
 
-          <TabsContent value="avances">
-            <AvancesTab
+          <TabsContent value="alumnos">
+            <AlumnosTab
               encuadreId={encuadreId}
               materiaNombre={cursoInfo.materia_nombre}
               grupo={cursoInfo.grupo}
