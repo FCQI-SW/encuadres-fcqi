@@ -1,5 +1,6 @@
 // app-sidebar.tsx
 
+import Link from "next/link";
 import {
   Calendar,
   BookOpen,
@@ -7,6 +8,7 @@ import {
   Settings,
   Users,
   FileText,
+  GraduationCap,
 } from "lucide-react";
 import {
   Sidebar,
@@ -21,7 +23,6 @@ import Image from "next/image";
 import Logo from "../public/uabc_logo.png";
 import { LogoutButton } from "./logout-button";
 
-// Menús por rol
 const menuItemsByRole = {
   admin: [
     {
@@ -50,35 +51,25 @@ const menuItemsByRole = {
       icon: Settings,
     },
   ],
-capturista: [
-  {
-    title: "Materias",
-    url: "/capturista/materias",
-    icon: BookOpen,
-  },
-],
-  profesor: [
+  capturista: [
     {
-      title: "Sistema de revisión de encuadres",
-      url: "/profesor/encuadres",
+      title: "Materias",
+      url: "/capturista/materias",
       icon: BookOpen,
     },
+  ],
+  profesor: [
     {
-      title: "Registro de avances",
-      url: "/profesor/avances",
-      icon: Calendar,
+      title: "Mis Cursos",
+      url: "/profesor/cursos",
+      icon: GraduationCap,
     },
   ],
   alumno: [
     {
-      title: "Sistema de revisión de encuadres",
-      url: "/alumno/encuadres",
-      icon: BookOpen,
-    },
-    {
-      title: "Sistema de unidad de aprendizaje",
-      url: "/alumno/aprendizaje",
-      icon: Search,
+      title: "Mis Cursos",
+      url: "/alumno/cursos",
+      icon: GraduationCap,
     },
   ],
   lector: [
@@ -95,7 +86,6 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ role }: AppSidebarProps) {
-  // Obtenemos el arreglo de items según el rol
   const items = menuItemsByRole[role] || [];
 
   return (
@@ -122,13 +112,13 @@ export function AppSidebar({ role }: AppSidebarProps) {
               {items.map((item) => (
                 <SidebarMenuItem key={item.title} className="py-2">
                   <SidebarMenuButton asChild>
-                    <a
+                    <Link
                       href={item.url}
                       className="flex items-center gap-3 px-4 py-4 text-white hover:bg-[#00723F]/80 transition-colors"
                     >
                       <item.icon className="w-5 h-5" />
                       <span className="sidebar-title">{item.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -138,7 +128,6 @@ export function AppSidebar({ role }: AppSidebarProps) {
 
         {/* Cerrar sesión button - Pantone 131 - #DD971A */}
         <div className="mt-auto p-4">
-          {/* Usamos el componente LogoutButton con shadcn/ui */}
           <LogoutButton variant="sidebar" />
         </div>
       </SidebarContent>

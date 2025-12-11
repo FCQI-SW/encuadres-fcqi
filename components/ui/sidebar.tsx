@@ -246,7 +246,6 @@ function Sidebar({
   )
 }
 
-// Cambiamos el icono a "Menu" (hamburguesa)
 function SidebarTrigger({
   className,
   onClick,
