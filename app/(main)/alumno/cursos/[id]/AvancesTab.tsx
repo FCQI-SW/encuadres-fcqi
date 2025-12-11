@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
   Card,
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -19,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, ClipboardList, Save, CheckCircle, XCircle } from "lucide-react";
+import { Loader2, ClipboardList, Save, MessageSquare, X } from "lucide-react";
 import { useRegistroAvances, TemaConCheckin } from "@/hooks/useRegistroAvances";
 import { useConfirm } from "@/components/global-confirm-modal";
 
@@ -31,6 +32,7 @@ type AvancesTabProps = {
 type RespuestaTema = {
   vista: boolean | null;
   justificacion: string;
+  showComment: boolean;
 };
 
 export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
@@ -62,12 +64,12 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
     setHeaderInfo(header);
     setTemas(temasData);
 
-    // Inicializar respuestas con los valores existentes
     const respuestasIniciales: Record<number, RespuestaTema> = {};
     temasData.forEach((tema) => {
       respuestasIniciales[tema.id] = {
         vista: tema.tema_visto,
         justificacion: tema.justificacion || "",
+        showComment: tema.justificacion ? true : false,
       };
     });
     setRespuestas(respuestasIniciales);
@@ -75,23 +77,24 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
     setLoadingData(false);
   };
 
-  const handleRespuestaChange = (temaId: number, vista: boolean) => {
+  const setVista = (temaId: number, valor: boolean) => {
     setRespuestas((prev) => ({
       ...prev,
-      [temaId]: {
-        ...prev[temaId],
-        vista: prev[temaId]?.vista === vista ? null : vista,
-      },
+      [temaId]: { ...prev[temaId], vista: valor },
     }));
   };
 
-  const handleJustificacionChange = (temaId: number, justificacion: string) => {
+  const toggleComment = (temaId: number) => {
     setRespuestas((prev) => ({
       ...prev,
-      [temaId]: {
-        ...prev[temaId],
-        justificacion,
-      },
+      [temaId]: { ...prev[temaId], showComment: !prev[temaId]?.showComment },
+    }));
+  };
+
+  const setJustificacion = (temaId: number, value: string) => {
+    setRespuestas((prev) => ({
+      ...prev,
+      [temaId]: { ...prev[temaId], justificacion: value },
     }));
   };
 
@@ -221,72 +224,90 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-24">Número</TableHead>
-                      <TableHead>Tema</TableHead>
-                      <TableHead className="w-32 text-center">¿Estudiado?</TableHead>
-                      <TableHead className="w-64">Observaciones</TableHead>
+                    <TableRow className="bg-muted/40">
+                      <TableHead className="font-bold w-[80px]">UNIDAD</TableHead>
+                      <TableHead className="font-bold w-[80px]">TEMA</TableHead>
+                      <TableHead className="font-bold min-w-[200px]">NOMBRE DEL TEMA</TableHead>
+                      <TableHead className="font-bold w-[140px]">¿ESTUDIADO?</TableHead>
+                      <TableHead className="font-bold min-w-[200px]">OBSERVACIONES</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Object.values(temasAgrupados).map((grupo) => (
-                      <>
+                    {Object.values(temasAgrupados).map((grupoUnidad) => (
+                      <Fragment key={`unidad-${grupoUnidad.unidad_numero}`}>
                         {/* Encabezado de unidad */}
-                        <TableRow key={`unidad-${grupo.unidad_numero}`} className="bg-gray-100">
-                          <TableCell colSpan={4} className="font-semibold text-gray-700">
-                            Unidad {grupo.unidad_numero}: {grupo.unidad_nombre}
+                        <TableRow className="bg-[#00723F]/10">
+                          <TableCell colSpan={5} className="font-semibold">
+                            Unidad {grupoUnidad.unidad_numero}: {grupoUnidad.unidad_nombre}
                           </TableCell>
                         </TableRow>
                         {/* Temas de la unidad */}
-                        {grupo.temas.map((tema) => (
-                          <TableRow key={tema.id}>
-                            <TableCell className="font-mono text-sm">
-                              {tema.numero}
-                            </TableCell>
-                            <TableCell>{tema.nombre}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleRespuestaChange(tema.id, true)}
-                                  className={`p-2 rounded-full transition-colors cursor-pointer ${
-                                    respuestas[tema.id]?.vista === true
-                                      ? "bg-green-100 text-green-600 ring-2 ring-green-500"
-                                      : "bg-gray-100 text-gray-400 hover:bg-green-50 hover:text-green-500"
-                                  }`}
-                                  title="Sí, lo estudié"
-                                >
-                                  <CheckCircle className="h-5 w-5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRespuestaChange(tema.id, false)}
-                                  className={`p-2 rounded-full transition-colors cursor-pointer ${
-                                    respuestas[tema.id]?.vista === false
-                                      ? "bg-red-100 text-red-600 ring-2 ring-red-500"
-                                      : "bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500"
-                                  }`}
-                                  title="Aún no lo estudio"
-                                >
-                                  <XCircle className="h-5 w-5" />
-                                </button>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="text"
-                                placeholder="Notas u observaciones..."
-                                value={respuestas[tema.id]?.justificacion || ""}
-                                onChange={(e) =>
-                                  handleJustificacionChange(tema.id, e.target.value)
-                                }
-                                className="text-sm"
-                                maxLength={500}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </>
+                        {grupoUnidad.temas.map((tema) => {
+                          const state = respuestas[tema.id];
+                          return (
+                            <TableRow key={tema.id}>
+                              <TableCell className="text-center text-muted-foreground">
+                                {tema.unidad_numero}
+                              </TableCell>
+                              <TableCell className="text-center">{tema.numero}</TableCell>
+                              <TableCell>{tema.nombre}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-4">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <Checkbox
+                                      checked={state?.vista === true}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) setVista(tema.id, true);
+                                      }}
+                                    />
+                                    <span className="text-sm">Sí</span>
+                                  </label>
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <Checkbox
+                                      checked={state?.vista === false}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) setVista(tema.id, false);
+                                      }}
+                                    />
+                                    <span className="text-sm">No</span>
+                                  </label>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {!state?.showComment ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="cursor-pointer"
+                                    onClick={() => toggleComment(tema.id)}
+                                  >
+                                    <MessageSquare className="h-4 w-4 mr-1" />
+                                    {state?.justificacion ? "Ver nota" : "Agregar"}
+                                  </Button>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      placeholder="Escribe una observación..."
+                                      value={state?.justificacion ?? ""}
+                                      onChange={(e) => setJustificacion(tema.id, e.target.value)}
+                                      className="text-sm"
+                                      maxLength={500}
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="cursor-pointer p-1"
+                                      onClick={() => toggleComment(tema.id)}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </Fragment>
                     ))}
                   </TableBody>
                 </Table>
@@ -295,7 +316,7 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
           </Card>
 
           {/* Botón guardar */}
-          <div className="flex justify-end">
+          <div className="flex justify-center">
             <Button
               onClick={handleGuardar}
               disabled={loading}
@@ -306,7 +327,7 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
               ) : (
                 <Save className="mr-2 h-4 w-4" />
               )}
-              Guardar mis avances
+              {loading ? "Guardando..." : "Guardar mis avances"}
             </Button>
           </div>
         </>
