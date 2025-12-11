@@ -1,4 +1,4 @@
-// app/(main)/admin/ads/page.tsx
+// app/(main)/admin/anuncios/page.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -77,7 +77,7 @@ export default function AdsListPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Mis Anuncios</h1>
         <Button
-          onClick={() => router.push("/admin/ads/create")}
+          onClick={() => router.push("/admin/anuncios/crear")}
           variant="default"
           className="bg-[#00723F] text-white hover:bg-[#005e30] cursor-pointer"
         >
@@ -133,7 +133,7 @@ export default function AdsListPage() {
                         size="icon"
                         onClick={() =>
                           router.push(
-                            `/admin/ads/create?id=${encodeURIComponent(a.id)}`
+                            `/admin/anuncios/crear?id=${encodeURIComponent(a.id)}`
                           )
                         }
                         title="Editar"

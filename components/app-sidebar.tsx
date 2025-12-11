@@ -1,5 +1,3 @@
-// app-sidebar.tsx
-
 import Link from "next/link";
 import {
   Calendar,
@@ -27,12 +25,12 @@ const menuItemsByRole = {
   admin: [
     {
       title: "Manejo de usuarios",
-      url: "/admin/users",
+      url: "/admin/usuarios",
       icon: Users,
     },
     {
       title: "Revisión de resultados",
-      url: "/admin/results",
+      url: "/admin/resultados",
       icon: Search,
     },
     {
@@ -42,12 +40,12 @@ const menuItemsByRole = {
     },
     {
       title: "Establecer fecha de operación",
-      url: "/admin/set-date",
+      url: "/admin/configurar-fecha",
       icon: Calendar,
     },
     {
       title: "Anuncios",
-      url: "/admin/ads",
+      url: "/admin/anuncios",
       icon: Settings,
     },
   ],
@@ -90,9 +88,8 @@ export function AppSidebar({ role }: AppSidebarProps) {
 
   return (
     <Sidebar className="h-screen flex flex-col">
-      {/* Pantone 356 - #00723F para background */}
       <SidebarContent className="bg-[#00723F] text-white h-full flex flex-col">
-        {/* Logo UABC - centrado */}
+        {/* Logo UABC */}
         <div className="flex flex-col items-center justify-center p-4 mb-4">
           <div className="w-20 h-20">
             <Image
@@ -126,7 +123,7 @@ export function AppSidebar({ role }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Cerrar sesión button - Pantone 131 - #DD971A */}
+        {/* Cerrar sesión */}
         <div className="mt-auto p-4">
           <LogoutButton variant="sidebar" />
         </div>

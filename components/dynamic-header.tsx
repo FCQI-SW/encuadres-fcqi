@@ -3,16 +3,27 @@ import { usePathname } from 'next/navigation'
 
 const routeNames: Record<string, string> = {
   '/': 'Inicio',
+  // Admin
+  '/admin': 'Panel de Administración',
+  '/admin/usuarios': 'Manejo de Usuarios',
+  '/admin/resultados': 'Revisión de Resultados',
+  '/admin/materias': 'Manejo de Materias',
+  '/admin/configurar-fecha': 'Fecha de Operación',
+  '/admin/anuncios': 'Anuncios',
+  '/admin/anuncios/crear': 'Crear Anuncio',
+  // Profesor
   '/profesor': 'Detalles',
   '/profesor/cursos': 'Mis Cursos',
+  // Capturista
   '/capturista': 'Detalles',
   '/capturista/materias': 'Materias',
+  // Alumno
   '/alumno/cursos': 'Mis Cursos',
+  // Otros
   '/encuadres': 'Encuadres',
   '/avances': 'Avances',
 }
 
-// Regex para detectar UUID
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function getRouteName(pathname: string): string {
@@ -20,11 +31,21 @@ function getRouteName(pathname: string): string {
     return routeNames[pathname]
   }
 
+  // Rutas del admin
+  if (pathname.startsWith('/admin/resultados/')) {
+    return 'Detalle de Comparación'
+  }
+  if (pathname.startsWith('/admin/usuarios/')) {
+    return 'Detalle de Usuario'
+  }
+  if (pathname.startsWith('/admin/materias/')) {
+    return 'Detalle de Materia'
+  }
+
   // Rutas del profesor
   if (pathname.startsWith('/profesor/cursos/')) {
     const segments = pathname.split('/')
     const lastSegment = segments[segments.length - 1]
-    // Si el último segmento es un UUID, mostrar texto genérico
     if (uuidRegex.test(lastSegment)) {
       return 'Detalles del Curso'
     }
@@ -49,13 +70,20 @@ function getRouteName(pathname: string): string {
   const segments = pathname.split('/').filter(Boolean)
   const lastSegment = segments[segments.length - 1]
   
-  // Si es un UUID, no mostrarlo
   if (lastSegment && uuidRegex.test(lastSegment)) {
     return 'Detalles'
   }
   
   if (lastSegment) {
-    return lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1)
+    const translations: Record<string, string> = {
+      'resultados': 'Resultados',
+      'usuarios': 'Usuarios',
+      'materias': 'Materias',
+      'anuncios': 'Anuncios',
+      'crear-usuario': 'Crear Usuario',
+      'configurar-fecha': 'Fecha de Operación',
+    }
+    return translations[lastSegment] || lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1)
   }
   return 'Página'
 }

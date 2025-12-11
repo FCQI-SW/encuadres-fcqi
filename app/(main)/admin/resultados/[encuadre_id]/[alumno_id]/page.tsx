@@ -303,7 +303,7 @@ export default function DetalleComparacionPage() {
   if (!info) {
     return (
       <div className="p-6">
-        <Button variant="outline" onClick={() => router.push("/admin/results")} className="cursor-pointer">
+        <Button variant="outline" onClick={() => router.push("/admin/resultados")} className="cursor-pointer">
           <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
         </Button>
         <div className="text-center py-12 text-muted-foreground">
@@ -318,7 +318,7 @@ export default function DetalleComparacionPage() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <Button variant="outline" onClick={() => router.push("/admin/results")} className="cursor-pointer mb-4">
+          <Button variant="outline" onClick={() => router.push("/admin/resultados")} className="cursor-pointer mb-4">
             <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
           </Button>
           <h1 className="text-2xl font-bold">Comparación de Avances</h1>

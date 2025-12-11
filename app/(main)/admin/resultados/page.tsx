@@ -315,7 +315,7 @@ export default function ResultsPage() {
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
   const handleVerDetalles = (item: MatchData) => {
-    router.push(`/admin/results/${item.encuadre_id}/${item.alumno_id}`);
+    router.push(`/admin/resultados/${item.encuadre_id}/${item.alumno_id}`);
   };
 
   // Estadísticas
