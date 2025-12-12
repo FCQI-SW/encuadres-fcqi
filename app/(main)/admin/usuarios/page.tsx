@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import {
   Table,
   TableBody,
@@ -11,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -18,54 +20,60 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-
-// Para parsear Excel
-import * as XLSX from "xlsx";
-
-// Hook para confirmación de borrado
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Trash2,
+  UserPlus,
+  Users,
+  Loader2,
+} from "lucide-react";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { AddUserModal } from "./add-user";
+import * as XLSX from "xlsx";
 
-// Tipos para usuarios, roles, etc.
 type User = {
   id: string;
-  email: string;   // 'correo' en DB
-  name: string;    // 'nombre' en DB
-  role_id: string; // 'rol_id' en DB
+  email: string;
+  name: string;
+  role_id: string;
 };
 
 type Role = {
-  id: string;      
-  nombre: string;  
+  id: string;
+  nombre: string;
 };
 
 type NewUser = {
   email: string;
   password: string;
   role_id: string;
-  name: string;    
+  name: string;
 };
 
 export default function UserManagementPage() {
   const router = useRouter();
+  const confirm = useConfirm();
 
-  // ==================== ESTADOS ====================
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [rolesMap, setRolesMap] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
 
-  // Filtro por rol y texto
   const [selectedRole, setSelectedRole] = useState("Todos");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Paginación
   const [currentPage, setCurrentPage] = useState(1);
-  const usersPerPage = 5;
+  const usersPerPage = 10;
 
-  // Modal de crear usuario
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newUser, setNewUser] = useState<NewUser>({
     email: "",
@@ -73,86 +81,69 @@ export default function UserManagementPage() {
     role_id: "",
     name: "",
   });
-
-  // Errores (se mostrarán en el modal)
   const [errors, setErrors] = useState<string[]>([]);
-
-  // Mensaje de éxito (se muestra en la página)
   const [successMessage, setSuccessMessage] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  // Confirm hook
-  const confirm = useConfirm();
-
-  // 1) Cargar usuarios/roles al inicio
   useEffect(() => {
-    const fetchData = async () => {
-      // Trae usuarios
-      const { data: usuariosData, error: usuariosError } = await supabase
-        .from("usuarios")
-        .select("id, correo, nombre, rol_id");
+    fetchData();
+  }, []);
 
-      // Trae roles
-      const { data: rolesData, error: rolesError } = await supabase
-        .from("roles")
-        .select("id, nombre");
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
-      if (usuariosError || rolesError) {
-        console.error("Error al obtener usuarios/roles:", {
-          usuariosError,
-          rolesError,
-        });
+  async function fetchData() {
+    setLoading(true);
+    try {
+      const [usuariosRes, rolesRes] = await Promise.all([
+        supabase.from("usuarios").select("id, correo, nombre, rol_id"),
+        supabase.from("roles").select("id, nombre"),
+      ]);
+
+      if (usuariosRes.error || rolesRes.error) {
+        console.error("Error al obtener datos:", usuariosRes.error, rolesRes.error);
         return;
       }
 
-      // Mapeo
-      const mappedUsers = (usuariosData || []).map((u) => ({
+      const mappedUsers = (usuariosRes.data || []).map((u) => ({
         id: u.id,
         email: u.correo,
         name: u.nombre,
         role_id: u.rol_id,
       }));
 
-      const rolMap = (rolesData || []).reduce((acc, rol) => {
+      const rolMap = (rolesRes.data || []).reduce((acc, rol) => {
         acc[rol.id] = rol.nombre;
         return acc;
       }, {} as Record<string, string>);
 
       setUsers(mappedUsers);
-      setRoles(rolesData || []);
+      setRoles(rolesRes.data || []);
       setRolesMap(rolMap);
-    };
-    fetchData();
-  }, []);
-
-  // 2) Ocultar successMessage a los 7s
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(""), 7000);
-      return () => clearTimeout(timer);
+    } catch (err) {
+      console.error("Error:", err);
     }
-  }, [successMessage]);
+    setLoading(false);
+  }
 
-  // ==================== FILTRO DE USUARIOS ====================
+  // Filtrado
   const filteredUsers = users.filter((user) => {
-    // Filtrar por rol
     const matchesRole =
-      selectedRole === "Todos"
-        ? true
-        : rolesMap[user.role_id] === selectedRole;
-
-    // Filtrar por searchTerm en email o name
+      selectedRole === "Todos" || rolesMap[user.role_id] === selectedRole;
     const st = searchTerm.toLowerCase();
     const matchesSearch =
       user.email.toLowerCase().includes(st) ||
       user.name.toLowerCase().includes(st);
-
     return matchesRole && matchesSearch;
   });
 
-  // ==================== PAGINACIÓN ====================
+  // Paginación
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
 
-  // Ajustar la página actual si se quedó sin elementos
   useEffect(() => {
     if (totalPages > 0 && currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -164,8 +155,6 @@ export default function UserManagementPage() {
   const indexOfLastUser = currentPage * usersPerPage;
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-
-  // ==================== HANDLERS ====================
 
   // Cambiar rol
   const handleRoleChange = async (userId: string, newRoleName: string) => {
@@ -182,19 +171,19 @@ export default function UserManagementPage() {
       return;
     }
 
-    // Actualiza estado local
     setUsers((prev) =>
       prev.map((user) =>
         user.id === userId ? { ...user, role_id: newRole.id } : user
       )
     );
+    setSuccessMessage("Rol actualizado correctamente.");
   };
 
   // Eliminar usuario
   const handleDelete = async (userId: string) => {
     const userConfirmed = await confirm({
       title: "Eliminar usuario",
-      message: "¿Estás seguro de eliminar este usuario?",
+      message: "¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.",
       confirmText: "Sí, eliminar",
       cancelText: "Cancelar",
     });
@@ -206,292 +195,383 @@ export default function UserManagementPage() {
       return;
     }
 
-    // Remueve del estado
     const deletedUser = users.find((u) => u.id === userId);
     setUsers((prev) => prev.filter((u) => u.id !== userId));
 
     if (deletedUser) {
-      setSuccessMessage(`Usuario ${deletedUser.email} eliminado con éxito.`);
+      setSuccessMessage(`Usuario "${deletedUser.email}" eliminado correctamente.`);
     }
   };
 
-  // Mostrar modal
+  // Modal handlers
   const handleOpenModal = () => {
     setNewUser({ email: "", password: "", role_id: "", name: "" });
-    setErrors([]); 
+    setErrors([]);
     setIsModalOpen(true);
   };
 
-  // Cerrar modal
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setErrors([]); // Limpia los errores al cerrar
+    setErrors([]);
   };
 
-  // Manejo de inputs del modal
   const handleNewUserChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     setNewUser((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  // Crear usuario individual
+  // Validar email
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Crear usuario
   const handleSaveNewUser = async () => {
     setErrors([]);
     const tempErrors: string[] = [];
 
-    // Validaciones mínimas
-    if (!newUser.email.trim()) tempErrors.push("El correo es obligatorio.");
-    if (!newUser.name.trim()) tempErrors.push("El nombre es obligatorio.");
-    if (!newUser.password.trim()) tempErrors.push("La contraseña es obligatoria.");
-    if (!newUser.role_id.trim()) tempErrors.push("Selecciona un rol.");
+    // Validaciones
+    if (!newUser.email.trim()) {
+      tempErrors.push("El correo electrónico es obligatorio.");
+    } else if (!isValidEmail(newUser.email)) {
+      tempErrors.push("El correo electrónico no tiene un formato válido.");
+    }
+
+    if (!newUser.name.trim()) {
+      tempErrors.push("El nombre es obligatorio.");
+    } else if (newUser.name.trim().length < 3) {
+      tempErrors.push("El nombre debe tener al menos 3 caracteres.");
+    }
+
+    if (!newUser.password.trim()) {
+      tempErrors.push("La contraseña es obligatoria.");
+    } else if (newUser.password.length < 6) {
+      tempErrors.push("La contraseña debe tener al menos 6 caracteres.");
+    }
+
+    if (!newUser.role_id.trim()) {
+      tempErrors.push("Debes seleccionar un rol.");
+    }
+
+    // Verificar si el correo ya existe
+    if (newUser.email.trim() && isValidEmail(newUser.email)) {
+      const emailExists = users.some(
+        (u) => u.email.toLowerCase() === newUser.email.toLowerCase()
+      );
+      if (emailExists) {
+        tempErrors.push("Ya existe un usuario con este correo electrónico.");
+      }
+    }
 
     if (tempErrors.length > 0) {
       setErrors(tempErrors);
-      return; // No cierra el modal
+      return;
     }
 
-    // Insertar en Supabase
-    const { error } = await supabase
-      .from("usuarios")
-      .insert([
-        {
-          correo: newUser.email,
-          nombre: newUser.name,
-          contraseña: newUser.password,
-          rol_id: newUser.role_id,
-        },
-      ]);
+    setSaving(true);
+    const { error } = await supabase.from("usuarios").insert([
+      {
+        correo: newUser.email.trim(),
+        nombre: newUser.name.trim(),
+        contraseña: newUser.password,
+        rol_id: newUser.role_id,
+      },
+    ]);
 
     if (error) {
       console.error("Error al crear usuario:", error.message);
-      setErrors([`Hubo un error al crear el usuario: ${error.message}`]);
-      return; // No cierra el modal
+      setErrors([`Error al crear el usuario: ${error.message}`]);
+      setSaving(false);
+      return;
     }
 
-    // Éxito => cierra el modal
     setIsModalOpen(false);
     setErrors([]);
-    setSuccessMessage(`Usuario ${newUser.email} creado con éxito.`);
+    setSuccessMessage(`Usuario "${newUser.email}" creado correctamente.`);
+    setSaving(false);
 
-    // Refrescar la lista
-    const { data: usuariosData } = await supabase
-      .from("usuarios")
-      .select("id, correo, nombre, rol_id");
-    if (usuariosData) {
-      setUsers(
-        usuariosData.map((u) => ({
-          id: u.id,
-          email: u.correo,
-          name: u.nombre,
-          role_id: u.rol_id,
-        }))
-      );
-    }
+    // Refrescar lista
+    await fetchData();
   };
 
   // Importar desde Excel
   async function handleImportFromExcel(file: File) {
     try {
       setErrors([]);
+      setSaving(true);
+
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      // Asumimos la primera fila es encabezado => data en la fila 2 en adelante
-      const rows = jsonData.slice(1); 
-      // Mapeo a objetos
-      const bulkUsers = rows.map((row: any) => ({
-        correo: row[0] || "",
-        nombre: row[1] || "",
-        contraseña: row[2] || "",
-        rol_id: row[3] || "",
-      }));
+      const rows = jsonData.slice(1);
+
+      if (rows.length === 0) {
+        setErrors(["El archivo Excel está vacío o no tiene datos válidos."]);
+        setSaving(false);
+        return;
+      }
+
+      const bulkUsers = rows
+        .filter((row: any) => row[0] && row[1]) // Solo filas con email y nombre
+        .map((row: any) => ({
+          correo: String(row[0] || "").trim(),
+          nombre: String(row[1] || "").trim(),
+          contraseña: String(row[2] || "password123"),
+          rol_id: String(row[3] || "").trim(),
+        }));
+
+      if (bulkUsers.length === 0) {
+        setErrors(["No se encontraron usuarios válidos en el archivo."]);
+        setSaving(false);
+        return;
+      }
 
       const { error } = await supabase.from("usuarios").insert(bulkUsers);
       if (error) {
         console.error("Error al importar Excel:", error);
-        setErrors([`Hubo un error al importar usuarios.`]); //: ${error.message}
-        return; // No cierra el modal
+        setErrors([`Error al importar usuarios: ${error.message}`]);
+        setSaving(false);
+        return;
       }
 
-      // Si no hubo error => cierra modal
       setIsModalOpen(false);
       setErrors([]);
       setSuccessMessage(`Se importaron ${bulkUsers.length} usuarios correctamente.`);
+      setSaving(false);
 
-      // Refrescar la lista
-      const { data: usuariosData } = await supabase
-        .from("usuarios")
-        .select("id, correo, nombre, rol_id");
-      if (usuariosData) {
-        setUsers(
-          usuariosData.map((u) => ({
-            id: u.id,
-            email: u.correo,
-            name: u.nombre,
-            role_id: u.rol_id,
-          }))
-        );
-      }
+      await fetchData();
     } catch (err: any) {
       console.error("Error leyendo Excel:", err);
-      setErrors(["Error leyendo el archivo Excel."]);
+      setErrors(["Error al leer el archivo Excel. Verifica el formato."]);
+      setSaving(false);
     }
   }
 
+  // Estadísticas
+  const stats = {
+    total: users.length,
+    porRol: roles.map((r) => ({
+      nombre: r.nombre,
+      count: users.filter((u) => u.role_id === r.id).length,
+    })),
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-[#00723F]" />
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6">
-      {/* ENCABEZADO */}
-      <div className="flex justify-between mb-4">
-        <Button variant="outline" onClick={() => router.push("/admin")}>
-          <ChevronLeft className="mr-2 h-5 w-5" />
-          Regresar
-        </Button>
-        <Button
-          variant="default"
-          className="bg-[#00723F] hover:bg-[#005e30] text-white"
-          onClick={handleOpenModal}
-        >
-          Crear usuario
-        </Button>
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Manejo de Usuarios</h1>
+          <p className="text-muted-foreground">
+            Administra los usuarios del sistema
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/admin")}
+            className="cursor-pointer"
+          >
+            <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+          </Button>
+          <Button
+            onClick={handleOpenModal}
+            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+          >
+            <UserPlus className="mr-2 h-4 w-4" /> Crear usuario
+          </Button>
+        </div>
       </div>
 
-      {/* MENSAJE DE ÉXITO */}
+      {/* Mensaje de éxito */}
       {successMessage && (
-        <div className="mb-4 p-3 border border-green-500 bg-green-50 text-green-800 rounded">
-          <div className="flex items-center justify-between">
-            <span>{successMessage}</span>
-            <Button variant="outline" size="sm" onClick={() => setSuccessMessage("")}>
-              Cerrar
-            </Button>
-          </div>
-        </div>
+        <Card className="bg-green-50 border-green-200">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-green-700">{successMessage}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSuccessMessage("")}
+                className="cursor-pointer"
+              >
+                ✕
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* FILTROS: ROL y BUSCADOR (correo/nombre) */}
-      <div className="mb-4 flex flex-col gap-3">
-        <div className="flex items-center gap-4">
-          <span className="font-medium">Filtrar por Rol:</span>
-          <Select onValueChange={setSelectedRole} defaultValue="Todos">
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Todos los usuarios" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todos">Todos</SelectItem>
-              {roles.map((rol) => (
-                <SelectItem key={rol.id} value={rol.nombre}>
-                  {rol.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Label htmlFor="searchTerm" className="font-medium">
-            Buscar:
-          </Label>
-          <input
-            id="searchTerm"
-            type="text"
-            placeholder="Correo o nombre..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="border rounded px-2 py-1 w-[200px]"
-          />
-        </div>
+      {/* Estadísticas */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total usuarios</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
+              </div>
+              <Users className="h-8 w-8 text-gray-400" />
+            </div>
+          </CardContent>
+        </Card>
+        {stats.porRol.slice(0, 4).map((r) => (
+          <Card key={r.nombre}>
+            <CardContent className="pt-4">
+              <div>
+                <p className="text-sm text-muted-foreground capitalize">{r.nombre}</p>
+                <p className="text-2xl font-bold">{r.count}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* TABLA DE USUARIOS */}
-      <Table>
-  <TableHeader>
-    <TableRow>
-      <TableHead>Correo</TableHead>
-      <TableHead>Nombre</TableHead>
-      <TableHead>Rol</TableHead>
-      <TableHead>Acciones</TableHead>
-    </TableRow>
-  </TableHeader>
+      {/* Filtros */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <Search className="h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="Buscar por correo o nombre..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1"
+              />
+            </div>
+            <Select onValueChange={setSelectedRole} defaultValue="Todos">
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filtrar por rol" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todos">Todos los roles</SelectItem>
+                {roles.map((rol) => (
+                  <SelectItem key={rol.id} value={rol.nombre}>
+                    {rol.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
-  <TableBody>
-    {currentUsers.map((user) => (
-      <TableRow key={user.id}>
-        {/* COLUMNA CORREO */}
-        <TableCell>{user.email}</TableCell>
+      {/* Tabla */}
+      <Card>
+        <CardContent className="pt-4">
+          {filteredUsers.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">No se encontraron usuarios</p>
+              <p className="text-sm">Intenta con otros filtros de búsqueda</p>
+            </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Correo</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Rol</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>{user.name}</TableCell>
+                      <TableCell>
+                        <Select
+                          defaultValue={rolesMap[user.role_id] || "Desconocido"}
+                          onValueChange={(val) => handleRoleChange(user.id, val)}
+                        >
+                          <SelectTrigger className="w-40">
+                            <SelectValue placeholder="Seleccionar rol" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roles.map((rol) => (
+                              <SelectItem key={rol.id} value={rol.nombre}>
+                                {rol.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDelete(user.id)}
+                          className="cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" /> Eliminar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
 
-        {/* COLUMNA NOMBRE */}
-        <TableCell>{user.name}</TableCell>
+              {/* Paginación */}
+              {totalPages > 1 && (
+                <div className="flex justify-center mt-4 gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={currentPage === 1}
+                    className="cursor-pointer"
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  {[...Array(Math.min(totalPages, 5))].map((_, i) => {
+                    const pageNum = i + 1;
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        className={
+                          currentPage === pageNum
+                            ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+                            : "cursor-pointer"
+                        }
+                        onClick={() => setCurrentPage(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                  {totalPages > 5 && <span className="px-2 py-2">...</span>}
+                  <Button
+                    variant="outline"
+                    disabled={currentPage === totalPages}
+                    className="cursor-pointer"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* COLUMNA ROL (con Select para cambiar) */}
-        <TableCell>
-          <Select
-            defaultValue={rolesMap[user.role_id] || "Desconocido"}
-            onValueChange={(val) => handleRoleChange(user.id, val)}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Seleccionar rol" />
-            </SelectTrigger>
-            <SelectContent>
-              {roles.map((rol) => (
-                <SelectItem key={rol.id} value={rol.nombre}>
-                  {rol.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </TableCell>
-
-        {/* COLUMNA ACCIONES */}
-        <TableCell>
-          <Button variant="destructive" onClick={() => handleDelete(user.id)}>
-            Eliminar
-          </Button>
-        </TableCell>
-      </TableRow>
-    ))}
-  </TableBody>
-</Table>
-
-      {/* PAGINACIÓN */}
-      {totalPages > 1 && (
-        <div className="flex justify-center mt-4 gap-2">
-          <Button
-            variant="default"
-            disabled={currentPage === 1}
-            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F]"
-            onClick={() => setCurrentPage(currentPage - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          {[...Array(totalPages)].map((_, i) => (
-            <Button
-              key={i + 1}
-              variant={currentPage === i + 1 ? "default" : "outline"}
-              className={
-                currentPage === i + 1
-                  ? "bg-[#00723F] hover:bg-[#005e30] text-white"
-                  : "border border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
-              }
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </Button>
-          ))}
-          <Button
-            variant="default"
-            disabled={currentPage === totalPages}
-            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F]"
-            onClick={() => setCurrentPage(currentPage + 1)}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
-
-      {/* MODAL PARA AGREGAR USUARIO */}
+      {/* Modal */}
       <AddUserModal
         isOpen={isModalOpen}
         newUser={newUser}
@@ -501,6 +581,7 @@ export default function UserManagementPage() {
         errors={errors}
         roles={roles}
         onImportFromExcel={handleImportFromExcel}
+        saving={saving}
       />
     </div>
   );

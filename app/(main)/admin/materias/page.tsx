@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -18,8 +19,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { ChevronLeft, ChevronRight, Edit, Trash2, ToggleRight, ToggleLeft } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Edit,
+  Trash2,
+  ToggleRight,
+  ToggleLeft,
+  Search,
+  BookOpen,
+  Plus,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  X,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 
@@ -36,22 +51,26 @@ export type Materia = {
   estado: "Activa" | "Inactiva";
 };
 
-export default function Page() {
+export default function MateriasPage() {
   const router = useRouter();
+  const confirm = useConfirm();
 
-  // ==================== ESTADOS ====================
   const [data, setData] = useState<Materia[]>([]);
   const [filteredData, setFilteredData] = useState<Materia[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Filtros: por licenciatura y búsqueda (clave o nombre)
+  // Filtros
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedLic, setSelectedLic] = useState("all");
-  const [claveFilter, setClaveFilter] = useState("");
+  const [selectedCategoria, setSelectedCategoria] = useState("all");
+  const [selectedRequisito, setSelectedRequisito] = useState("all");
+  const [selectedEstado, setSelectedEstado] = useState("all");
 
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 10;
 
-  // Modal para agregar materia
+  // Modal agregar
   const [showForm, setShowForm] = useState(false);
   const [newMateria, setNewMateria] = useState<Materia>({
     clave: "",
@@ -62,78 +81,131 @@ export default function Page() {
     estado: "Activa",
   });
   const [errors, setErrors] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  // Modal para editar materia
+  // Modal editar
   const [showEditForm, setShowEditForm] = useState(false);
   const [editMateria, setEditMateria] = useState<Materia | null>(null);
   const [editErrors, setEditErrors] = useState<string[]>([]);
 
-  // Mensaje de éxito
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Hook de confirmación para borrar
-  const confirm = useConfirm();
-
-  // ==================== CARGAR DATOS ====================
+  // Cargar datos
   const fetchMaterias = async () => {
-    const { data: materias, error } = await supabase
-      .from("materias")
-      .select("clave, nombre_materia, licenciatura, categoria, requisito, estado");
-    if (error) {
-      console.error("Error al obtener materias:", error);
-      return;
+    setLoading(true);
+    try {
+      const { data: materias, error } = await supabase
+        .from("materias")
+        .select("clave, nombre_materia, licenciatura, categoria, requisito, estado")
+        .order("nombre_materia", { ascending: true });
+
+      if (error) {
+        console.error("Error al obtener materias:", error);
+        return;
+      }
+      if (materias) {
+        setData(materias);
+        setFilteredData(materias);
+      }
+    } catch (err) {
+      console.error("Error:", err);
     }
-    if (materias) {
-      setData(materias);
-      setFilteredData(materias);
-    }
+    setLoading(false);
   };
 
   useEffect(() => {
     fetchMaterias();
   }, []);
 
-  // ==================== FILTRADO ====================
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
+  // Limpiar filtros
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setSelectedLic("all");
+    setSelectedCategoria("all");
+    setSelectedRequisito("all");
+    setSelectedEstado("all");
+  };
+
+  // Verificar si hay filtros activos
+  const hasActiveFilters =
+    searchTerm ||
+    selectedLic !== "all" ||
+    selectedCategoria !== "all" ||
+    selectedRequisito !== "all" ||
+    selectedEstado !== "all";
+
+  // Filtrado
   useEffect(() => {
     let temp = [...data];
+
+    // Filtro por licenciatura
     if (selectedLic !== "all") {
       temp = temp.filter((item) => item.licenciatura === selectedLic);
     }
-    if (claveFilter.trim() !== "") {
-      const search = claveFilter.toLowerCase();
+
+    // Filtro por categoría
+    if (selectedCategoria !== "all") {
+      temp = temp.filter((item) => item.categoria === selectedCategoria);
+    }
+
+    // Filtro por requisito
+    if (selectedRequisito !== "all") {
+      temp = temp.filter((item) => item.requisito === selectedRequisito);
+    }
+
+    // Filtro por estado
+    if (selectedEstado !== "all") {
+      temp = temp.filter((item) => item.estado === selectedEstado);
+    }
+
+    // Búsqueda por texto
+    if (searchTerm.trim() !== "") {
+      const search = searchTerm.toLowerCase();
       temp = temp.filter(
         (item) =>
           item.clave.toLowerCase().includes(search) ||
           item.nombre_materia.toLowerCase().includes(search)
       );
     }
+
     setFilteredData(temp);
     setCurrentPage(1);
-  }, [data, selectedLic, claveFilter]);
+  }, [data, selectedLic, selectedCategoria, selectedRequisito, selectedEstado, searchTerm]);
 
   const licenciaturas = Array.from(new Set(data.map((item) => item.licenciatura)));
 
-  // ==================== TOGGLE ESTADO ====================
+  // Toggle estado
   async function toggleEstado(clave: string) {
     const materiaActual = data.find((d) => d.clave === clave);
     if (!materiaActual) return;
     const nuevoEstado = materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
+
     const { error } = await supabase
       .from("materias")
       .update({ estado: nuevoEstado })
       .eq("clave", clave);
+
     if (error) {
       console.error("Error al actualizar estado:", error.message);
       return;
     }
+
     setData((prev) =>
       prev.map((item) =>
         item.clave === clave ? { ...item, estado: nuevoEstado } : item
       )
     );
+    setSuccessMessage(`Estado de materia "${clave}" actualizado a ${nuevoEstado}.`);
   }
 
-  // ==================== ELIMINAR MATERIA ====================
+  // Eliminar
   async function handleDelete(clave: string) {
     const confirmed = await confirm({
       title: "Eliminar materia",
@@ -142,19 +214,18 @@ export default function Page() {
       cancelText: "Cancelar",
     });
     if (!confirmed) return;
-    const { error } = await supabase
-      .from("materias")
-      .delete()
-      .eq("clave", clave);
+
+    const { error } = await supabase.from("materias").delete().eq("clave", clave);
     if (error) {
       console.error("Error al eliminar materia:", error.message);
       return;
     }
+
     setData((prev) => prev.filter((item) => item.clave !== clave));
-    setSuccessMessage(`Materia ${clave} eliminada con éxito.`);
+    setSuccessMessage(`Materia "${clave}" eliminada correctamente.`);
   }
 
-  // ==================== EDITAR MATERIA ====================
+  // Editar
   const handleEdit = (materia: Materia) => {
     setEditMateria(materia);
     setEditErrors([]);
@@ -167,18 +238,20 @@ export default function Page() {
     setEditErrors([]);
   };
 
-  function handleEditInputChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) {
+  function handleEditInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (!editMateria) return;
     const { name, value } = e.target;
+    setEditMateria((prev) => (prev ? { ...prev, [name]: value } : null));
+  }
+
+  function handleEditSelectChange(name: string, value: string) {
+    if (!editMateria) return;
     setEditMateria((prev) => (prev ? { ...prev, [name]: value } : null));
   }
 
   async function handleUpdateMateria() {
     if (!editMateria) return;
 
-    // Validaciones básicas
     const tempErrors: string[] = [];
     if (!editMateria.nombre_materia.trim())
       tempErrors.push("El nombre de la materia es obligatorio.");
@@ -190,6 +263,7 @@ export default function Page() {
       return;
     }
 
+    setSaving(true);
     const { error } = await supabase
       .from("materias")
       .update({
@@ -203,31 +277,33 @@ export default function Page() {
 
     if (error) {
       console.error("Error al actualizar materia:", error);
-      const mensajeError = traducirErrorBD(error);
-      setEditErrors([mensajeError]);
+      setEditErrors([traducirErrorBD(error)]);
+      setSaving(false);
       return;
     }
 
     setShowEditForm(false);
-    setSuccessMessage(`Materia ${editMateria.clave} actualizada con éxito.`);
+    setSuccessMessage(`Materia "${editMateria.clave}" actualizada correctamente.`);
+    setSaving(false);
     await fetchMaterias();
   }
 
-  // ==================== PAGINACIÓN ====================
-  const totalPagesCalc = Math.ceil(filteredData.length / itemsPerPage);
+  // Paginación
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+
   useEffect(() => {
-    if (totalPagesCalc > 0 && currentPage > totalPagesCalc) {
-      setCurrentPage(totalPagesCalc);
-    } else if (totalPagesCalc === 0) {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    } else if (totalPages === 0) {
       setCurrentPage(1);
     }
-  }, [totalPagesCalc, currentPage]);
+  }, [totalPages, currentPage]);
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
 
-  // ==================== HANDLERS PARA MODAL AGREGAR ====================
+  // Modal agregar handlers
   const handleShowForm = () => {
     setNewMateria({
       clave: "",
@@ -246,47 +322,41 @@ export default function Page() {
     setErrors([]);
   };
 
-  function handleInputChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) {
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     setNewMateria((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
   }
 
-  // Función para traducir errores de BD a mensajes amigables
+  function handleSelectChange(name: string, value: string) {
+    setNewMateria((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  }
+
   function traducirErrorBD(error: any): string {
     const errorMessage = error.message || "";
     const errorCode = error.code || "";
 
-    // Error de clave duplicada
     if (errorCode === "23505" || errorMessage.includes("duplicate key")) {
-      return `La clave "${newMateria.clave}" ya existe. Por favor usa una clave diferente.`;
+      return `La clave ya existe. Por favor usa una clave diferente.`;
     }
-
-    // Error de violación de constraint
     if (errorCode === "23503") {
       return "Error de integridad referencial. Verifica que los datos sean correctos.";
     }
-
-    // Error de not null
     if (errorCode === "23502") {
       return "Faltan campos obligatorios. Por favor completa todos los campos requeridos.";
     }
-
-    // Error genérico
     return `Error al guardar: ${errorMessage}`;
   }
 
-  // Validaciones y creación de una materia individual
   async function handleSaveMateria() {
     setErrors([]);
     const tempErrors: string[] = [];
 
-    // Validaciones del lado del cliente
-    if (!newMateria.clave.trim())
-      tempErrors.push("La clave es obligatoria.");
+    if (!newMateria.clave.trim()) tempErrors.push("La clave es obligatoria.");
     if (!newMateria.nombre_materia.trim())
       tempErrors.push("El nombre de la materia es obligatorio.");
     if (!newMateria.licenciatura.trim())
@@ -297,7 +367,7 @@ export default function Page() {
       return;
     }
 
-    // Verificar si la clave ya existe (validación previa)
+    // Verificar clave existente
     const { data: materiaExistente } = await supabase
       .from("materias")
       .select("clave")
@@ -305,280 +375,464 @@ export default function Page() {
       .single();
 
     if (materiaExistente) {
-      setErrors([`La clave "${newMateria.clave}" ya existe. Por favor usa una clave diferente.`]);
+      setErrors([
+        `La clave "${newMateria.clave}" ya existe. Por favor usa una clave diferente.`,
+      ]);
       return;
     }
 
-    // Intentar insertar
+    setSaving(true);
     const { error } = await supabase.from("materias").insert([newMateria]);
-    
+
     if (error) {
       console.error("Error al agregar materia:", error.message);
-      const mensajeError = traducirErrorBD(error);
-      setErrors([mensajeError]);
+      setErrors([traducirErrorBD(error)]);
+      setSaving(false);
       return;
     }
 
     setShowForm(false);
     setErrors([]);
-    setSuccessMessage(`Materia ${newMateria.clave} agregada con éxito.`);
+    setSuccessMessage(`Materia "${newMateria.clave}" agregada correctamente.`);
+    setSaving(false);
     await fetchMaterias();
   }
 
-  // ==================== IMPORTAR DESDE EXCEL ====================
+  // Importar Excel
   async function handleImportFromExcel(file: File) {
     try {
       setErrors([]);
+      setSaving(true);
+
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
       const rows = jsonData.slice(1);
-      
-      // Validar que haya datos
+
       if (rows.length === 0) {
         setErrors(["El archivo Excel está vacío o no tiene datos válidos."]);
+        setSaving(false);
         return;
       }
 
-      const bulkMaterias = rows.map((row: any) => ({
-        clave: row[0] || "",
-        nombre_materia: row[1] || "",
-        licenciatura: row[2] || "",
-        categoria: row[3] || "Basica",
-        requisito: row[4] || "obligatoria",
-        estado: row[5] || "Activa",
-      }));
+      const bulkMaterias = rows
+        .filter((row: any) => row[0] && row[1])
+        .map((row: any) => ({
+          clave: String(row[0] || "").trim(),
+          nombre_materia: String(row[1] || "").trim(),
+          licenciatura: String(row[2] || "").trim(),
+          categoria: row[3] || "Basica",
+          requisito: row[4] || "obligatoria",
+          estado: row[5] || "Activa",
+        }));
 
-      // Validar que todas tengan clave
-      const sinClave = bulkMaterias.filter(m => !m.clave.trim());
-      if (sinClave.length > 0) {
-        setErrors(["Algunas materias en el Excel no tienen clave. Todas las materias deben tener una clave."]);
+      if (bulkMaterias.length === 0) {
+        setErrors(["No se encontraron materias válidas en el archivo."]);
+        setSaving(false);
         return;
       }
 
       const { error } = await supabase.from("materias").insert(bulkMaterias);
-      
+
       if (error) {
         console.error("Error al importar materias:", error);
-        const mensajeError = traducirErrorBD(error);
-        setErrors([`Error al importar: ${mensajeError}`]);
+        setErrors([`Error al importar: ${traducirErrorBD(error)}`]);
+        setSaving(false);
         return;
       }
 
       setShowForm(false);
       setErrors([]);
       setSuccessMessage(`Se importaron ${bulkMaterias.length} materias correctamente.`);
+      setSaving(false);
       await fetchMaterias();
     } catch (err: any) {
       console.error("Error leyendo Excel:", err);
-      setErrors(["Error al leer el archivo Excel. Verifica que el formato sea correcto."]);
+      setErrors(["Error al leer el archivo Excel. Verifica el formato."]);
+      setSaving(false);
     }
   }
 
-  // ==================== RENDER ====================
+  // Estadísticas
+  const stats = {
+    total: data.length,
+    activas: data.filter((m) => m.estado === "Activa").length,
+    inactivas: data.filter((m) => m.estado === "Inactiva").length,
+    obligatorias: data.filter((m) => m.requisito === "obligatoria").length,
+    optativas: data.filter((m) => m.requisito === "optativa").length,
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-[#00723F]" />
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6">
-      {/* ENCABEZADO */}
-      <div className="flex justify-between mb-4">
-        <Button variant="outline" onClick={() => router.push("/admin")} className="cursor-pointer">
-          <ChevronLeft className="mr-2 h-5 w-5" />
-          Regresar
-        </Button>
-        <Button
-          variant="default"
-          onClick={handleShowForm}
-          className="bg-[#00723F] text-white hover:bg-[#005e30] cursor-pointer"
-        >
-          Agregar materia
-        </Button>
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Manejo de Materias</h1>
+          <p className="text-muted-foreground">Administra el catálogo de materias</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/admin")}
+            className="cursor-pointer"
+          >
+            <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+          </Button>
+          <Button
+            onClick={handleShowForm}
+            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+          >
+            <Plus className="mr-2 h-4 w-4" /> Agregar materia
+          </Button>
+        </div>
       </div>
 
-      {/* MENSAJE DE ÉXITO */}
+      {/* Mensaje de éxito */}
       {successMessage && (
-        <div className="mb-4 p-3 border border-green-500 bg-green-50 text-green-800 rounded">
-          <div className="flex items-center justify-between">
-            <span>{successMessage}</span>
-            <Button variant="outline" size="sm" onClick={() => setSuccessMessage("")} className="cursor-pointer">
-              Cerrar
-            </Button>
-          </div>
-        </div>
+        <Card className="bg-green-50 border-green-200">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-green-700">{successMessage}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSuccessMessage("")}
+                className="cursor-pointer"
+              >
+                ✕
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* FILTROS */}
-      <div className="mb-4">
-        <div className="flex items-center gap-4 mb-2">
-          <span className="font-medium">Filtrar por:</span>
-          <Select onValueChange={setSelectedLic} defaultValue="all">
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Licenciatura" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              {licenciaturas.map((lic) => (
-                <SelectItem key={lic} value={lic}>
-                  {lic}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="flex items-center gap-2">
-            <Label htmlFor="filtro-clave" className="font-medium">
-              Buscar:
-            </Label>
-            <input
-              id="filtro-clave"
-              type="text"
-              value={claveFilter}
-              onChange={(e) => setClaveFilter(e.target.value)}
-              placeholder="Clave o nombre..."
-              className="border rounded px-2 py-1 w-[200px]"
-            />
-          </div>
-        </div>
+      {/* Estadísticas */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
+              </div>
+              <BookOpen className="h-8 w-8 text-gray-400" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Activas</p>
+                <p className="text-2xl font-bold text-green-600">{stats.activas}</p>
+              </div>
+              <CheckCircle className="h-8 w-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Inactivas</p>
+                <p className="text-2xl font-bold text-red-600">{stats.inactivas}</p>
+              </div>
+              <XCircle className="h-8 w-8 text-red-500" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Obligatorias</p>
+              <p className="text-2xl font-bold">{stats.obligatorias}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Optativas</p>
+              <p className="text-2xl font-bold">{stats.optativas}</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* TABLA */}
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Clave</TableHead>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Licenciatura</TableHead>
-              <TableHead>Tipo (Categoría: Requisito)</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead>Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {currentItems.length > 0 ? (
-              currentItems.map((materia, index) => {
-                const tipo = `${materia.categoria}: ${materia.requisito}`;
-                return (
-                  <TableRow key={`${materia.clave}-${index}`}>
-                    <TableCell>{materia.clave}</TableCell>
-                    <TableCell>{materia.nombre_materia}</TableCell>
-                    <TableCell>{materia.licenciatura}</TableCell>
-                    <TableCell>{tipo}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-block w-3 h-3 rounded-full ${
-                            materia.estado === "Activa" ? "bg-green-500" : "bg-red-500"
-                          }`}
-                        />
-                        <span>{materia.estado}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-blue-600 hover:text-blue-800 cursor-pointer"
-                          title="Editar"
-                          onClick={() => handleEdit(materia)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-red-600 hover:text-red-800 cursor-pointer"
-                          title="Eliminar"
-                          onClick={() => handleDelete(materia.clave)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-gray-600 hover:text-gray-800 cursor-pointer"
-                          title="Cambiar estado"
-                          onClick={() => toggleEstado(materia.clave)}
-                        >
-                          {materia.estado === "Activa" ? (
-                            <ToggleRight className="w-4 h-4" />
-                          ) : (
-                            <ToggleLeft className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
-                    </TableCell>
+      {/* Filtros */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="space-y-4">
+            {/* Búsqueda */}
+            <div className="flex items-center gap-2">
+              <Search className="h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="Buscar por clave o nombre..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1"
+              />
+            </div>
+
+            {/* Filtros por categorías */}
+            <div className="flex flex-wrap items-center gap-4">
+              <Select value={selectedLic} onValueChange={setSelectedLic}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Licenciatura" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las licenciaturas</SelectItem>
+                  {licenciaturas.map((lic) => (
+                    <SelectItem key={lic} value={lic}>
+                      {lic}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedCategoria} onValueChange={setSelectedCategoria}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las categorías</SelectItem>
+                  <SelectItem value="Basica">Básica</SelectItem>
+                  <SelectItem value="Disciplinaria">Disciplinaria</SelectItem>
+                  <SelectItem value="Terminal">Terminal</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedRequisito} onValueChange={setSelectedRequisito}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Requisito" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="obligatoria">Obligatoria</SelectItem>
+                  <SelectItem value="optativa">Optativa</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedEstado} onValueChange={setSelectedEstado}>
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="Activa">Activa</SelectItem>
+                  <SelectItem value="Inactiva">Inactiva</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Botón limpiar filtros */}
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearFilters}
+                  className="text-muted-foreground cursor-pointer"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Limpiar filtros
+                </Button>
+              )}
+            </div>
+
+            {/* Contador de resultados */}
+            <div className="text-sm text-muted-foreground">
+              Mostrando {filteredData.length} de {data.length} materias
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabla */}
+      <Card>
+        <CardContent className="pt-4">
+          {filteredData.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">No se encontraron materias</p>
+              <p className="text-sm">Intenta con otros filtros de búsqueda</p>
+            </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Clave</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Licenciatura</TableHead>
+                    <TableHead>Categoría</TableHead>
+                    <TableHead>Requisito</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Acciones</TableHead>
                   </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-4">
-                  No hay materias para mostrar.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                </TableHeader>
+                <TableBody>
+                  {currentItems.map((materia) => (
+                    <TableRow key={materia.clave}>
+                      <TableCell className="font-medium">{materia.clave}</TableCell>
+                      <TableCell>{materia.nombre_materia}</TableCell>
+                      <TableCell>{materia.licenciatura}</TableCell>
+                      <TableCell>
+                        <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
+                          {materia.categoria}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`px-2 py-1 text-xs rounded-full ${
+                            materia.requisito === "obligatoria"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-purple-100 text-purple-700"
+                          }`}
+                        >
+                          {materia.requisito}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-block w-2 h-2 rounded-full ${
+                              materia.estado === "Activa" ? "bg-green-500" : "bg-red-500"
+                            }`}
+                          />
+                          <span
+                            className={
+                              materia.estado === "Activa"
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {materia.estado}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-blue-600 hover:text-blue-800 cursor-pointer"
+                            title="Editar"
+                            onClick={() => handleEdit(materia)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-600 hover:text-red-800 cursor-pointer"
+                            title="Eliminar"
+                            onClick={() => handleDelete(materia.clave)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`cursor-pointer ${
+                              materia.estado === "Activa"
+                                ? "text-green-600 hover:text-green-800"
+                                : "text-gray-600 hover:text-gray-800"
+                            }`}
+                            title={materia.estado === "Activa" ? "Desactivar" : "Activar"}
+                            onClick={() => toggleEstado(materia.clave)}
+                          >
+                            {materia.estado === "Activa" ? (
+                              <ToggleRight className="w-4 h-4" />
+                            ) : (
+                              <ToggleLeft className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
 
-      {/* PAGINACIÓN */}
-      {totalPagesCalc > 1 && (
-        <div className="flex justify-center mt-4 gap-2">
-          <Button
-            variant="default"
-            disabled={currentPage === 1}
-            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F] cursor-pointer"
-            onClick={() => setCurrentPage(currentPage - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          {[...Array(totalPagesCalc)].map((_, i) => (
-            <Button
-              key={i + 1}
-              variant={currentPage === i + 1 ? "default" : "outline"}
-              className={
-                currentPage === i + 1
-                  ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
-                  : "border border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white cursor-pointer"
-              }
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </Button>
-          ))}
-          <Button
-            variant="default"
-            disabled={currentPage === totalPagesCalc}
-            className="bg-white hover:bg-white text-[#00723F] border border-[#00723F] cursor-pointer"
-            onClick={() => setCurrentPage(currentPage + 1)}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+              {/* Paginación */}
+              {totalPages > 1 && (
+                <div className="flex justify-center mt-4 gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={currentPage === 1}
+                    className="cursor-pointer"
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  {[...Array(Math.min(totalPages, 5))].map((_, i) => {
+                    const pageNum = i + 1;
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        className={
+                          currentPage === pageNum
+                            ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+                            : "cursor-pointer"
+                        }
+                        onClick={() => setCurrentPage(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                  {totalPages > 5 && <span className="px-2 py-2">...</span>}
+                  <Button
+                    variant="outline"
+                    disabled={currentPage === totalPages}
+                    className="cursor-pointer"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* MODAL AGREGAR MATERIA */}
+      {/* Modal Agregar */}
       <ModalAgregarMateria
-        estaAbierto={showForm}
-        nuevaMateria={newMateria}
-        alCerrar={handleCloseForm}
-        alCambiarInput={handleInputChange}
-        alGuardar={handleSaveMateria}
-        errores={errors}
-        alImportarDesdeExcel={handleImportFromExcel}
+        isOpen={showForm}
+        materia={newMateria}
+        onClose={handleCloseForm}
+        onInputChange={handleInputChange}
+        onSelectChange={handleSelectChange}
+        onSave={handleSaveMateria}
+        errors={errors}
+        onImportFromExcel={handleImportFromExcel}
+        saving={saving}
+        licenciaturas={licenciaturas}
       />
 
-      {/* MODAL EDITAR MATERIA */}
+      {/* Modal Editar */}
       {showEditForm && editMateria && (
         <ModalEditarMateria
-          estaAbierto={showEditForm}
-          materiaAEditar={editMateria}
-          alCerrar={handleCloseEditForm}
-          alCambiarInput={handleEditInputChange}
-          alActualizar={handleUpdateMateria}
-          errores={editErrors}
+          isOpen={showEditForm}
+          materia={editMateria}
+          onClose={handleCloseEditForm}
+          onInputChange={handleEditInputChange}
+          onSelectChange={handleEditSelectChange}
+          onSave={handleUpdateMateria}
+          errors={editErrors}
+          saving={saving}
+          licenciaturas={licenciaturas}
         />
       )}
     </div>

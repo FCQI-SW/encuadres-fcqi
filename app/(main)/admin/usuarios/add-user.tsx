@@ -1,18 +1,36 @@
 "use client";
+
 import React, { useRef } from "react";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { AlertCircle, Upload, Loader2, X } from "lucide-react";
 
 interface Role {
-  id: string;       // UUID en la tabla roles
-  nombre: string;   // Nombre del rol
+  id: string;
+  nombre: string;
 }
 
 interface NewUser {
-  email: string;    
-  password: string; 
-  role_id: string;  
-  name: string;     
+  email: string;
+  password: string;
+  role_id: string;
+  name: string;
 }
 
 interface AddUserModalProps {
@@ -22,12 +40,11 @@ interface AddUserModalProps {
   onInputChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => void;
-  onSave: () => void;         // Crear un usuario individual
-  errors: string[];           // Errores a mostrar en este modal
+  onSave: () => void;
+  errors: string[];
   roles: Role[];
-
-  // Función para manejar la importación desde Excel
   onImportFromExcel?: (file: File) => void;
+  saving?: boolean;
 }
 
 export function AddUserModal({
@@ -39,112 +56,165 @@ export function AddUserModal({
   errors,
   roles,
   onImportFromExcel,
+  saving = false,
 }: AddUserModalProps) {
-
-  // Referencia al <input type="file"> para Excel
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!isOpen) return null;
 
-  // Cuando el usuario selecciona el archivo .xlsx / .xls
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     if (onImportFromExcel) {
       onImportFromExcel(file);
     }
-    e.target.value = ""; // para permitir re-seleccionar el mismo archivo si se desea
+    e.target.value = "";
   }
 
-  // Al presionar el botón, abrimos el diálogo de archivos
   function handleExcelButtonClick() {
     fileInputRef.current?.click();
   }
 
+  // Handler para el select de rol
+  function handleRoleSelect(value: string) {
+    const syntheticEvent = {
+      target: { name: "role_id", value },
+    } as React.ChangeEvent<HTMLSelectElement>;
+    onInputChange(syntheticEvent);
+  }
+
   return (
-    <div
-      className="
-        fixed inset-0 z-50 flex items-center justify-center
-        bg-white/50
-        backdrop-blur-sm
-      "
-    >
-      <div className="bg-white p-6 rounded shadow-md w-[400px]">
-        <h2 className="text-xl font-bold mb-4">Agregar Usuario</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-4 top-4 cursor-pointer"
+            onClick={onClose}
+            disabled={saving}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <CardTitle>Agregar Usuario</CardTitle>
+          <CardDescription>
+            Crea un nuevo usuario o importa desde Excel
+          </CardDescription>
+        </CardHeader>
 
-        {/* LISTA DE ERRORES (VISIBLES SÓLO EN EL MODAL) */}
-        {errors.length > 0 && (
-          <div className="mb-4 border border-red-300 bg-red-50 text-red-700 p-2 rounded">
-            <ul className="list-disc ml-5">
-              {errors.map((err, i) => (
-                <li key={i}>{err}</li>
-              ))}
-            </ul>
+        <CardContent className="space-y-4">
+          {/* Errores */}
+          {errors.length > 0 && (
+            <div className="p-3 border border-red-200 bg-red-50 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                <ul className="text-sm text-red-700 space-y-1">
+                  {errors.map((err, i) => (
+                    <li key={i}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Campos del formulario */}
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="email">Correo electrónico *</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="usuario@ejemplo.com"
+                value={newUser.email}
+                onChange={onInputChange}
+                disabled={saving}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="name">Nombre completo *</Label>
+              <Input
+                id="name"
+                name="name"
+                type="text"
+                placeholder="Nombre del usuario"
+                value={newUser.name}
+                onChange={onInputChange}
+                disabled={saving}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="password">Contraseña *</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                placeholder="Mínimo 6 caracteres"
+                value={newUser.password}
+                onChange={onInputChange}
+                disabled={saving}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>Rol *</Label>
+              <Select
+                value={newUser.role_id}
+                onValueChange={handleRoleSelect}
+                disabled={saving}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar rol" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map((rol) => (
+                    <SelectItem key={rol.id} value={rol.id}>
+                      {rol.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        )}
 
-        {/* CAMPOS PARA CREAR UN USUARIO INDIVIDUAL */}
-        <Label className="mb-1">Correo electrónico</Label>
-        <input
-          name="email"
-          type="email"
-          className="w-full mb-2 p-2 border rounded"
-          value={newUser.email}
-          onChange={onInputChange}
-        />
-
-        <Label className="mb-1">Nombre</Label>
-        <input
-          name="name"
-          type="text"
-          className="w-full mb-2 p-2 border rounded"
-          value={newUser.name}
-          onChange={onInputChange}
-        />
-
-        <Label className="mb-1">Contraseña</Label>
-        <input
-          name="password"
-          type="password"
-          className="w-full mb-2 p-2 border rounded"
-          value={newUser.password}
-          onChange={onInputChange}
-        />
-
-        <Label className="mb-1">Rol</Label>
-        <select
-          name="role_id"
-          className="w-full mb-4 p-2 border rounded"
-          value={newUser.role_id}
-          onChange={onInputChange}
-        >
-          <option value="">Seleccionar rol</option>
-          {roles.map((rol) => (
-            <option key={rol.id} value={rol.id}>
-              {rol.nombre}
-            </option>
-          ))}
-        </select>
-
-        {/* BOTONES */}
-        <div className="flex flex-col gap-2">
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={onClose}>
+          {/* Botones principales */}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={saving}
+              className="cursor-pointer"
+            >
               Cancelar
             </Button>
             <Button
-              variant="default"
-              className="bg-[#00723F] text-white hover:bg-[#005e30]"
               onClick={onSave}
+              disabled={saving}
+              className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
             >
-              Guardar
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                "Guardar"
+              )}
             </Button>
           </div>
 
-          {/* SECCIÓN PARA CARGAR USUARIOS DESDE EXCEL */}
-          <div className="border-t mt-4 pt-4">
-            <Label className="mb-1 block">Agregar usuarios desde Excel:</Label>
-            {/* Input oculto */}
+          <Separator />
+
+          {/* Importar desde Excel */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">
+              Importar usuarios desde Excel
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              El archivo debe tener columnas: Correo, Nombre, Contraseña, Rol_ID
+            </p>
             <input
               ref={fileInputRef}
               type="file"
@@ -152,15 +222,27 @@ export function AddUserModal({
               style={{ display: "none" }}
               onChange={handleFileChange}
             />
-            <Button variant="outline" onClick={handleExcelButtonClick}>
-              Cargar usuarios desde Excel
+            <Button
+              variant="outline"
+              onClick={handleExcelButtonClick}
+              disabled={saving}
+              className="w-full cursor-pointer"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importando...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Seleccionar archivo Excel
+                </>
+              )}
             </Button>
-            <p className="text-sm text-gray-500 mt-1">
-              Selecciona un archivo .xlsx o .xls para importar múltiples usuarios.
-            </p>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

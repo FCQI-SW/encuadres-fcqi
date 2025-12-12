@@ -1,291 +1,284 @@
 "use client";
-import React, { useRef } from "react";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { X, BookOpen, Upload, AlertCircle } from "lucide-react";
 
-export interface Materia {
+import React, { useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { AlertCircle, Upload, Loader2, X } from "lucide-react";
+
+type Materia = {
   clave: string;
   nombre_materia: string;
   licenciatura: string;
   categoria: "Basica" | "Disciplinaria" | "Terminal";
   requisito: "obligatoria" | "optativa";
   estado: "Activa" | "Inactiva";
-}
+};
 
-export interface ModalAgregarMateriaProps {
-  estaAbierto: boolean;
-  nuevaMateria: Materia;
-  alCerrar: () => void;
-  alCambiarInput: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
-  alGuardar: () => void;
-  errores: string[];
-  alImportarDesdeExcel?: (file: File) => void;
+interface ModalAgregarMateriaProps {
+  isOpen: boolean;
+  materia: Materia;
+  onClose: () => void;
+  onInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSelectChange: (name: string, value: string) => void;
+  onSave: () => void;
+  errors: string[];
+  onImportFromExcel?: (file: File) => void;
+  saving?: boolean;
+  licenciaturas: string[];
 }
 
 export function ModalAgregarMateria({
-  estaAbierto,
-  nuevaMateria,
-  alCerrar,
-  alCambiarInput,
-  alGuardar,
-  errores,
-  alImportarDesdeExcel,
+  isOpen,
+  materia,
+  onClose,
+  onInputChange,
+  onSelectChange,
+  onSave,
+  errors,
+  onImportFromExcel,
+  saving = false,
+  licenciaturas,
 }: ModalAgregarMateriaProps) {
-  const referenciaArchivoInput = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  if (!estaAbierto) return null;
+  if (!isOpen) return null;
 
-  function manejarCambioArchivo(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files || e.target.files.length === 0) return;
-    const archivo = e.target.files[0];
-    if (alImportarDesdeExcel) {
-      alImportarDesdeExcel(archivo);
+    const file = e.target.files[0];
+    if (onImportFromExcel) {
+      onImportFromExcel(file);
     }
     e.target.value = "";
   }
 
-  function manejarClickBotonExcel() {
-    referenciaArchivoInput.current?.click();
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div 
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
-        style={{
-          animation: "modalEnter 0.3s ease-out"
-        }}
-      >
-        <style jsx>{`
-          @keyframes modalEnter {
-            from {
-              opacity: 0;
-              transform: scale(0.95) translateY(20px);
-            }
-            to {
-              opacity: 1;
-              transform: scale(1) translateY(0);
-            }
-          }
-        `}</style>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <Card className="w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <CardHeader className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-4 top-4 cursor-pointer"
+            onClick={onClose}
+            disabled={saving}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <CardTitle>Agregar Materia</CardTitle>
+          <CardDescription>
+            Crea una nueva materia o importa desde Excel
+          </CardDescription>
+        </CardHeader>
 
-        {/* Header minimalista */}
-        <div className="px-8 pt-8 pb-6 border-b border-gray-100">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 bg-[#00723F]/10 rounded-xl flex items-center justify-center">
-                  <BookOpen className="h-6 w-6 text-[#00723F]" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Nueva Materia</h2>
-                  <p className="text-sm text-gray-500 mt-0.5">Agrega una materia al sistema</p>
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={alCerrar}
-              className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-2 transition-all"
-              aria-label="Cerrar"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Contenido */}
-        <div className="flex-1 overflow-y-auto px-8 py-6">
-          {/* Errores con mejor diseño */}
-          {errores.length > 0 && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
-              <div className="flex gap-3">
-                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="text-sm font-semibold text-red-800 mb-2">
-                    Corrige los siguientes errores:
-                  </h4>
-                  <ul className="space-y-1">
-                    {errores.map((err, i) => (
-                      <li key={i} className="text-sm text-red-700 flex items-start">
-                        <span className="mr-2 text-red-400">•</span>
-                        <span>{err}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+        <CardContent className="space-y-4">
+          {/* Errores */}
+          {errors.length > 0 && (
+            <div className="p-3 border border-red-200 bg-red-50 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                <ul className="text-sm text-red-700 space-y-1">
+                  {errors.map((err, i) => (
+                    <li key={i}>{err}</li>
+                  ))}
+                </ul>
               </div>
             </div>
           )}
 
-          {/* Formulario con mejor espaciado */}
-          <div className="space-y-6">
-            {/* Grid de 2 columnas para campos pequeños */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">
-                  Clave <span className="text-red-500">*</span>
-                </Label>
-                <input
-                  name="clave"
-                  type="text"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#00723F]/20 focus:border-[#00723F] transition-all text-sm font-medium"
-                  value={nuevaMateria.clave}
-                  onChange={alCambiarInput}
-                  placeholder="MAT101"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">
-                  Estado <span className="text-red-500">*</span>
-                </Label>
-                <select
-                  name="estado"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#00723F]/20 focus:border-[#00723F] transition-all text-sm font-medium"
-                  value={nuevaMateria.estado}
-                  onChange={alCambiarInput}
-                >
-                  <option value="Activa">✓ Activa</option>
-                  <option value="Inactiva">✕ Inactiva</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold text-gray-700">
-                Nombre de la materia <span className="text-red-500">*</span>
-              </Label>
-              <input
-                name="nombre_materia"
-                type="text"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#00723F]/20 focus:border-[#00723F] transition-all text-sm"
-                value={nuevaMateria.nombre_materia}
-                onChange={alCambiarInput}
-                placeholder="Cálculo Diferencial"
+          {/* Campos del formulario */}
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="clave">Clave *</Label>
+              <Input
+                id="clave"
+                name="clave"
+                placeholder="Ej: MAT101"
+                value={materia.clave}
+                onChange={onInputChange}
+                disabled={saving}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold text-gray-700">
-                Licenciatura <span className="text-red-500">*</span>
-              </Label>
-              <select
-                name="licenciatura"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#00723F]/20 focus:border-[#00723F] transition-all text-sm"
-                value={nuevaMateria.licenciatura}
-                onChange={alCambiarInput}
+            <div className="space-y-1">
+              <Label htmlFor="nombre_materia">Nombre de la materia *</Label>
+              <Input
+                id="nombre_materia"
+                name="nombre_materia"
+                placeholder="Ej: Cálculo Diferencial"
+                value={materia.nombre_materia}
+                onChange={onInputChange}
+                disabled={saving}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>Licenciatura *</Label>
+              <Select
+                value={materia.licenciatura}
+                onValueChange={(value) => onSelectChange("licenciatura", value)}
+                disabled={saving}
               >
-                <option value="">Selecciona una opción...</option>
-                <option value="Tronco Común (Área de Ingeniería)">Tronco Común (Área de Ingeniería)</option>
-                <option value="Tronco Común (Área de Ciencias Químicas)">Tronco Común (Área de Ciencias Químicas)</option>
-                <option value="Ing. en Computación">Ing. en Computación</option>
-                <option value="Ing. en Software y Tecnologías Emergentes">Ing. en Software y Tecnologías Emergentes</option>
-                <option value="Ing. en Electrónica">Ing. en Electrónica</option>
-                <option value="Ing. Industrial">Ing. Industrial</option>
-                <option value="Ing. Químico">Ing. Químico</option>
-                <option value="Químico Industrial">Químico Industrial</option>
-                <option value="Químico Farmacobiólogo">Químico Farmacobiólogo</option>
-                <option value="Químico Farmacéutico Biológico">Químico Farmacéutico Biológico</option>
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar licenciatura" />
+                </SelectTrigger>
+                <SelectContent>
+                  {licenciaturas.length > 0 ? (
+                    licenciaturas.map((lic) => (
+                      <SelectItem key={lic} value={lic}>
+                        {lic}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      <SelectItem value="Ingeniería en Computación">
+                        Ingeniería en Computación
+                      </SelectItem>
+                      <SelectItem value="Ingeniería Industrial">
+                        Ingeniería Industrial
+                      </SelectItem>
+                      <SelectItem value="Ingeniería Química">
+                        Ingeniería Química
+                      </SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">
-                  Categoría <span className="text-red-500">*</span>
-                </Label>
-                <select
-                  name="categoria"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#00723F]/20 focus:border-[#00723F] transition-all text-sm"
-                  value={nuevaMateria.categoria}
-                  onChange={alCambiarInput}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label>Categoría</Label>
+                <Select
+                  value={materia.categoria}
+                  onValueChange={(value) => onSelectChange("categoria", value)}
+                  disabled={saving}
                 >
-                  <option value="Basica">Básica</option>
-                  <option value="Disciplinaria">Disciplinaria</option>
-                  <option value="Terminal">Terminal</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Basica">Básica</SelectItem>
+                    <SelectItem value="Disciplinaria">Disciplinaria</SelectItem>
+                    <SelectItem value="Terminal">Terminal</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">
-                  Requisito <span className="text-red-500">*</span>
-                </Label>
-                <select
-                  name="requisito"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#00723F]/20 focus:border-[#00723F] transition-all text-sm"
-                  value={nuevaMateria.requisito}
-                  onChange={alCambiarInput}
+              <div className="space-y-1">
+                <Label>Requisito</Label>
+                <Select
+                  value={materia.requisito}
+                  onValueChange={(value) => onSelectChange("requisito", value)}
+                  disabled={saving}
                 >
-                  <option value="obligatoria">Obligatoria</option>
-                  <option value="optativa">Optativa</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="obligatoria">Obligatoria</SelectItem>
+                    <SelectItem value="optativa">Optativa</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            {/* Card de importación */}
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-5 border-2 border-dashed border-gray-300">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Upload className="h-5 w-5 text-gray-600" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-1">
-                    Importación por lotes
-                  </h4>
-                  <p className="text-xs text-gray-600 mb-3">
-                    Sube un archivo Excel para importar varias materias simultáneamente
-                  </p>
-                  <input
-                    ref={referenciaArchivoInput}
-                    type="file"
-                    accept=".xlsx, .xls"
-                    style={{ display: "none" }}
-                    onChange={manejarCambioArchivo}
-                  />
-                  <Button 
-                    type="button"
-                    variant="outline" 
-                    size="sm"
-                    onClick={manejarClickBotonExcel}
-                    className="cursor-pointer bg-white hover:bg-gray-50"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Elegir archivo Excel
-                  </Button>
-                </div>
-              </div>
+            <div className="space-y-1">
+              <Label>Estado</Label>
+              <Select
+                value={materia.estado}
+                onValueChange={(value) => onSelectChange("estado", value)}
+                disabled={saving}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Activa">Activa</SelectItem>
+                  <SelectItem value="Inactiva">Inactiva</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </div>
 
-        {/* Footer elegante */}
-        <div className="px-8 py-5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-          <p className="text-xs text-gray-500">
-            Los campos marcados con <span className="text-red-500">*</span> son obligatorios
-          </p>
-          <div className="flex gap-3">
-            <Button 
-              type="button"
-              variant="outline" 
-              onClick={alCerrar}
-              className="cursor-pointer px-6"
+          {/* Botones */}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={saving}
+              className="cursor-pointer"
             >
               Cancelar
             </Button>
             <Button
-              type="button"
-              className="bg-[#00723F] text-white hover:bg-[#005e30] cursor-pointer px-6 shadow-lg shadow-[#00723F]/20"
-              onClick={alGuardar}
+              onClick={onSave}
+              disabled={saving}
+              className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
             >
-              <BookOpen className="h-4 w-4 mr-2" />
-              Guardar materia
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                "Guardar"
+              )}
             </Button>
           </div>
-        </div>
-      </div>
+
+          <Separator />
+
+          {/* Importar Excel */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Importar desde Excel</Label>
+            <p className="text-xs text-muted-foreground">
+              Columnas: Clave, Nombre, Licenciatura, Categoría, Requisito, Estado
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx, .xls"
+              style={{ display: "none" }}
+              onChange={handleFileChange}
+            />
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={saving}
+              className="w-full cursor-pointer"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importando...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Seleccionar archivo Excel
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

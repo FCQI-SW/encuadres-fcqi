@@ -1,60 +1,105 @@
 "use client";
 
-import { signOut } from "next-auth/react";
-import { LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { LogOut, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/global-confirm-modal";
 
 interface LogoutButtonProps {
-  className?: string;
-  variant?: "default" | "sidebar";
+  variant?: "sidebar" | "header" | "default";
 }
 
-export function LogoutButton({
-  className,
-  variant = "default",
-}: LogoutButtonProps) {
+export function LogoutButton({ variant = "default" }: LogoutButtonProps) {
+  const router = useRouter();
+  const confirm = useConfirm();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogout = async () => {
+  async function handleLogout() {
+    const confirmed = await confirm({
+      title: "Cerrar sesión",
+      message: "¿Estás seguro de que deseas cerrar tu sesión?",
+      confirmText: "Sí, cerrar sesión",
+      cancelText: "Cancelar",
+    });
+
+    if (!confirmed) return;
+
     setIsLoading(true);
+
     try {
-      await signOut({ callbackUrl: "/" });
+      await supabase.auth.signOut();
+      router.push("/login");
+      router.refresh();
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
+    } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  // Para la variante sidebar
   if (variant === "sidebar") {
+    return (
+      <button
+        onClick={handleLogout}
+        disabled={isLoading}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#DD971A] hover:bg-[#FEBE10] text-white rounded-lg transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Cerrando...</span>
+          </>
+        ) : (
+          <>
+            <LogOut className="w-5 h-5" />
+            <span>Cerrar sesión</span>
+          </>
+        )}
+      </button>
+    );
+  }
+
+  if (variant === "header") {
     return (
       <Button
         onClick={handleLogout}
         disabled={isLoading}
-        className={cn(
-          "w-full bg-[#DD971A] hover:bg-[#FEBE10] text-white",
-          className
-        )}
-        size="lg"
+        variant="ghost"
+        size="sm"
+        className="text-gray-600 hover:text-gray-800 cursor-pointer"
       >
-        <LogOut className="mr-2 h-4 w-4" />
-        {isLoading ? "Cerrando sesión..." : "Cerrar sesión"}
+        {isLoading ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <>
+            <LogOut className="w-4 h-4 mr-2" />
+            Salir
+          </>
+        )}
       </Button>
     );
   }
 
-  // Para la variante default, usamos el estilo destructive de shadcn
   return (
     <Button
       onClick={handleLogout}
       disabled={isLoading}
-      variant="destructive"
-      className={className}
+      variant="outline"
+      className="cursor-pointer"
     >
-      <LogOut className="mr-2 h-4 w-4" />
-      {isLoading ? "Cerrando sesión..." : "Cerrar sesión"}
+      {isLoading ? (
+        <>
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          Cerrando sesión...
+        </>
+      ) : (
+        <>
+          <LogOut className="w-4 h-4 mr-2" />
+          Cerrar sesión
+        </>
+      )}
     </Button>
   );
 }
