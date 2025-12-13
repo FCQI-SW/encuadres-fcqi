@@ -1,13 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
 import {
   Calendar,
   BookOpen,
   Search,
-  Settings,
   Users,
   FileText,
   GraduationCap,
+  Megaphone,
 } from "lucide-react";
+
 import {
   Sidebar,
   SidebarContent,
@@ -16,66 +21,32 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarHeader,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
-import Image from "next/image";
-import Logo from "../public/uabc_logo.png";
+
+import Brand from "../public/uabc_logo.png";
 import { LogoutButton } from "./logout-button";
 
 const menuItemsByRole = {
   admin: [
-    {
-      title: "Manejo de usuarios",
-      url: "/admin/usuarios",
-      icon: Users,
-    },
-    {
-      title: "Revisión de resultados",
-      url: "/admin/resultados",
-      icon: Search,
-    },
-    {
-      title: "Manejo de materias",
-      url: "/admin/materias",
-      icon: BookOpen,
-    },
-    {
-      title: "Establecer fecha de operación",
-      url: "/admin/configurar-fecha",
-      icon: Calendar,
-    },
-    {
-      title: "Anuncios",
-      url: "/admin/anuncios",
-      icon: Settings,
-    },
+    { title: "Manejo de usuarios", url: "/admin/usuarios", icon: Users },
+    { title: "Revisión de resultados", url: "/admin/resultados", icon: Search },
+    { title: "Manejo de materias", url: "/admin/materias", icon: BookOpen },
+    { title: "Fecha de operación", url: "/admin/configurar-fecha", icon: Calendar },
+    { title: "Anuncios", url: "/admin/anuncios", icon: Megaphone },
   ],
   capturista: [
-    {
-      title: "Materias",
-      url: "/capturista/materias",
-      icon: BookOpen,
-    },
+    { title: "Materias", url: "/capturista/materias", icon: BookOpen },
   ],
   profesor: [
-    {
-      title: "Mis Cursos",
-      url: "/profesor/cursos",
-      icon: GraduationCap,
-    },
+    { title: "Mis Cursos", url: "/profesor/cursos", icon: GraduationCap },
   ],
   alumno: [
-    {
-      title: "Mis Cursos",
-      url: "/alumno/cursos",
-      icon: GraduationCap,
-    },
+    { title: "Mis Cursos", url: "/alumno/cursos", icon: GraduationCap },
   ],
   lector: [
-    {
-      title: "Ver documentos",
-      url: "/lector/docs",
-      icon: FileText,
-    },
+    { title: "Ver documentos", url: "/lector/docs", icon: FileText },
   ],
 };
 
@@ -85,49 +56,93 @@ interface AppSidebarProps {
 
 export function AppSidebar({ role }: AppSidebarProps) {
   const items = menuItemsByRole[role] || [];
+  const pathname = usePathname();
+
+  const isActive = (url: string) =>
+    pathname === url || pathname.startsWith(url + "/");
 
   return (
-    <Sidebar className="h-screen flex flex-col">
-      <SidebarContent className="bg-[#00723F] text-white h-full flex flex-col">
-        {/* Logo UABC */}
-        <div className="flex flex-col items-center justify-center p-4 mb-4">
-          <div className="w-20 h-20">
+    <Sidebar className="h-dvh border-r-0">
+      {/* HEADER */}
+      <SidebarHeader className="bg-[#00723F] text-white border-b border-white/10">
+        <div className="px-4 pt-4 pb-4">
+          {/* Logo sin fondo */}
+          <div className="flex justify-center">
             <Image
-              src={Logo || "/placeholder.svg"}
-              alt="UABC Logo"
-              width={64}
-              height={64}
-              className="w-full h-full object-contain"
+              src={Brand}
+              alt="UABC"
+              priority
+              width={90}
+              height={90}
+              className="h-auto w-[90px] max-w-[90px] object-contain"
             />
           </div>
-          <span className="text-white font-medium mt-1">UABC</span>
-        </div>
 
-        <SidebarGroup className="flex-grow">
+          {/* Texto Universidad */}
+          <div className="mt-3 text-center">
+            <div className="text-sm font-semibold leading-tight">
+              Universidad Autónoma
+            </div>
+            <div className="text-sm font-semibold leading-tight">
+              de Baja California
+            </div>
+            <div className="mt-1 text-xs text-white/75">Sistema de Gestión</div>
+          </div>
+        </div>
+      </SidebarHeader>
+
+      {/* MENU */}
+      <SidebarContent className="bg-[#00723F] text-white px-3 py-2">
+        <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title} className="py-2">
-                  <SidebarMenuButton asChild>
-                    <Link
-                      href={item.url}
-                      className="flex items-center gap-3 px-4 py-4 text-white hover:bg-[#00723F]/80 transition-colors"
-                    >
-                      <item.icon className="w-5 h-5" />
-                      <span className="sidebar-title">{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+            <SidebarMenu className="space-y-1">
+              {items.map((item) => {
+                const active = isActive(item.url);
+                const Icon = item.icon;
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <Link
+                        href={item.url}
+                        aria-current={active ? "page" : undefined}
+                        className={`
+                          flex items-center gap-3 px-4 py-3 rounded-xl
+                          transition-all duration-200 ease-out
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40
+                          ${
+                            active
+                              ? "bg-white text-[#00723F] shadow-md"
+                              : "text-white hover:bg-white/15"
+                          }
+                        `}
+                      >
+                        <Icon
+                          className={`w-5 h-5 flex-shrink-0 ${
+                            active ? "text-[#00723F]" : "text-white"
+                          }`}
+                        />
+                        <span
+                          className={`text-sm font-medium ${
+                            active ? "text-[#00723F]" : "text-white"
+                          }`}
+                        >
+                          {item.title}
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {/* Cerrar sesión */}
-        <div className="mt-auto p-4">
-          <LogoutButton variant="sidebar" />
-        </div>
       </SidebarContent>
+
+      {/* FOOTER */}
+      <SidebarFooter className="bg-[#00723F] text-white border-t border-white/10 p-4">
+        <LogoutButton variant="sidebar" />
+      </SidebarFooter>
     </Sidebar>
   );
 }

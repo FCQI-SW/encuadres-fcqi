@@ -1,4 +1,5 @@
 "use client";
+
 import { ReactNode, useEffect } from "react";
 import {
   SidebarProvider,
@@ -10,6 +11,7 @@ import { Bell } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import DynamicHeader from "@/components/dynamic-header";
+import { VerificarPeriodo } from "@/components/verificar-periodo";
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
@@ -21,6 +23,14 @@ export default function Layout({ children }: { children: ReactNode }) {
       router.push("/");
     }
   }, [status, session, router]);
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-b-2 border-[#00723F] rounded-full" />
+      </div>
+    );
+  }
 
   if (!session) {
     return null;
@@ -39,7 +49,8 @@ export default function Layout({ children }: { children: ReactNode }) {
     .split(" ")
     .map((word) => word[0])
     .join("")
-    .toUpperCase();
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <SidebarProvider>
@@ -59,13 +70,17 @@ export default function Layout({ children }: { children: ReactNode }) {
               <Bell className="h-5 w-5" />
             </button>
             <span className="font-medium text-gray-800">{userName}</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-700 text-white font-semibold">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#00723F] text-white font-semibold">
               {initials}
             </div>
           </div>
         </header>
 
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-4">
+          <VerificarPeriodo rolActual={role} rolesExentos={["admin"]}>
+            {children}
+          </VerificarPeriodo>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );

@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { LogOut, Loader2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/global-confirm-modal";
 
 interface LogoutButtonProps {
@@ -29,12 +29,9 @@ export function LogoutButton({ variant = "default" }: LogoutButtonProps) {
     setIsLoading(true);
 
     try {
-      await supabase.auth.signOut();
-      router.push("/login");
-      router.refresh();
+      await signOut({ callbackUrl: "/" });
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
-    } finally {
       setIsLoading(false);
     }
   }
