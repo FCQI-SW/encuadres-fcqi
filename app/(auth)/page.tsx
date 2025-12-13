@@ -67,7 +67,7 @@ export default function LoginPage() {
           />
 
           {/* Título */}
-          <h1 className="text-4xl font-bold text-center mb-4">ENCUADRES</h1>
+          <h1 className="text-4xl font-bold text-center mb-4">ENCUADRES FCQI</h1>
           <div className="w-16 h-1 bg-[#DD971A] rounded-full mb-6" />
 
           {/* Subtítulo */}
