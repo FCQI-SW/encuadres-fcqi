@@ -8,9 +8,10 @@ import {
   BookOpen,
   Search,
   Users,
-  FileText,
   GraduationCap,
   Megaphone,
+  BarChart3,
+  Eye,
 } from "lucide-react";
 
 import {
@@ -46,7 +47,8 @@ const menuItemsByRole = {
     { title: "Mis Cursos", url: "/alumno/cursos", icon: GraduationCap },
   ],
   lector: [
-    { title: "Ver documentos", url: "/lector/docs", icon: FileText },
+    { title: "Dashboard", url: "/lector", icon: BarChart3 },
+    { title: "Cursos", url: "/lector/cursos", icon: Eye },
   ],
 };
 
@@ -58,8 +60,13 @@ export function AppSidebar({ role }: AppSidebarProps) {
   const items = menuItemsByRole[role] || [];
   const pathname = usePathname();
 
-  const isActive = (url: string) =>
-    pathname === url || pathname.startsWith(url + "/");
+  const isActive = (url: string) => {
+    // Para el dashboard del lector, solo es activo si es exactamente /lector
+    if (url === "/lector") {
+      return pathname === "/lector";
+    }
+    return pathname === url || pathname.startsWith(url + "/");
+  };
 
   return (
     <Sidebar className="h-dvh border-r-0">
