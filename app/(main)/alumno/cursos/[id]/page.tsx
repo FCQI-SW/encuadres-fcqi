@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft, FileText, ClipboardList } from "lucide-react";
+import { Loader2, ChevronLeft, FileText, ClipboardList } from "lucide-react";
 import EncuadreViewTab from "./EncuadreViewTab";
 import AvancesTab from "./AvancesTab";
 
@@ -123,33 +123,42 @@ export default function CursoAlumnoPage() {
     <div className="px-4 py-8">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/alumno/cursos")}
-            className="cursor-pointer"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-800">
-              {cursoInfo.materiaNombre}
-            </h1>
-            <p className="text-gray-600">
-              {cursoInfo.materiaClave} • Grupo {cursoInfo.grupo} • {cursoInfo.periodo} • {cursoInfo.docente}
-            </p>
+        <div className="space-y-3">
+          <div className="flex justify-between items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">
+                {cursoInfo.materiaNombre}
+              </h1>
+              <p className="text-gray-600">
+                {cursoInfo.materiaClave} • Grupo {cursoInfo.grupo} •{" "}
+                {cursoInfo.periodo} • {cursoInfo.docente}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/alumno/cursos")}
+              className="cursor-pointer"
+            >
+              <ChevronLeft className="mr-2 h-5 w-5" />
+              Regresar a Mis Cursos
+            </Button>
           </div>
         </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 max-w-md">
-            <TabsTrigger value="encuadre" className="flex items-center gap-2 cursor-pointer">
+            <TabsTrigger
+              value="encuadre"
+              className="flex items-center gap-2 cursor-pointer"
+            >
               <FileText className="h-4 w-4" />
               Encuadre
             </TabsTrigger>
-            <TabsTrigger value="avances" className="flex items-center gap-2 cursor-pointer">
+            <TabsTrigger
+              value="avances"
+              className="flex items-center gap-2 cursor-pointer"
+            >
               <ClipboardList className="h-4 w-4" />
               Registro de Avances
             </TabsTrigger>
@@ -164,10 +173,7 @@ export default function CursoAlumnoPage() {
           </TabsContent>
 
           <TabsContent value="avances" className="mt-6">
-            <AvancesTab
-              encuadreId={encuadreId}
-              grupo={cursoInfo.grupo}
-            />
+            <AvancesTab encuadreId={encuadreId} grupo={cursoInfo.grupo} />
           </TabsContent>
         </Tabs>
       </div>

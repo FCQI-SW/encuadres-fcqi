@@ -201,20 +201,22 @@ export default function ConfigurarFechaPage() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="space-y-3">
         <div>
           <h1 className="text-xl md:text-2xl font-bold">Fecha de Operación</h1>
           <p className="text-sm text-muted-foreground">
             Establece el periodo de operación del sistema
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => router.push("/admin")}
-          className="cursor-pointer"
-        >
-          <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
-        </Button>
+        <div>
+          <Button
+            variant="outline"
+            onClick={() => router.push("/admin")}
+            className="cursor-pointer"
+          >
+            <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

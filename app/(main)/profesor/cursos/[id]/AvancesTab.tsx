@@ -3,7 +3,6 @@
 "use client";
 
 import * as React from "react";
-import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -22,8 +21,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, ClipboardList, Save, MessageSquare, X } from "lucide-react";
-import { useRegistroAvances, TemaConCheckin, HeaderCurso } from "@/hooks/useRegistroAvances";
+import { Loader2, ClipboardList, Save } from "lucide-react";
+import {
+  useRegistroAvances,
+  TemaConCheckin,
+  HeaderCurso,
+} from "@/hooks/useRegistroAvances";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
 
@@ -37,18 +40,20 @@ type AvancesTabProps = {
 type RespuestaLocal = {
   vista: boolean | null;
   justificacion: string;
-  showComment: boolean;
 };
 
 export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
   const confirm = useConfirm();
   const toast = useToast();
-  const { obtenerDatosCompletos, guardarCheckins, loading } = useRegistroAvances(encuadreId);
+  const { obtenerDatosCompletos, guardarCheckins, loading } =
+    useRegistroAvances(encuadreId);
 
   const [loadingData, setLoadingData] = React.useState(true);
   const [header, setHeader] = React.useState<HeaderCurso | null>(null);
   const [temas, setTemas] = React.useState<TemaConCheckin[]>([]);
-  const [respuestas, setRespuestas] = React.useState<Record<number, RespuestaLocal>>({});
+  const [respuestas, setRespuestas] = React.useState<
+    Record<number, RespuestaLocal>
+  >({});
 
   React.useEffect(() => {
     cargarDatos();
@@ -66,8 +71,7 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
     t.forEach((tema) => {
       respuestasIniciales[tema.id] = {
         vista: tema.tema_visto,
-        justificacion: tema.justificacion,
-        showComment: tema.justificacion ? true : false,
+        justificacion: tema.justificacion || "",
       };
     });
     setRespuestas(respuestasIniciales);
@@ -76,17 +80,32 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
   };
 
   const setVista = (temaId: number, valor: boolean) => {
-    setRespuestas((prev) => ({
-      ...prev,
-      [temaId]: { ...prev[temaId], vista: valor },
-    }));
-  };
+    setRespuestas((prev) => {
+      const actual: RespuestaLocal = prev[temaId] || {
+        vista: null,
+        justificacion: "",
+      };
 
-  const toggleComment = (temaId: number) => {
-    setRespuestas((prev) => ({
-      ...prev,
-      [temaId]: { ...prev[temaId], showComment: !prev[temaId]?.showComment },
-    }));
+      // Si marca "Sí", limpiar justificación
+      if (valor === true) {
+        return {
+          ...prev,
+          [temaId]: {
+            vista: true,
+            justificacion: "",
+          },
+        };
+      }
+
+      // Si marca "No", permitir justificación (mantener la existente)
+      return {
+        ...prev,
+        [temaId]: {
+          ...actual,
+          vista: false,
+        },
+      };
+    });
   };
 
   const setJustificacion = (temaId: number, value: string) => {
@@ -95,36 +114,44 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
       [temaId]: { ...prev[temaId], justificacion: value },
     }));
   };
-const handleGuardar = async () => {
-  // Validación: verificar que hay al menos un cambio
-  const tieneRespuestas = Object.values(respuestas).some(r => r.vista !== null);
-  
-  if (!tieneRespuestas) {
-    toast.warning("No hay cambios para guardar. Marca al menos un tema como visto o no visto.");
-    return;
-  }
+  const handleGuardar = async () => {
+    // Validación: verificar que hay al menos un cambio
+    const tieneRespuestas = Object.values(respuestas).some(
+      (r) => r.vista !== null
+    );
 
-  const shouldSave = await confirm({
-    title: "Guardar avances",
-    message: "¿Deseas guardar el registro de avances? Esta acción actualizará el estado de los temas.",
-    confirmText: "Guardar",
-    cancelText: "Cancelar",
-  });
+    if (!tieneRespuestas) {
+      toast.warning(
+        "No hay cambios para guardar. Marca al menos un tema como visto o no visto."
+      );
+      return;
+    }
 
-  if (!shouldSave) return;
+    const shouldSave = await confirm({
+      title: "Guardar avances",
+      message:
+        "¿Deseas guardar el registro de avances? Esta acción actualizará el estado de los temas.",
+      confirmText: "Guardar",
+      cancelText: "Cancelar",
+    });
 
-  const result = await guardarCheckins(respuestas, grupo);
+    if (!shouldSave) return;
 
-  if (result.success) {
-    toast.success(result.error || "El registro de avances se ha guardado correctamente.");
-    await cargarDatos();
-  } else {
-    toast.error(result.error || "No se pudo guardar el registro de avances.");
-  }
-};
+    const result = await guardarCheckins(respuestas, grupo);
+
+    if (result.success) {
+      toast.success(
+        result.error || "El registro de avances se ha guardado correctamente."
+      );
+      await cargarDatos();
+    } else {
+      toast.error(result.error || "No se pudo guardar el registro de avances.");
+    }
+  };
   // Agrupar temas por unidad
   const temasPorUnidad = React.useMemo(() => {
-    const grupos: Record<number, { nombre: string; temas: TemaConCheckin[] }> = {};
+    const grupos: Record<number, { nombre: string; temas: TemaConCheckin[] }> =
+      {};
     temas.forEach((tema) => {
       if (!grupos[tema.unidad_numero]) {
         grupos[tema.unidad_numero] = {
@@ -181,7 +208,9 @@ const handleGuardar = async () => {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40">
-                  <TableHead className="font-bold">UNIDAD DE APRENDIZAJE</TableHead>
+                  <TableHead className="font-bold">
+                    UNIDAD DE APRENDIZAJE
+                  </TableHead>
                   <TableHead className="font-bold">CLAVE</TableHead>
                   <TableHead className="font-bold">GRUPO</TableHead>
                   <TableHead className="font-bold">PERIODO</TableHead>
@@ -189,13 +218,18 @@ const handleGuardar = async () => {
               </TableHeader>
               <TableBody>
                 <TableRow>
-                  <TableCell className="font-medium">{header.asignatura}</TableCell>
+                  <TableCell className="font-medium">
+                    {header.asignatura}
+                  </TableCell>
                   <TableCell>{header.clave}</TableCell>
                   <TableCell>{header.grupo}</TableCell>
                   <TableCell>{header.periodo}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center font-semibold bg-muted/40">
+                  <TableCell
+                    colSpan={4}
+                    className="text-center font-semibold bg-muted/40"
+                  >
                     NOMBRE DEL DOCENTE
                   </TableCell>
                 </TableRow>
@@ -225,7 +259,8 @@ const handleGuardar = async () => {
             Plan de Clases
           </CardTitle>
           <CardDescription>
-            Marque los temas que se han cubierto y agregue comentarios si es necesario
+            Marque los temas que se han cubierto y agregue comentarios si es
+            necesario
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -235,92 +270,83 @@ const handleGuardar = async () => {
                 <TableRow className="bg-muted/40">
                   <TableHead className="font-bold w-[100px]">UNIDAD</TableHead>
                   <TableHead className="font-bold w-[80px]">TEMA</TableHead>
-                  <TableHead className="font-bold min-w-[200px]">NOMBRE DEL TEMA</TableHead>
-                  <TableHead className="font-bold w-[140px]">TEMA VISTO</TableHead>
-                  <TableHead className="font-bold min-w-[200px]">JUSTIFICACIÓN</TableHead>
+                  <TableHead className="font-bold min-w-[200px]">
+                    NOMBRE DEL TEMA
+                  </TableHead>
+                  <TableHead className="font-bold w-[140px]">
+                    TEMA VISTO
+                  </TableHead>
+                  <TableHead className="font-bold min-w-[200px]">
+                    JUSTIFICACIÓN
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Object.entries(temasPorUnidad).map(([unidadNum, unidadData]) => (
-                  <React.Fragment key={unidadNum}>
-                    {/* Fila de encabezado de unidad */}
-                    <TableRow className="bg-[#00723F]/10">
-                      <TableCell colSpan={5} className="font-semibold">
-                        Unidad {unidadNum}: {unidadData.nombre}
-                      </TableCell>
-                    </TableRow>
+                {Object.entries(temasPorUnidad).map(
+                  ([unidadNum, unidadData]) => (
+                    <React.Fragment key={unidadNum}>
+                      {/* Fila de encabezado de unidad */}
+                      <TableRow className="bg-[#00723F]/10">
+                        <TableCell colSpan={5} className="font-semibold">
+                          Unidad {unidadNum}: {unidadData.nombre}
+                        </TableCell>
+                      </TableRow>
 
-                    {/* Filas de temas */}
-                    {unidadData.temas.map((tema) => {
-                      const state = respuestas[tema.id];
-                      return (
-                        <TableRow key={tema.id}>
-                          <TableCell className="text-center text-muted-foreground">
-                            {tema.unidad_numero}
-                          </TableCell>
-                          <TableCell className="text-center">{tema.numero}</TableCell>
-                          <TableCell>{tema.nombre}</TableCell>
+                      {/* Filas de temas */}
+                      {unidadData.temas.map((tema) => {
+                        const state = respuestas[tema.id];
+                        return (
+                          <TableRow key={tema.id}>
+                            <TableCell className="text-center text-muted-foreground">
+                              {tema.unidad_numero}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {tema.numero}
+                            </TableCell>
+                            <TableCell>{tema.nombre}</TableCell>
 
-                          {/* Sí / No */}
-                          <TableCell>
-                            <div className="flex items-center gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <Checkbox
-                                  checked={state?.vista === true}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) setVista(tema.id, true);
-                                  }}
-                                />
-                                <span className="text-sm">Sí</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <Checkbox
-                                  checked={state?.vista === false}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) setVista(tema.id, false);
-                                  }}
-                                />
-                                <span className="text-sm">No</span>
-                              </label>
-                            </div>
-                          </TableCell>
-
-                          {/* Justificación */}
-                          <TableCell>
-                            {!state?.showComment ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="cursor-pointer"
-                                onClick={() => toggleComment(tema.id)}
-                              >
-                                <MessageSquare className="h-4 w-4 mr-1" />
-                                {state?.justificacion ? "Ver comentario" : "Agregar"}
-                              </Button>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  placeholder="Escriba una justificación..."
-                                  value={state?.justificacion ?? ""}
-                                  onChange={(e) => setJustificacion(tema.id, e.target.value)}
-                                  className="text-sm"
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="cursor-pointer p-1"
-                                  onClick={() => toggleComment(tema.id)}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
+                            {/* Sí / No */}
+                            <TableCell>
+                              <div className="flex items-center gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <Checkbox
+                                    checked={state?.vista === true}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) setVista(tema.id, true);
+                                    }}
+                                  />
+                                  <span className="text-sm">Sí</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <Checkbox
+                                    checked={state?.vista === false}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) setVista(tema.id, false);
+                                    }}
+                                  />
+                                  <span className="text-sm">No</span>
+                                </label>
                               </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </React.Fragment>
-                ))}
+                            </TableCell>
+
+                            {/* Justificación */}
+                            <TableCell>
+                              <Input
+                                placeholder="Escriba una justificación..."
+                                value={state?.justificacion ?? ""}
+                                onChange={(e) =>
+                                  setJustificacion(tema.id, e.target.value)
+                                }
+                                className="text-sm"
+                                disabled={state?.vista !== false}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </React.Fragment>
+                  )
+                )}
               </TableBody>
             </Table>
           </div>

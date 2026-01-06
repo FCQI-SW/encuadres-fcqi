@@ -7,6 +7,13 @@ import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -27,7 +34,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Loader2, GraduationCap, Search, Users, FileSignature, ClipboardCheck } from "lucide-react";
+import {
+  Loader2,
+  GraduationCap,
+  Search,
+  Users,
+  FileSignature,
+  ClipboardCheck,
+  X,
+} from "lucide-react";
 
 type Curso = {
   id: string;
@@ -48,6 +63,8 @@ export default function CursosProfesorPage() {
   const [cursos, setCursos] = useState<Curso[]>([]);
   const [filteredCursos, setFilteredCursos] = useState<Curso[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPeriodo, setSelectedPeriodo] = useState<string>("Todos");
+  const [selectedGrupo, setSelectedGrupo] = useState<string>("Todos");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -95,7 +112,7 @@ export default function CursosProfesorPage() {
         .in("id", materiaIds);
 
       const encuadreIds = encuadres.map((e) => e.id);
-      
+
       // Obtener alumnos inscritos
       const { data: alumnosData } = await supabase
         .from("encuadre_alumnos")
@@ -117,7 +134,7 @@ export default function CursosProfesorPage() {
 
       const programaMap = new Map((programas || []).map((p: any) => [p.id, p]));
       const materiaMap = new Map((materias || []).map((m: any) => [m.id, m]));
-      
+
       // Contar alumnos por encuadre
       const alumnosCountMap = new Map<string, number>();
       (alumnosData || []).forEach((a: any) => {
@@ -168,19 +185,44 @@ export default function CursosProfesorPage() {
   };
 
   useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredCursos(cursos);
-    } else {
-      const filtered = cursos.filter(
-        (c) =>
-          c.materia_clave.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.materia_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.grupo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.periodo.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredCursos(filtered);
+    let filtered = [...cursos];
+
+    // Filtro por periodo
+    if (selectedPeriodo !== "Todos") {
+      filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
     }
-  }, [searchTerm, cursos]);
+
+    // Filtro por grupo
+    if (selectedGrupo !== "Todos") {
+      filtered = filtered.filter((c) => c.grupo === selectedGrupo);
+    }
+
+    // Búsqueda por texto
+    if (searchTerm.trim() !== "") {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (c) =>
+          c.materia_clave.toLowerCase().includes(term) ||
+          c.materia_nombre.toLowerCase().includes(term) ||
+          c.grupo.toLowerCase().includes(term) ||
+          c.periodo.toLowerCase().includes(term)
+      );
+    }
+
+    setFilteredCursos(filtered);
+  }, [searchTerm, selectedPeriodo, selectedGrupo, cursos]);
+
+  const periodos = Array.from(new Set(cursos.map((c) => c.periodo)));
+  const grupos = Array.from(new Set(cursos.map((c) => c.grupo)));
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setSelectedPeriodo("Todos");
+    setSelectedGrupo("Todos");
+  };
+
+  const hasActiveFilters =
+    searchTerm || selectedPeriodo !== "Todos" || selectedGrupo !== "Todos";
 
   const handleVerCurso = (encuadreId: string) => {
     router.push(`/profesor/cursos/${encuadreId}`);
@@ -221,17 +263,78 @@ export default function CursosProfesorPage() {
             </div>
           </div>
 
+          {/* Filtros */}
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <Search className="h-5 w-5 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Buscar por clave, nombre de materia, grupo o periodo..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="flex-1"
-                />
+            <CardContent className="pt-4">
+              <div className="space-y-4">
+                {/* Búsqueda y filtros en la misma fila */}
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Búsqueda */}
+                  <div className="flex items-center gap-2">
+                    <Search className="h-5 w-5 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="Buscar por clave, materia, grupo o periodo..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-80"
+                    />
+                  </div>
+
+                  {/* Filtro por periodo */}
+                  <Select
+                    value={selectedPeriodo}
+                    onValueChange={setSelectedPeriodo}
+                  >
+                    <SelectTrigger className="min-w-[180px]">
+                      <SelectValue placeholder="Periodo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Todos">Todos los periodos</SelectItem>
+                      {periodos.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Filtro por grupo */}
+                  <Select
+                    value={selectedGrupo}
+                    onValueChange={setSelectedGrupo}
+                  >
+                    <SelectTrigger className="min-w-[140px]">
+                      <SelectValue placeholder="Grupo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Todos">Todos los grupos</SelectItem>
+                      {grupos.map((g) => (
+                        <SelectItem key={g} value={g}>
+                          {g}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Botón limpiar filtros */}
+                  {hasActiveFilters && (
+                    <Button
+                      variant="outline"
+                      size="default"
+                      onClick={handleClearFilters}
+                      className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-400 cursor-pointer font-medium"
+                    >
+                      <X className="h-5 w-5 mr-2" />
+                      Limpiar filtros
+                    </Button>
+                  )}
+                </div>
+
+                {/* Contador de resultados */}
+                <div className="text-sm text-muted-foreground">
+                  Mostrando {filteredCursos.length} de {cursos.length} cursos
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -242,7 +345,9 @@ export default function CursosProfesorPage() {
                 <div className="text-center py-12">
                   <GraduationCap className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                    {searchTerm ? "No se encontraron cursos" : "Sin cursos asignados"}
+                    {searchTerm
+                      ? "No se encontraron cursos"
+                      : "Sin cursos asignados"}
                   </h3>
                   <p className="text-gray-500">
                     {searchTerm
@@ -257,7 +362,8 @@ export default function CursosProfesorPage() {
               <CardHeader>
                 <CardTitle>Lista de Cursos</CardTitle>
                 <CardDescription>
-                  Haz clic en un curso para gestionar encuadre, alumnos y avances
+                  Haz clic en un curso para gestionar encuadre, alumnos y
+                  avances
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -297,30 +403,50 @@ export default function CursosProfesorPage() {
                           <TableCell className="text-center">
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div 
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(curso.firmas_completadas, curso.total_alumnos)}`}
+                                <div
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                                    curso.firmas_completadas,
+                                    curso.total_alumnos
+                                  )}`}
                                 >
                                   <FileSignature className="h-3 w-3" />
-                                  <span>{curso.firmas_completadas}/{curso.total_alumnos}</span>
+                                  <span>
+                                    {curso.firmas_completadas}/
+                                    {curso.total_alumnos}
+                                  </span>
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>{curso.firmas_completadas} de {curso.total_alumnos} alumnos han firmado el encuadre</p>
+                                <p>
+                                  {curso.firmas_completadas} de{" "}
+                                  {curso.total_alumnos} alumnos han firmado el
+                                  encuadre
+                                </p>
                               </TooltipContent>
                             </Tooltip>
                           </TableCell>
                           <TableCell className="text-center">
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div 
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(curso.avances_completados, curso.total_alumnos)}`}
+                                <div
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                                    curso.avances_completados,
+                                    curso.total_alumnos
+                                  )}`}
                                 >
                                   <ClipboardCheck className="h-3 w-3" />
-                                  <span>{curso.avances_completados}/{curso.total_alumnos}</span>
+                                  <span>
+                                    {curso.avances_completados}/
+                                    {curso.total_alumnos}
+                                  </span>
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>{curso.avances_completados} de {curso.total_alumnos} alumnos han registrado avances</p>
+                                <p>
+                                  {curso.avances_completados} de{" "}
+                                  {curso.total_alumnos} alumnos han registrado
+                                  avances
+                                </p>
                               </TooltipContent>
                             </Tooltip>
                           </TableCell>

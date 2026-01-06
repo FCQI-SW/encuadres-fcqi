@@ -33,7 +33,10 @@ import {
 import { useEncuadreAlumnos, AlumnoEncuadre } from "@/hooks/useEncuadreAlumnos";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
-import { generarClaveSegura, validarCorreoInstitucional } from "@/lib/password-generator";
+import {
+  generarClaveSegura,
+  validarCorreoInstitucional,
+} from "@/lib/password-generator";
 
 type AlumnosTabProps = {
   encuadreId: string;
@@ -42,7 +45,12 @@ type AlumnosTabProps = {
   periodo: string;
 };
 
-export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }: AlumnosTabProps) {
+export default function AlumnosTab({
+  encuadreId,
+  materiaNombre,
+  grupo,
+  periodo,
+}: AlumnosTabProps) {
   const confirm = useConfirm();
   const toast = useToast();
 
@@ -93,9 +101,21 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
   };
 
   const handleCopiarClave = async () => {
-    await navigator.clipboard.writeText(claveGenerada);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
+    if (!claveGenerada) return;
+
+    try {
+      await navigator.clipboard.writeText(claveGenerada);
+      setCopiado(true);
+      toast.success("La clave se copió al portapapeles.");
+
+      // Quitar la palomita después de 3 segundos
+      setTimeout(() => {
+        setCopiado(false);
+      }, 3000);
+    } catch (err) {
+      console.error("Error al copiar al portapapeles:", err);
+      toast.error("No se pudo copiar la clave al portapapeles.");
+    }
   };
 
   const handleRegistrar = async () => {
@@ -129,10 +149,18 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
 
     if (!shouldRegister) return;
 
-    const result = await registrarAlumno(nuevoCorreo, claveGenerada, materiaNombre, grupo, periodo);
+    const result = await registrarAlumno(
+      nuevoCorreo,
+      claveGenerada,
+      materiaNombre,
+      grupo,
+      periodo
+    );
 
     if (result.success) {
-      toast.success(`Alumno registrado exitosamente. Clave: ${claveGenerada}. Recuerda enviar el correo con las credenciales.`);
+      toast.success(
+        `Alumno registrado exitosamente. Clave: ${claveGenerada}. Recuerda enviar el correo con las credenciales.`
+      );
       setNuevoCorreo("");
       setClaveGenerada("");
       setMostrarFormulario(false);
@@ -161,7 +189,9 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
     );
 
     if (result.success && result.clave) {
-      toast.success(`Nueva clave generada: ${result.clave}. Recuerda enviarla al alumno.`);
+      toast.success(
+        `Nueva clave generada: ${result.clave}. Recuerda enviarla al alumno.`
+      );
       await cargarAlumnos();
     } else {
       toast.error(result.error || "No se pudo regenerar la clave");
@@ -249,7 +279,9 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
             disabled={loadingAlumnos}
             className="cursor-pointer"
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${loadingAlumnos ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${loadingAlumnos ? "animate-spin" : ""}`}
+            />
             Actualizar
           </Button>
         </div>
@@ -332,7 +364,9 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
               <Button
                 size="sm"
                 onClick={handleRegistrar}
-                disabled={loading || !nuevoCorreo || !claveGenerada || !!errorCorreo}
+                disabled={
+                  loading || !nuevoCorreo || !claveGenerada || !!errorCorreo
+                }
                 className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
               >
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -351,7 +385,9 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
           <div className="text-center py-8 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No hay alumnos registrados en este curso</p>
-            <p className="text-sm">Haz clic en "Agregar alumno" para registrar uno nuevo</p>
+            <p className="text-sm">
+              Haz clic en &quot;Agregar alumno&quot; para registrar uno nuevo
+            </p>
           </div>
         ) : (
           <div className="border rounded-md overflow-x-auto">
@@ -367,7 +403,9 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
               <TableBody>
                 {alumnos.map((alumno) => (
                   <TableRow key={alumno.id}>
-                    <TableCell className="font-medium">{alumno.correo}</TableCell>
+                    <TableCell className="font-medium">
+                      {alumno.correo}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatearFecha(alumno.invitado_at)}
                     </TableCell>

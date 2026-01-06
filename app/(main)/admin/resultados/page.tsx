@@ -377,20 +377,22 @@ export default function ResultsPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="space-y-3">
         <div>
           <h1 className="text-2xl font-bold">Revisión de Resultados</h1>
           <p className="text-muted-foreground">
             Comparación de avances entre profesores y alumnos
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => router.push("/admin")}
-          className="cursor-pointer"
-        >
-          <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
-        </Button>
+        <div>
+          <Button
+            variant="outline"
+            onClick={() => router.push("/admin")}
+            className="cursor-pointer"
+          >
+            <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+          </Button>
+        </div>
       </div>
 
       {/* Estadísticas */}

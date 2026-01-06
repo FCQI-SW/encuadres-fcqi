@@ -486,14 +486,14 @@ export default function MateriasPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="space-y-3">
         <div>
           <h1 className="text-2xl font-bold">Manejo de Materias</h1>
           <p className="text-muted-foreground">
             Administra el catálogo de materias
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center justify-between gap-2">
           <Button
             variant="outline"
             onClick={() => router.push("/admin")}
