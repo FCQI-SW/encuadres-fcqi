@@ -1,9 +1,17 @@
-import NextAuth from "next-auth";
+// app/api/auth/[...nextauth]/route.ts
+
+import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 
-const handler = NextAuth({
+// Cliente con service role para operaciones admin
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -18,7 +26,7 @@ const handler = NextAuth({
         }
 
         try {
-          const { data: usuario, error } = await supabase
+          const { data: usuario, error } = await supabaseAdmin
             .from("usuarios")
             .select("*, roles(nombre)")
             .eq("correo", credentials.email)
@@ -37,6 +45,17 @@ const handler = NextAuth({
           if (!passwordMatch) {
             console.error("Password doesn't match");
             return null;
+          }
+
+          // Actualizar último acceso en encuadre_alumnos (si es alumno)
+          if (usuario.roles?.nombre === "alumno") {
+            await supabaseAdmin
+              .from("encuadre_alumnos")
+              .update({
+                ultimo_acceso: new Date().toISOString(),
+                estado: "activa",
+              })
+              .eq("alumno_id", usuario.id);
           }
 
           return {
@@ -80,6 +99,8 @@ const handler = NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
-});
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

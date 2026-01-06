@@ -1,4 +1,5 @@
 "use client";
+
 import { ReactNode, useEffect } from "react";
 import {
   SidebarProvider,
@@ -10,12 +11,12 @@ import { Bell } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import DynamicHeader from "@/components/dynamic-header";
+import { VerificarPeriodo } from "@/components/verificar-periodo";
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  // 1. Redirecciona si no hay sesión
   useEffect(() => {
     if (status === "loading") return;
     if (!session) {
@@ -23,22 +24,18 @@ export default function Layout({ children }: { children: ReactNode }) {
     }
   }, [status, session, router]);
 
-  // 2. Mientras carga
   if (status === "loading") {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        Cargando...
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-b-2 border-[#00723F] rounded-full" />
       </div>
     );
   }
 
-  // 3. Si no hay sesión, no mostramos nada (o redirigimos)
   if (!session) {
     return null;
   }
 
-  // 4. Extraer rol y nombre de la sesión
-  //    Asegúrate de que tu callback de NextAuth devuelva user.role y user.name
   const role = session.user.role as
     | "admin"
     | "capturista"
@@ -48,52 +45,42 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const userName = session.user.name || "Invitado";
 
-  // 5. Generar iniciales a partir del nombre
   const initials = userName
     .split(" ")
     .map((word) => word[0])
     .join("")
-    .toUpperCase();
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <SidebarProvider>
-      {/* Sidebar (rol dinámico) */}
       <AppSidebar role={role} />
 
       <SidebarInset>
-        {/* HEADER */}
         <header className="flex h-16 items-center justify-between border-b px-4">
-          {/* Sección izquierda: sidebar trigger */}
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <DynamicHeader/>
+            <DynamicHeader />
           </div>
-          {/* Sección derecha: notificaciones + nombre + avatar */}
           <div className="flex items-center gap-4">
             <button
               type="button"
-              className="relative p-2 text-gray-500 hover:text-gray-700
-                         hover:bg-gray-100 focus:outline-none focus:ring-2
-                         focus:ring-green-500 rounded-full"
+              className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 rounded-full"
             >
               <Bell className="h-5 w-5" />
             </button>
-
-            {/* Mostrar nombre real del usuario */}
             <span className="font-medium text-gray-800">{userName}</span>
-
-            {/* Avatar con iniciales */}
-            <div
-              className="flex h-9 w-9 items-center justify-center
-                         rounded-full bg-gray-700 text-white font-semibold"
-            >
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#00723F] text-white font-semibold">
               {initials}
             </div>
           </div>
         </header>
 
-        {/* Contenido principal */}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-4">
+          <VerificarPeriodo rolActual={role} rolesExentos={["admin"]}>
+            {children}
+          </VerificarPeriodo>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );

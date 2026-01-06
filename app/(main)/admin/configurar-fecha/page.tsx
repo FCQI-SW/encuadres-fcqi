@@ -1,0 +1,569 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { es } from "date-fns/locale";
+import { format, differenceInDays, parseISO } from "date-fns";
+import {
+  ChevronLeft,
+  Calendar,
+  Clock,
+  Save,
+  Loader2,
+  AlertCircle,
+  CalendarIcon,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/toast";
+
+type ConfiguracionFecha = {
+  id?: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  hora_inicio: string;
+  hora_fin: string;
+  activo: boolean;
+};
+
+function formatTime(timeString: string): string {
+  const [hours, minutes] = timeString.split(":").map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return format(date, "h:mm a", { locale: es });
+}
+
+function formatDateLong(dateString: string): string {
+  if (!dateString) return "No seleccionada";
+  try {
+    const date = parseISO(dateString);
+    return format(date, "d 'de' MMMM 'de' yyyy", { locale: es });
+  } catch {
+    return "Fecha inválida";
+  }
+}
+
+export default function ConfigurarFechaPage() {
+  const router = useRouter();
+  const toast = useToast();
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [configId, setConfigId] = useState<string | null>(null);
+
+  // Fechas como strings (YYYY-MM-DD)
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
+  const [startTime, setStartTime] = useState("08:00");
+  const [endTime, setEndTime] = useState("23:59");
+
+  // Cargar configuración existente
+  useEffect(() => {
+    fetchConfiguracion();
+  }, []);
+
+  async function fetchConfiguracion() {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("configuracion_fechas")
+        .select("*")
+        .eq("activo", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data && !error) {
+        setConfigId(data.id);
+        setFechaInicio(data.fecha_inicio);
+        setFechaFin(data.fecha_fin);
+        setStartTime(data.hora_inicio || "08:00");
+        setEndTime(data.hora_fin || "23:59");
+      } else {
+        // Establecer fecha actual por defecto
+        const today = format(new Date(), "yyyy-MM-dd");
+        setFechaInicio(today);
+        setFechaFin(today);
+      }
+    } catch (err) {
+      console.error("Error al cargar configuración:", err);
+      const today = format(new Date(), "yyyy-MM-dd");
+      setFechaInicio(today);
+      setFechaFin(today);
+    }
+    setLoading(false);
+  }
+
+  // Validar fechas
+  const validateDates = (): string[] => {
+    const errors: string[] = [];
+
+    if (!fechaInicio) {
+      errors.push("La fecha de inicio es obligatoria.");
+    }
+    if (!fechaFin) {
+      errors.push("La fecha de fin es obligatoria.");
+    }
+    if (fechaInicio && fechaFin && fechaInicio > fechaFin) {
+      errors.push(
+        "La fecha de inicio no puede ser posterior a la fecha de fin."
+      );
+    }
+    if (startTime && endTime && startTime >= endTime) {
+      errors.push("La hora de inicio debe ser anterior a la hora de cierre.");
+    }
+
+    return errors;
+  };
+
+  async function handleSave() {
+    const validationErrors = validateDates();
+    if (validationErrors.length > 0) {
+      toast.error(validationErrors.join(" "));
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const configuracion: ConfiguracionFecha = {
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        hora_inicio: startTime,
+        hora_fin: endTime,
+        activo: true,
+      };
+
+      let error;
+
+      if (configId) {
+        const result = await supabase
+          .from("configuracion_fechas")
+          .update(configuracion)
+          .eq("id", configId);
+        error = result.error;
+      } else {
+        const result = await supabase
+          .from("configuracion_fechas")
+          .insert([configuracion]);
+        error = result.error;
+      }
+
+      if (error) {
+        console.error("Error al guardar:", error);
+        toast.error("Error al guardar la configuración. Intenta de nuevo.");
+        setSaving(false);
+        return;
+      }
+
+      toast.success("Fecha de operación establecida correctamente.");
+      await fetchConfiguracion();
+    } catch (err) {
+      console.error("Error:", err);
+      toast.error("Ocurrió un error inesperado.");
+    }
+
+    setSaving(false);
+  }
+
+  // Calcular días seleccionados
+  const calcularDias = (): number => {
+    if (!fechaInicio || !fechaFin) return 0;
+    try {
+      const inicio = parseISO(fechaInicio);
+      const fin = parseISO(fechaFin);
+      return differenceInDays(fin, inicio) + 1;
+    } catch {
+      return 0;
+    }
+  };
+
+  const diffDays = calcularDias();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-[#00723F]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold">Fecha de Operación</h1>
+          <p className="text-sm text-muted-foreground">
+            Establece el periodo de operación del sistema
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => router.push("/admin")}
+          className="cursor-pointer"
+        >
+          <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Selector de fechas */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-[#00723F]" />
+              Rango de Fechas
+            </CardTitle>
+            <CardDescription>
+              Selecciona el periodo de operación
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fecha-inicio">Fecha de inicio</Label>
+                <div className="relative">
+                  <Input
+                    id="fecha-inicio"
+                    type="date"
+                    value={fechaInicio}
+                    max={fechaFin || undefined}
+                    onChange={(e) => {
+                      const nuevaFechaInicio = e.target.value;
+                      setFechaInicio(nuevaFechaInicio);
+                      // Si la fecha de fin es anterior a la nueva fecha de inicio, ajustarla
+                      if (
+                        fechaFin &&
+                        nuevaFechaInicio &&
+                        fechaFin < nuevaFechaInicio
+                      ) {
+                        setFechaFin(nuevaFechaInicio);
+                        toast.info(
+                          "La fecha de fin se ha ajustado a la fecha de inicio."
+                        );
+                      }
+                    }}
+                    className="sr-only"
+                  />
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className="w-full justify-start text-left font-normal"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const input = document.getElementById(
+                        "fecha-inicio"
+                      ) as HTMLInputElement;
+                      if (input) {
+                        input.showPicker?.();
+                        if (!input.showPicker) {
+                          // Fallback para navegadores que no soportan showPicker
+                          input.click();
+                        }
+                      }
+                    }}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {fechaInicio ? (
+                      formatDateLong(fechaInicio)
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Selecciona fecha
+                      </span>
+                    )}
+                  </Button>
+                </div>
+                {fechaInicio && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateLong(fechaInicio)}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fecha-fin">Fecha de fin</Label>
+                <div className="relative">
+                  <Input
+                    id="fecha-fin"
+                    type="date"
+                    value={fechaFin}
+                    min={fechaInicio || undefined}
+                    onChange={(e) => {
+                      const nuevaFechaFin = e.target.value;
+                      // Validar que la fecha de fin no sea anterior a la fecha de inicio
+                      if (
+                        fechaInicio &&
+                        nuevaFechaFin &&
+                        nuevaFechaFin < fechaInicio
+                      ) {
+                        toast.error(
+                          "La fecha de fin no puede ser anterior a la fecha de inicio."
+                        );
+                        return;
+                      }
+                      setFechaFin(nuevaFechaFin);
+                    }}
+                    className="sr-only"
+                    disabled={!fechaInicio}
+                  />
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className="w-full justify-start text-left font-normal"
+                    disabled={!fechaInicio}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (!fechaInicio) {
+                        toast.error(
+                          "Primero debes seleccionar una fecha de inicio."
+                        );
+                        return;
+                      }
+                      const input = document.getElementById(
+                        "fecha-fin"
+                      ) as HTMLInputElement;
+                      if (input) {
+                        input.showPicker?.();
+                        if (!input.showPicker) {
+                          // Fallback para navegadores que no soportan showPicker
+                          input.click();
+                        }
+                      }
+                    }}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {fechaFin ? (
+                      formatDateLong(fechaFin)
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {fechaInicio
+                          ? "Selecciona fecha"
+                          : "Selecciona fecha de inicio primero"}
+                      </span>
+                    )}
+                  </Button>
+                </div>
+                {fechaFin && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateLong(fechaFin)}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Indicador visual del rango */}
+            {fechaInicio && fechaFin && (
+              <div className="p-4 bg-[#00723F]/10 rounded-lg">
+                <div className="flex items-center justify-center gap-2 text-[#00723F]">
+                  <Calendar className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    {diffDays} día{diffDays !== 1 ? "s" : ""} seleccionado
+                    {diffDays !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <p className="text-center text-xs text-muted-foreground mt-1">
+                  Del {formatDateLong(fechaInicio)} al{" "}
+                  {formatDateLong(fechaFin)}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Horarios y resumen */}
+        <div className="space-y-6">
+          {/* Horarios */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-[#00723F]" />
+                Horarios
+              </CardTitle>
+              <CardDescription>
+                Define el horario de operación diario
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="start-time">Hora de inicio</Label>
+                  <div className="relative">
+                    <Input
+                      id="start-time"
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="sr-only"
+                    />
+                    <Button
+                      variant="outline"
+                      type="button"
+                      className="w-full justify-start text-left font-normal"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const input = document.getElementById(
+                          "start-time"
+                        ) as HTMLInputElement;
+                        if (input) {
+                          input.showPicker?.();
+                          if (!input.showPicker) {
+                            // Fallback para navegadores que no soportan showPicker
+                            input.click();
+                          }
+                        }
+                      }}
+                    >
+                      <Clock className="mr-2 h-4 w-4" />
+                      {startTime ? (
+                        formatTime(startTime)
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Selecciona hora
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                  {startTime && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatTime(startTime)}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="end-time">Hora de cierre</Label>
+                  <div className="relative">
+                    <Input
+                      id="end-time"
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="sr-only"
+                    />
+                    <Button
+                      variant="outline"
+                      type="button"
+                      className="w-full justify-start text-left font-normal"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const input = document.getElementById(
+                          "end-time"
+                        ) as HTMLInputElement;
+                        if (input) {
+                          input.showPicker?.();
+                          if (!input.showPicker) {
+                            // Fallback para navegadores que no soportan showPicker
+                            input.click();
+                          }
+                        }
+                      }}
+                    >
+                      <Clock className="mr-2 h-4 w-4" />
+                      {endTime ? (
+                        formatTime(endTime)
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Selecciona hora
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                  {endTime && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatTime(endTime)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Resumen */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Resumen de Configuración</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Desde:</span>
+                <span className="font-medium text-right">
+                  {formatDateLong(fechaInicio)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Hasta:</span>
+                <span className="font-medium text-right">
+                  {formatDateLong(fechaFin)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Horario:</span>
+                <span className="font-medium">
+                  {formatTime(startTime)} - {formatTime(endTime)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Duración:</span>
+                <span className="font-medium">{diffDays} día(s)</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Botón guardar */}
+          <Button
+            onClick={handleSave}
+            disabled={saving || !fechaInicio || !fechaFin}
+            className="w-full bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Establecer fecha
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Info adicional */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="pt-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-blue-800">
+              <p className="font-medium mb-1">Información importante</p>
+              <ul className="list-disc list-inside space-y-1 text-blue-700">
+                <li>
+                  El periodo de operación define cuándo los usuarios pueden
+                  realizar acciones en el sistema.
+                </li>
+                <li>
+                  Los profesores y alumnos solo podrán registrar avances durante
+                  este periodo.
+                </li>
+                <li>
+                  Los horarios aplican para todos los días dentro del rango
+                  seleccionado.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

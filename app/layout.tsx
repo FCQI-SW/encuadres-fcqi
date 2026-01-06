@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-// Importa tu ConfirmProvider
 import { ConfirmProvider } from "@/components/global-confirm-modal";
 import { SessionProvider } from "@/components/session-provider";
+import { ToastProvider } from "@/components/ui/toast";
+import { getSession } from "@/lib/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,17 +22,21 @@ export const metadata: Metadata = {
   description: "Sistema de Encuadres y PUAs FCQI",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getSession();
+
   return (
     <html lang="es">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <SessionProvider>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <SessionProvider session={session}>
           <ConfirmProvider>
-            {children}
+            <ToastProvider>{children}</ToastProvider>
           </ConfirmProvider>
         </SessionProvider>
       </body>

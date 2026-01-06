@@ -1,286 +1,633 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-
-} from "@/components/ui/table"
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog"
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Label } from "@/components/ui/label";
+import { ChevronLeft, Loader2, Plus, Trash2, Lock } from "lucide-react";
+import { useEncuadreProfesor } from "@/hooks/useEncuadreProfesor";
+import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
+import AlumnosEncuadreCard from "@/components/alumnosEncuadreCard";
 
-const dataCriterios = [
-    {
-        id: "1",
-        criterio: "Examen",
-        valor: 20,
-        descripcion: "2 Examenes durante el curso.",
-    },
-    {
-        id: "2",
-        criterio: "Prácticas de Taller",
-        valor: 20,
-        descripcion: "Prácticas realizadas fuera de clase.",
-    },
-    {
-        id: "3",
-        criterio: "Prácticas de Laboratorio",
-        valor: 30,
-        descripcion: "Prácticas realizadas durante de clase.",
-    },
-    {
-        id: "4",
-        criterio: "Tareas",
-        valor: 10,
-        descripcion: "Tareas realizadas fuera de clase.",
-    },
-    {
-        id: "5",
-        criterio: "Proyecto",
-        valor: 20,
-        descripcion: "Prototipo electrónico basado en microcontrolador.",
-    },
-];
+type CriterioCalificacion = {
+  criterio: string;
+  valor: number;
+  descripcion: string;
+};
 
-const dataPlan = [
-    {
-        id: "1",
-        unidad: "1.1",
-        tema: "Machine Learning",
-        semana: 0
-    },
-    {
-        id: "2",
-        unidad: "1.2",
-        tema: "Machine Learning2",
-        semana: 0
-    },
-    {
-        id: "3",
-        unidad: "1.3",
-        tema: "Machine Learning3",
-        semana: 0
-    },
-    {
-        id: "4",
-        unidad: "2.1",
-        tema: "Inteligencia Artificial",
-        semana: 0
-    },
-    {
-        id: "5",
-        unidad: "2.2",
-        tema: "Inteligencia Artificial2",
-        semana: 0
-    },
-];
+export default function Page() {
+  const router = useRouter();
+  const params = useParams();
+  const encuadreId = params.clave as string;
 
+  const confirm = useConfirm();
+  const toast = useToast();
+  const { data: session, status } = useSession();
 
-function EncuadreMateria({
-    params,
-}: {
-    params: { clave: string };
-}) {
-    //Una vez conectada a la BD, utilizar la clave para conseguir el registro con la información completa de la materia
-    //En los requerimientos indica que el capturista ingrese también los criterios de evaluación sugeridos por la PUA, estos se deberán cargar a la tabla y podrán ser editados por el profesor.
-    let total = 0;
-    return (<>
-        <div className="items-center justify-items-center gap-16 pt-8 font-[family-name:var(--font-geist-sans)]">
-            <h1>Materia con clave: {params.clave} </h1>
+  console.log("=== CLIENT COMPONENT ===");
+  console.log("Encuadre ID recibido:", encuadreId);
 
-            <h1 className="text-center font-bold text-2xl">Evaluación del curso</h1>
-            <p>Agregar valor a cada actividad</p>
-            <Table className="table-fixed w-[75%] justify-self-center border-solid border-1 border-black text-center m-4">
+  const [loadingData, setLoadingData] = useState(true);
+  const [materiaClave, setMateriaClave] = useState("");
+  const [materiaNombre, setMateriaNombre] = useState("");
+  const [profesorPuedeModificar, setProfesorPuedeModificar] = useState(false);
+  const [periodo, setPeriodo] = useState("");
+  const [grupo, setGrupo] = useState("");
+  const [descripcionEvaluacion, setDescripcionEvaluacion] = useState("");
+  const [derechoOrdinario, setDerechoOrdinario] = useState("");
+  const [derechoExtraordinario, setDerechoExtraordinario] = useState("");
+  const [descripcionProducto, setDescripcionProducto] = useState("");
+  const [bibliografiaBasica, setBibliografiaBasica] = useState("");
+  const [normasConducta, setNormasConducta] = useState("");
 
-                <TableHeader className="hover:bg-gray-300 bg-gray-300">
-                    <TableRow>
-                        <TableHead className="border-solid border-1 border-black text-center text-lg ">Criterio</TableHead>
-                        <TableHead className="border-solid border-1 border-black text-center text-lg">Valor</TableHead>
-                        <TableHead className="border-solid border-1 border-black text-center text-lg">Descripción</TableHead>
-                    </TableRow>
-                </TableHeader>
+  const [criteriosCalificacion, setCriteriosCalificacion] = useState<CriterioCalificacion[]>([
+    { criterio: "", valor: 0, descripcion: "" },
+  ]);
 
-                <TableBody>
-                    {dataCriterios.map((criterio) => {
-                        total += criterio.valor;
-                        return (
-                            <TableRow key={criterio.id}>
-                                <TableCell className="font-medium">
-                                    <Input defaultValue={criterio.criterio}></Input>
-                                </TableCell>
-                                <TableCell className="font-medium">
-                                    <Input type="number" defaultValue={criterio.valor}></Input>
-                                </TableCell>
-                                <TableCell className="font-medium">
-                                    <Input defaultValue={criterio.descripcion}></Input>
-                                </TableCell>
-                            </TableRow>
-                        );
-                    })}
+  const [valoresOriginales, setValoresOriginales] = useState<any>(null);
 
-                    <TableRow>
-                        <TableCell className="font-medium">
-                            <Input placeholder={"Agregar"}></Input>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                            <Input type="number" placeholder={"0"}></Input>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                            <Input placeholder={"Descripción del criterio de evaluación."}></Input>
-                        </TableCell>
-                    </TableRow>
+  const { obtenerEncuadre, actualizarEncuadre, loading, error } = useEncuadreProfesor();
+  const [prevError, setPrevError] = useState<string | null>(null);
 
-                    <TableRow >
-                        <TableCell className="font-medium border-solid border-1 border-black">Total</TableCell>
-                        <TableCell className="font-medium border-solid border-1 border-black">{total}%</TableCell>
-                        <TableCell className="font-medium border-solid border-1 border-black"></TableCell>
-                    </TableRow>
-                </TableBody>
-            </Table>
+  useEffect(() => {
+    if (encuadreId && encuadreId !== "undefined") {
+      console.log("Llamando a cargarDatos con ID:", encuadreId);
+      cargarDatos();
+    } else {
+      console.error("ID de encuadre inválido en useEffect:", encuadreId);
+      setLoadingData(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [encuadreId]);
 
-            <h1 className="text-center font-bold text-2xl pt-12">Criterios de acreditación</h1>
-            <Table className="table-fixed w-[75%] justify-self-center border-solid border-1 border-black m-4">
-                <TableHeader className="hover:bg-gray-300 bg-gray-300 text-center">
-                    <TableRow>
-                        <TableHead className="border-solid border-1 border-black text-center text-lg">Ordinario</TableHead>
-                        <TableHead className="border-solid border-1 border-black text-center text-lg">Extraordinario</TableHead>
-                    </TableRow>
-                </TableHeader>
+  // Mostrar error en toast cuando cambie
+  useEffect(() => {
+    if (error && error !== prevError) {
+      toast.error(error);
+      setPrevError(error);
+    }
+  }, [error, prevError, toast]);
 
-                <TableBody >
-                    <TableRow >
-                        <TableCell className="font-medium border-solid border-1 border-black">
-                            <p className="text-wrap">
-                                Alumnos con 80 % o más de asistencias en clases impartidas (estatuto escolar art. 70).
-                            </p>
-                        </TableCell>
-                        <TableCell className="font-medium border-solid border-1 border-black">
-                            <p className="text-wrap">
-                                Alumnos con 60 % o más de asistencias en clases impartidas (estatuto escolar art. 71).
-                            </p>
-                        </TableCell>
-                    </TableRow>
+  const cargarDatos = async () => {
+    console.log("=== INICIO cargarDatos ===");
+    console.log("ID a cargar:", encuadreId);
 
-                    <TableRow >
-                        <TableCell className="font-medium">
-                            <Input placeholder={"Agregar criterio..."}></Input>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                            <Input placeholder={"Agregar criterio..."}></Input>
-                        </TableCell>
-                    </TableRow>
-                </TableBody>
-            </Table>
+    setLoadingData(true);
+    const encuadre = await obtenerEncuadre(encuadreId);
 
-            <h1 className="text-center font-bold text-2xl pt-12">Plan de clases</h1>
-            <p className="text-left w-[50%]">Competencia del curso: Experimentar con las técnicas y los algoritmos de aprendizaje en diferentes contextos de aplicación, por medio de la implementación de casos de uso académicos, con el propósito de conocer el alcance de la técnica y algoritmo, con actitud crítica y analítica.</p>
-            <Table className="table-fixed w-[75%] justify-self-center border-solid border-1 border-black m-4">
-                <TableHeader className="hover:bg-gray-300 bg-gray-300 text-center">
-                    <TableRow>
-                        <TableHead className="border-solid border-1 border-black text-center text-lg">Unidad de PUA</TableHead>
-                        <TableHead className="border-solid border-1 border-black text-center text-lg">Tema</TableHead>
-                        <TableHead className="border-solid border-1 border-black text-center text-lg">Semana</TableHead>
-                    </TableRow>
-                </TableHeader>
+    if (encuadre) {
+      console.log("Encuadre cargado exitosamente");
+      setMateriaClave(encuadre.materia_clave);
+      setMateriaNombre(encuadre.materia_nombre);
+      setProfesorPuedeModificar(encuadre.profesor_puede_modificar_criterios);
+      setPeriodo(encuadre.periodo);
+      setGrupo(encuadre.grupo);
+      setDescripcionEvaluacion(encuadre.descripcion_evaluacion);
+      setDerechoOrdinario(encuadre.derecho_ordinario);
+      setDerechoExtraordinario(encuadre.derecho_extraordinario);
+      setDescripcionProducto(encuadre.descripcion_producto);
+      setBibliografiaBasica(encuadre.bibliografia_basica);
+      setNormasConducta(encuadre.normas_conducta);
 
-                <TableBody>
-                    {dataPlan.map((criterio) => {
-                        return (
-                            <TableRow key={criterio.id}>
-                                <TableCell className="font-medium">
-                                    <p className="ml-4">{criterio.unidad}</p>
-                                </TableCell>
-                                <TableCell className="font-medium">
-                                    <p className="ml-4">{criterio.tema}</p>
-                                </TableCell>
-                                <TableCell className="font-medium">
-                                    <Input type="number" defaultValue={criterio.semana}></Input>
-                                </TableCell>
-                            </TableRow>
-                        );
-                    })}
-                </TableBody>
-            </Table>
+      if (encuadre.criterios && encuadre.criterios.length > 0) {
+        setCriteriosCalificacion(
+          encuadre.criterios.map((c: any) => ({
+            criterio: c.criterio,
+            valor: c.valor,
+            descripcion: c.descripcion || "",
+          }))
+        );
+      }
 
+      setValoresOriginales({
+        descripcionEvaluacion: encuadre.descripcion_evaluacion,
+        derechoOrdinario: encuadre.derecho_ordinario,
+        derechoExtraordinario: encuadre.derecho_extraordinario,
+        descripcionProducto: encuadre.descripcion_producto,
+        bibliografiaBasica: encuadre.bibliografia_basica,
+        normasConducta: encuadre.normas_conducta,
+        criterios: encuadre.criterios || [],
+      });
+    } else {
+      console.error("No se pudo cargar el encuadre");
+    }
+
+    setLoadingData(false);
+  };
+
+  const handleBack = async () => {
+    const hayCambios =
+      descripcionEvaluacion !== valoresOriginales?.descripcionEvaluacion ||
+      derechoOrdinario !== valoresOriginales?.derechoOrdinario ||
+      derechoExtraordinario !== valoresOriginales?.derechoExtraordinario ||
+      descripcionProducto !== valoresOriginales?.descripcionProducto ||
+      bibliografiaBasica !== valoresOriginales?.bibliografiaBasica ||
+      normasConducta !== valoresOriginales?.normasConducta ||
+      JSON.stringify(criteriosCalificacion) !== JSON.stringify(valoresOriginales?.criterios || []);
+
+    if (hayCambios) {
+      const shouldLeave = await confirm({
+        title: "¿Salir sin guardar?",
+        message: "Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?",
+        confirmText: "Sí, salir",
+        cancelText: "Cancelar",
+      });
+
+      if (!shouldLeave) return;
+    }
+
+    router.push("/profesor/encuadres");
+  };
+
+  const handleGuardar = async () => {
+    if (status === "loading") {
+      await confirm({
+        title: "Cargando sesión",
+        message: "Por favor espera un momento mientras se carga tu sesión.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    if (status === "unauthenticated" || !session?.user?.id) {
+      await confirm({
+        title: "Sesión no válida",
+        message: "No se pudo verificar tu sesión. Por favor, cierra sesión y vuelve a iniciar.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    if (profesorPuedeModificar) {
+      const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
+
+      if (criteriosConValor.length > 0) {
+        const criterioSinValor = criteriosConValor.find((c) => c.valor <= 0);
+        if (criterioSinValor) {
+          await confirm({
+            title: "Porcentaje inválido",
+            message: `El criterio "${criterioSinValor.criterio}" debe tener un porcentaje mayor a 0.`,
+            confirmText: "Entendido",
+            cancelText: "",
+          });
+          return;
+        }
+
+        const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
+        if (totalPorcentaje !== 100) {
+          await confirm({
+            title: "Porcentajes incorrectos",
+            message: `Los porcentajes deben sumar exactamente 100%. Actualmente suman ${totalPorcentaje}%.`,
+            confirmText: "Entendido",
+            cancelText: "",
+          });
+          return;
+        }
+
+        const criterioExcesivo = criteriosConValor.find((c) => c.valor > 100);
+        if (criterioExcesivo) {
+          await confirm({
+            title: "Porcentaje inválido",
+            message: `El criterio "${criterioExcesivo.criterio}" tiene un porcentaje mayor a 100%.`,
+            confirmText: "Entendido",
+            cancelText: "",
+          });
+          return;
+        }
+      }
+
+      if (criteriosConValor.length === 0) {
+        await confirm({
+          title: "Sin criterios de calificación",
+          message: "Debes agregar al menos un criterio de evaluación con su porcentaje.",
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+    }
+
+    const shouldSave = await confirm({
+      title: "Guardar cambios",
+      message: "¿Estás seguro de que deseas guardar los cambios realizados al encuadre?",
+      confirmText: "Guardar",
+      cancelText: "Cancelar",
+    });
+
+    if (!shouldSave) return;
+
+    const criteriosAGuardar = profesorPuedeModificar
+      ? criteriosCalificacion.filter((c) => c.criterio.trim() !== "")
+      : undefined;
+
+    const success = await actualizarEncuadre({
+      encuadreId: encuadreId,
+      descripcionEvaluacion,
+      derechoOrdinario,
+      derechoExtraordinario,
+      descripcionProducto,
+      bibliografiaBasica,
+      normasConducta,
+      criterios: criteriosAGuardar,
+    });
+
+    if (success) {
+      toast.success("Los cambios se han guardado correctamente.");
+      await cargarDatos();
+    } else {
+      toast.error("Error al guardar los cambios. Intenta de nuevo.");
+    }
+  };
+
+  const agregarCriterioCalificacion = () => {
+    setCriteriosCalificacion([...criteriosCalificacion, { criterio: "", valor: 0, descripcion: "" }]);
+  };
+
+  const eliminarCriterioCalificacion = (index: number) => {
+    setCriteriosCalificacion(criteriosCalificacion.filter((_, i) => i !== index));
+  };
+
+  const actualizarCriterioCalificacion = (
+    index: number,
+    field: keyof CriterioCalificacion,
+    value: string | number
+  ) => {
+    const nuevosCriterios = [...criteriosCalificacion];
+    nuevosCriterios[index] = { ...nuevosCriterios[index], [field]: value };
+    setCriteriosCalificacion(nuevosCriterios);
+  };
+
+  const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
+  const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-[#00723F]" />
+      </div>
+    );
+  }
+
+  if (!materiaClave || !encuadreId || encuadreId === "undefined") {
+    return (
+      <div className="px-4 py-8">
+        <div className="mx-auto max-w-3xl">
+          <Card>
+            <CardHeader>
+              <CardTitle>No se encontró el encuadre</CardTitle>
+              <CardDescription>
+                El encuadre no existe o no tienes permiso para verlo.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => router.push("/profesor/encuadres")}
+                className="cursor-pointer"
+              >
+                Regresar
+              </Button>
+            </CardContent>
+          </Card>
         </div>
-        <div className="py-8 justify-self-center grid grid-cols-3 gap-16">
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Restablecer</Button>
-                </DialogTrigger>
-                <DialogContent className=" w-5xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-center">Restablecer cambios realizados</DialogTitle>
-                        <DialogDescription className="text-black text-left">
-                            Continuar con esta acción eliminará todos los cambios realizados en el encuadre, ¿Desea continuar?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button className="px-8 bg-(--destructive) hover:bg-[#FD0022]">Cancelar</Button>
-                        </DialogClose>
-                        <DialogClose asChild>
-                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Confirmar</Button>
-                        </DialogClose>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+      </div>
+    );
+  }
 
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Guardar borrador</Button>
-                </DialogTrigger>
-                <DialogContent className=" w-5xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-center">Borrador guardado</DialogTitle>
-                        <DialogDescription className="text-black text-left">
-                            El progreso y cambios se han guardado exitosamente como borrador.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Aceptar</Button>
-                        </DialogClose>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+  const ta =
+    "min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm " +
+    "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 " +
+    "focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background " +
+    "disabled:cursor-not-allowed disabled:opacity-50";
 
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Confirmar y publicar</Button>
-                </DialogTrigger>
-                <DialogContent className=" w-5xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-center">Publicar cambios de encuadre</DialogTitle>
-                        <DialogDescription className="text-black text-left">
-                            Los cambios realizados se guardaran en sistema y serán publicados para revisión del jefe de grupo.
-                            Esta acción no puede deshacerse, ¿Desea continuar?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button className="px-8 bg-(--destructive) hover:bg-[#FD0022]">Cancelar</Button>
-                        </DialogClose>
-                        <DialogClose asChild>
-                            <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">Confirmar</Button>
-                        </DialogClose>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+  return (
+    <div className="px-4 py-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div>
+          <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+            <ChevronLeft className="mr-2 h-5 w-5" />
+            Regresar
+          </Button>
         </div>
 
-    </>)
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Encuadre de la Unidad de Aprendizaje</h1>
+          <p className="text-lg font-semibold text-[#00723F] mt-2">
+            {materiaClave} - {materiaNombre}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Revisa y edita el encuadre de tu curso.
+          </p>
+        </div>
+
+        {!profesorPuedeModificar && (
+          <Card className="border-yellow-500 bg-yellow-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Lock className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-yellow-900 mb-1">
+                    Permisos de edición limitados
+                  </h3>
+                  <p className="text-sm text-yellow-800">
+                    El capturista ha restringido la edición de los criterios de evaluación.
+                    Solo podrás editar las descripciones y contenidos generales del encuadre.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Datos del curso</CardTitle>
+            <CardDescription>
+              Esta información no puede ser modificada por el profesor
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+            <div className="sm:col-span-3">
+              <Label className="mb-2 block">Clave</Label>
+              <Input value={materiaClave} disabled className="bg-gray-50" />
+            </div>
+            <div className="sm:col-span-9">
+              <Label className="mb-2 block">Nombre del Curso</Label>
+              <Input value={materiaNombre} disabled className="bg-gray-50" />
+            </div>
+
+            <div className="sm:col-span-3">
+              <Label className="mb-2 block">Periodo</Label>
+              <Input value={periodo} disabled className="bg-gray-50" />
+            </div>
+
+            <div className="sm:col-span-3">
+              <Label className="mb-2 block">Grupo</Label>
+              <Input value={grupo} disabled className="bg-gray-50" />
+            </div>
+
+            <div className="sm:col-span-6">
+              <Label className="mb-2 block">Permisos de Edición</Label>
+              <div className="flex items-center h-10 px-3 border rounded-md bg-gray-50">
+                {profesorPuedeModificar ? (
+                  <span className="text-sm text-green-700 font-medium">
+                    ✓ Edición completa habilitada
+                  </span>
+                ) : (
+                  <span className="text-sm text-yellow-700 font-medium">
+                    <Lock className="inline h-4 w-4 mr-1" />
+                    Solo lectura en criterios
+                  </span>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Evaluación de Curso</CardTitle>
+            <CardDescription>
+              {profesorPuedeModificar
+                ? "Puedes modificar los criterios de evaluación y sus porcentajes"
+                : "Los criterios de evaluación no pueden ser modificados"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label className="mb-2 block">Descripción general</Label>
+              <textarea
+                className={ta}
+                value={descripcionEvaluacion}
+                onChange={(e) => setDescripcionEvaluacion(e.target.value)}
+                placeholder="Descripción detallada de cómo se evaluará el curso..."
+              />
+            </div>
+
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[35%]">Criterio</TableHead>
+                    <TableHead className="w-[15%] text-center">Valor %</TableHead>
+                    <TableHead className="w-[40%]">Descripción</TableHead>
+                    {profesorPuedeModificar && <TableHead className="w-[10%]"></TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {criteriosCalificacion.map((crit, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <Input
+                          value={crit.criterio}
+                          onChange={(e) =>
+                            actualizarCriterioCalificacion(index, "criterio", e.target.value)
+                          }
+                          placeholder="Nombre del criterio"
+                          disabled={!profesorPuedeModificar}
+                          className={!profesorPuedeModificar ? "bg-gray-50" : ""}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={crit.valor}
+                          onChange={(e) =>
+                            actualizarCriterioCalificacion(index, "valor", Number(e.target.value))
+                          }
+                          className={`text-center ${!profesorPuedeModificar ? "bg-gray-50" : ""}`}
+                          placeholder="%"
+                          disabled={!profesorPuedeModificar}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={crit.descripcion}
+                          onChange={(e) =>
+                            actualizarCriterioCalificacion(index, "descripcion", e.target.value)
+                          }
+                          placeholder="Descripción del criterio"
+                          disabled={!profesorPuedeModificar}
+                          className={!profesorPuedeModificar ? "bg-gray-50" : ""}
+                        />
+                      </TableCell>
+                      {profesorPuedeModificar && (
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => eliminarCriterioCalificacion(index)}
+                            disabled={criteriosCalificacion.length === 1}
+                            className="cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                  <TableRow>
+                    <TableCell className="font-semibold">Total</TableCell>
+                    <TableCell className="text-center">
+                      <span
+                        className={`font-semibold ${
+                          totalPorcentaje === 100
+                            ? "text-green-600"
+                            : totalPorcentaje > 0
+                            ? "text-red-600"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {totalPorcentaje}%
+                      </span>
+                    </TableCell>
+                    <TableCell></TableCell>
+                    {profesorPuedeModificar && <TableCell></TableCell>}
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+
+            {profesorPuedeModificar && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={agregarCriterioCalificacion}
+                className="cursor-pointer"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Agregar criterio
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Derecho Examen Ordinario y Extraordinario</CardTitle>
+            <CardDescription>
+              Detallar claramente los criterios para exentar el examen ordinario
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div>
+              <Label className="mb-2 block">Ordinario</Label>
+              <textarea
+                className={ta}
+                value={derechoOrdinario}
+                onChange={(e) => setDerechoOrdinario(e.target.value)}
+                placeholder="- Alumnos con 80% o más de asistencias en clases impartidas&#10;- Para exentar examen ordinario el estudiante deberá tener..."
+              />
+            </div>
+            <div>
+              <Label className="mb-2 block">Extraordinario</Label>
+              <textarea
+                className={ta}
+                value={derechoExtraordinario}
+                onChange={(e) => setDerechoExtraordinario(e.target.value)}
+                placeholder="- Alumnos con 60% o más de asistencias en clases impartidas&#10;- La calificación final obtenida equivale al 100%"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Descripción de Producto o Evidencia de Desempeño</CardTitle>
+            <CardDescription>
+              En caso de existir rúbrica del trabajo final, incluirla en este apartado
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className={ta}
+              value={descripcionProducto}
+              onChange={(e) => setDescripcionProducto(e.target.value)}
+              placeholder="Describe el producto final o evidencias de desempeño..."
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Bibliografía, Referencias y Recurso de la Red</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className={ta}
+              value={bibliografiaBasica}
+              onChange={(e) => setBibliografiaBasica(e.target.value)}
+              placeholder="Lista las referencias bibliográficas, sitios web y recursos..."
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Normas de Conducta dentro del Salón de Clases</CardTitle>
+            <CardDescription>
+              Describir las reglas de conducta, retardos, uso de celular, alimentos, etc.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className={ta}
+              value={normasConducta}
+              onChange={(e) => setNormasConducta(e.target.value)}
+              placeholder="En caso de haber una sanción al no respetarlas, estas deberán mencionarse en este apartado y apegarse al estatuto general de la UABC (art. 202)"
+            />
+          </CardContent>
+        </Card>
+
+        {/* Card de Gestión de Alumnos */}
+        <AlumnosEncuadreCard
+          encuadreId={encuadreId}
+          materiaNombre={materiaNombre}
+          grupo={grupo}
+          periodo={periodo}
+        />
+
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={loading}
+            className="cursor-pointer"
+          >
+            Cancelar
+          </Button>
+          <Button
+            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+            onClick={handleGuardar}
+            disabled={loading}
+          >
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? "Guardando..." : "Guardar cambios"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
-
-export default EncuadreMateria;
