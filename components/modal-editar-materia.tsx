@@ -112,7 +112,11 @@ export function ModalEditarMateria({
                 value={materia.nombre_materia}
                 onChange={onInputChange}
                 disabled={saving}
+                maxLength={50}
               />
+              <p className="text-xs text-muted-foreground">
+                Máximo 50 caracteres
+              </p>
             </div>
 
             <div className="space-y-1">

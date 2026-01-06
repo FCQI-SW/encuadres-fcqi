@@ -20,10 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   CheckCircle,
   AlertTriangle,
@@ -33,6 +30,7 @@ import {
   Search,
   Loader2,
   BarChart3,
+  X,
 } from "lucide-react";
 
 type MatchData = {
@@ -58,7 +56,8 @@ export default function ResultsPage() {
   const [filteredData, setFilteredData] = useState<MatchData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDiscrepancia, setSelectedDiscrepancia] = useState<string>("Todos");
+  const [selectedDiscrepancia, setSelectedDiscrepancia] =
+    useState<string>("Todos");
   const [selectedPeriodo, setSelectedPeriodo] = useState<string>("Todos");
   const [periodos, setPeriodos] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -91,7 +90,9 @@ export default function ResultsPage() {
         .select("id, materia_id")
         .in("id", programaIds);
 
-      const materiaIds = [...new Set((programas || []).map((p: any) => p.materia_id))];
+      const materiaIds = [
+        ...new Set((programas || []).map((p: any) => p.materia_id)),
+      ];
       const { data: materias } = await supabase
         .from("materias")
         .select("id, clave, nombre_materia")
@@ -113,7 +114,9 @@ export default function ResultsPage() {
         .neq("estado", "revocada");
 
       // 5. Obtener datos de alumnos
-      const alumnoIds = [...new Set((inscripciones || []).map((i: any) => i.alumno_id))];
+      const alumnoIds = [
+        ...new Set((inscripciones || []).map((i: any) => i.alumno_id)),
+      ];
       const { data: alumnos } = await supabase
         .from("usuarios")
         .select("id, nombre")
@@ -142,18 +145,25 @@ export default function ResultsPage() {
       // Crear mapas para búsqueda rápida
       const programaMap = new Map((programas || []).map((p: any) => [p.id, p]));
       const materiaMap = new Map((materias || []).map((m: any) => [m.id, m]));
-      const profesorMap = new Map((profesores || []).map((p: any) => [p.id, p]));
+      const profesorMap = new Map(
+        (profesores || []).map((p: any) => [p.id, p])
+      );
       const alumnoMap = new Map((alumnos || []).map((a: any) => [a.id, a]));
 
       // Crear mapa de unidad -> programa
-      const unidadToProgramaMap = new Map((unidades || []).map((u: any) => [u.id, u.programa_id]));
+      const unidadToProgramaMap = new Map(
+        (unidades || []).map((u: any) => [u.id, u.programa_id])
+      );
 
       // Contar temas por programa
       const temasCountByPrograma = new Map<string, number>();
       (temas || []).forEach((t: any) => {
         const programaId = unidadToProgramaMap.get(t.unidad_id);
         if (programaId) {
-          temasCountByPrograma.set(programaId, (temasCountByPrograma.get(programaId) || 0) + 1);
+          temasCountByPrograma.set(
+            programaId,
+            (temasCountByPrograma.get(programaId) || 0) + 1
+          );
         }
       });
 
@@ -180,7 +190,9 @@ export default function ResultsPage() {
       const resultados: MatchData[] = [];
 
       for (const inscripcion of inscripciones || []) {
-        const encuadre = encuadres.find((e) => e.id === inscripcion.encuadre_id);
+        const encuadre = encuadres.find(
+          (e) => e.id === inscripcion.encuadre_id
+        );
         if (!encuadre) continue;
 
         const programa = programaMap.get(encuadre.programa_id);
@@ -189,7 +201,8 @@ export default function ResultsPage() {
         const alumno = alumnoMap.get(inscripcion.alumno_id);
 
         const totalTemas = temasCountByPrograma.get(encuadre.programa_id) || 0;
-        const temasDelPrograma = temaIdsByPrograma.get(encuadre.programa_id) || [];
+        const temasDelPrograma =
+          temaIdsByPrograma.get(encuadre.programa_id) || [];
 
         // Contar check-ins del profesor (cualquier registro, sea true o false)
         let temasProfesorRegistrados = 0;
@@ -215,9 +228,16 @@ export default function ResultsPage() {
 
         // Calcular porcentaje de coincidencia
         let porcentaje = 0;
-        let nivelDiscrepancia: "Coincidencia" | "Moderada" | "Alta" | "Sin datos" = "Sin datos";
+        let nivelDiscrepancia:
+          | "Coincidencia"
+          | "Moderada"
+          | "Alta"
+          | "Sin datos" = "Sin datos";
 
-        if (totalTemas > 0 && (temasProfesorRegistrados > 0 || temasAlumnoRegistrados > 0)) {
+        if (
+          totalTemas > 0 &&
+          (temasProfesorRegistrados > 0 || temasAlumnoRegistrados > 0)
+        ) {
           // Calcular coincidencias: temas donde AMBOS tienen registro Y el valor es igual
           let coincidencias = 0;
           let comparables = 0;
@@ -281,6 +301,19 @@ export default function ResultsPage() {
     setLoading(false);
   };
 
+  // Limpiar filtros
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setSelectedDiscrepancia("Todos");
+    setSelectedPeriodo("Todos");
+  };
+
+  // Verificar si hay filtros activos
+  const hasActiveFilters =
+    searchTerm ||
+    selectedDiscrepancia !== "Todos" ||
+    selectedPeriodo !== "Todos";
+
   // Filtrado
   useEffect(() => {
     let filtered = data;
@@ -297,7 +330,9 @@ export default function ResultsPage() {
     }
 
     if (selectedDiscrepancia !== "Todos") {
-      filtered = filtered.filter((item) => item.nivelDiscrepancia === selectedDiscrepancia);
+      filtered = filtered.filter(
+        (item) => item.nivelDiscrepancia === selectedDiscrepancia
+      );
     }
 
     if (selectedPeriodo !== "Todos") {
@@ -321,10 +356,14 @@ export default function ResultsPage() {
   // Estadísticas
   const stats = {
     total: filteredData.length,
-    coincidencia: filteredData.filter((d) => d.nivelDiscrepancia === "Coincidencia").length,
-    moderada: filteredData.filter((d) => d.nivelDiscrepancia === "Moderada").length,
+    coincidencia: filteredData.filter(
+      (d) => d.nivelDiscrepancia === "Coincidencia"
+    ).length,
+    moderada: filteredData.filter((d) => d.nivelDiscrepancia === "Moderada")
+      .length,
     alta: filteredData.filter((d) => d.nivelDiscrepancia === "Alta").length,
-    sinDatos: filteredData.filter((d) => d.nivelDiscrepancia === "Sin datos").length,
+    sinDatos: filteredData.filter((d) => d.nivelDiscrepancia === "Sin datos")
+      .length,
   };
 
   if (loading) {
@@ -345,7 +384,11 @@ export default function ResultsPage() {
             Comparación de avances entre profesores y alumnos
           </p>
         </div>
-        <Button variant="outline" onClick={() => router.push("/admin")} className="cursor-pointer">
+        <Button
+          variant="outline"
+          onClick={() => router.push("/admin")}
+          className="cursor-pointer"
+        >
           <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
         </Button>
       </div>
@@ -368,7 +411,9 @@ export default function ResultsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Coincidencia</p>
-                <p className="text-2xl font-bold text-green-600">{stats.coincidencia}</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {stats.coincidencia}
+                </p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
@@ -379,7 +424,9 @@ export default function ResultsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Moderada</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.moderada}</p>
+                <p className="text-2xl font-bold text-yellow-600">
+                  {stats.moderada}
+                </p>
               </div>
               <AlertTriangle className="h-8 w-8 text-yellow-500" />
             </div>
@@ -401,7 +448,9 @@ export default function ResultsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Sin datos</p>
-                <p className="text-2xl font-bold text-gray-500">{stats.sinDatos}</p>
+                <p className="text-2xl font-bold text-gray-500">
+                  {stats.sinDatos}
+                </p>
               </div>
               <BarChart3 className="h-8 w-8 text-gray-400" />
             </div>
@@ -412,41 +461,71 @@ export default function ResultsPage() {
       {/* Filtros */}
       <Card>
         <CardContent className="pt-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-              <Search className="h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Buscar por materia, profesor o alumno..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1"
-              />
+          <div className="space-y-4">
+            {/* Búsqueda y filtros en la misma fila */}
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Búsqueda */}
+              <div className="flex items-center gap-2">
+                <Search className="h-5 w-5 text-gray-400" />
+                <Input
+                  placeholder="Buscar por materia, profesor o alumno..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-80"
+                />
+              </div>
+
+              {/* Filtros por categorías */}
+              <Select
+                value={selectedPeriodo}
+                onValueChange={setSelectedPeriodo}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Periodo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos</SelectItem>
+                  {periodos.map((periodo) => (
+                    <SelectItem key={periodo} value={periodo}>
+                      {periodo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={selectedDiscrepancia}
+                onValueChange={setSelectedDiscrepancia}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Nivel de discrepancia" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos</SelectItem>
+                  <SelectItem value="Coincidencia">Coincidencia</SelectItem>
+                  <SelectItem value="Moderada">Moderada</SelectItem>
+                  <SelectItem value="Alta">Alta</SelectItem>
+                  <SelectItem value="Sin datos">Sin datos</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Botón limpiar filtros */}
+              {hasActiveFilters && (
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={handleClearFilters}
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-400 cursor-pointer font-medium"
+                >
+                  <X className="h-5 w-5 mr-2" />
+                  Limpiar filtros
+                </Button>
+              )}
             </div>
-            <Select onValueChange={setSelectedPeriodo} defaultValue="Todos">
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Periodo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todos">Todos</SelectItem>
-                {periodos.map((periodo) => (
-                  <SelectItem key={periodo} value={periodo}>
-                    {periodo}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select onValueChange={setSelectedDiscrepancia} defaultValue="Todos">
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Nivel de discrepancia" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todos">Todos</SelectItem>
-                <SelectItem value="Coincidencia">Coincidencia</SelectItem>
-                <SelectItem value="Moderada">Moderada</SelectItem>
-                <SelectItem value="Alta">Alta</SelectItem>
-                <SelectItem value="Sin datos">Sin datos</SelectItem>
-              </SelectContent>
-            </Select>
+
+            {/* Contador de resultados */}
+            <div className="text-sm text-muted-foreground">
+              Mostrando {filteredData.length} de {data.length} resultados
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -457,7 +536,9 @@ export default function ResultsPage() {
           {filteredData.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">No se encontraron resultados</p>
+              <p className="text-lg font-medium">
+                No se encontraron resultados
+              </p>
               <p className="text-sm">Intenta con otros filtros de búsqueda</p>
             </div>
           ) : (
@@ -471,7 +552,9 @@ export default function ResultsPage() {
                     <TableHead>Grupo</TableHead>
                     <TableHead>Periodo</TableHead>
                     <TableHead className="text-center">Avances</TableHead>
-                    <TableHead className="text-center">% Coincidencia</TableHead>
+                    <TableHead className="text-center">
+                      % Coincidencia
+                    </TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Acciones</TableHead>
                   </TableRow>
@@ -482,7 +565,9 @@ export default function ResultsPage() {
                       <TableCell>
                         <div>
                           <p className="font-medium">{item.materia_clave}</p>
-                          <p className="text-xs text-muted-foreground">{item.materia_nombre}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.materia_nombre}
+                          </p>
                         </div>
                       </TableCell>
                       <TableCell>{item.profesor_nombre}</TableCell>
@@ -491,23 +576,36 @@ export default function ResultsPage() {
                       <TableCell>{item.periodo}</TableCell>
                       <TableCell className="text-center">
                         <div className="text-xs">
-                          <p>Prof: {item.temas_profesor}/{item.total_temas}</p>
-                          <p>Alum: {item.temas_alumno}/{item.total_temas}</p>
+                          <p>
+                            Prof: {item.temas_profesor}/{item.total_temas}
+                          </p>
+                          <p>
+                            Alum: {item.temas_alumno}/{item.total_temas}
+                          </p>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={`font-semibold ${
-                          item.porcentaje >= 80 ? "text-green-600" :
-                          item.porcentaje >= 50 ? "text-yellow-600" :
-                          item.porcentaje > 0 ? "text-red-600" : "text-gray-500"
-                        }`}>
-                          {item.nivelDiscrepancia === "Sin datos" ? "—" : `${item.porcentaje}%`}
+                        <span
+                          className={`font-semibold ${
+                            item.porcentaje >= 80
+                              ? "text-green-600"
+                              : item.porcentaje >= 50
+                              ? "text-yellow-600"
+                              : item.porcentaje > 0
+                              ? "text-red-600"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {item.nivelDiscrepancia === "Sin datos"
+                            ? "—"
+                            : `${item.porcentaje}%`}
                         </span>
                       </TableCell>
                       <TableCell>
                         {item.nivelDiscrepancia === "Coincidencia" && (
                           <span className="flex items-center text-green-600">
-                            <CheckCircle className="w-4 h-4 mr-1" /> Coincidencia
+                            <CheckCircle className="w-4 h-4 mr-1" />{" "}
+                            Coincidencia
                           </span>
                         )}
                         {item.nivelDiscrepancia === "Moderada" && (
@@ -557,8 +655,14 @@ export default function ResultsPage() {
                     return (
                       <Button
                         key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        className={currentPage === pageNum ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer" : "cursor-pointer"}
+                        variant={
+                          currentPage === pageNum ? "default" : "outline"
+                        }
+                        className={
+                          currentPage === pageNum
+                            ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+                            : "cursor-pointer"
+                        }
                         onClick={() => setCurrentPage(pageNum)}
                       >
                         {pageNum}

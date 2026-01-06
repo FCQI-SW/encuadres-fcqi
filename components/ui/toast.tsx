@@ -31,6 +31,8 @@ export function useToast() {
   return context;
 }
 
+const MAX_TOASTS = 3;
+
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -43,7 +45,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       const id = Math.random().toString(36).substring(2, 9);
       const newToast: Toast = { id, message, type, duration };
 
-      setToasts((prev) => [...prev, newToast]);
+      setToasts((prev) => {
+        // Si ya hay el máximo de toasts, eliminar el más antiguo
+        const updated = [...prev, newToast];
+        if (updated.length > MAX_TOASTS) {
+          // Eliminar el más antiguo (el primero)
+          return updated.slice(1);
+        }
+        return updated;
+      });
 
       if (duration > 0) {
         setTimeout(() => {
@@ -104,9 +114,12 @@ function ToastContainer({
   toasts: Toast[];
   onRemove: (id: string) => void;
 }) {
+  // Limitar a los últimos MAX_TOASTS toasts (los más recientes)
+  const visibleToasts = toasts.slice(-MAX_TOASTS);
+
   return (
     <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 w-full max-w-sm pointer-events-none">
-      {toasts.map((toast) => (
+      {visibleToasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}
     </div>

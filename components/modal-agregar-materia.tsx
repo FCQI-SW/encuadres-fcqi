@@ -113,7 +113,11 @@ export function ModalAgregarMateria({
                 value={materia.clave}
                 onChange={onInputChange}
                 disabled={saving}
+                maxLength={20}
               />
+              <p className="text-xs text-muted-foreground">
+                Máximo 20 caracteres
+              </p>
             </div>
 
             <div className="space-y-1">
@@ -125,7 +129,11 @@ export function ModalAgregarMateria({
                 value={materia.nombre_materia}
                 onChange={onInputChange}
                 disabled={saving}
+                maxLength={50}
               />
+              <p className="text-xs text-muted-foreground">
+                Máximo 50 caracteres
+              </p>
             </div>
 
             <div className="space-y-1">
@@ -249,7 +257,8 @@ export function ModalAgregarMateria({
           <div className="space-y-2">
             <Label className="text-sm font-medium">Importar desde Excel</Label>
             <p className="text-xs text-muted-foreground">
-              Columnas: Clave, Nombre, Licenciatura, Categoría, Requisito, Estado
+              Columnas: Clave, Nombre, Licenciatura, Categoría, Requisito,
+              Estado
             </p>
             <input
               ref={fileInputRef}

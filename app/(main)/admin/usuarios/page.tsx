@@ -29,6 +29,7 @@ import {
   UserPlus,
   Users,
   Loader2,
+  X,
 } from "lucide-react";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
@@ -121,6 +122,15 @@ export default function UserManagementPage() {
     }
     setLoading(false);
   }
+
+  // Limpiar filtros
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setSelectedRole("Todos");
+  };
+
+  // Verificar si hay filtros activos
+  const hasActiveFilters = searchTerm || selectedRole !== "Todos";
 
   // Filtrado
   const filteredUsers = users.filter((user) => {
@@ -421,29 +431,53 @@ export default function UserManagementPage() {
       {/* Filtros */}
       <Card>
         <CardContent className="pt-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-              <Search className="h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Buscar por correo o nombre..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1"
-              />
+          <div className="space-y-4">
+            {/* Búsqueda y filtros en la misma fila */}
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Búsqueda */}
+              <div className="flex items-center gap-2">
+                <Search className="h-5 w-5 text-gray-400" />
+                <Input
+                  placeholder="Buscar por correo o nombre..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-80"
+                />
+              </div>
+
+              {/* Filtros */}
+              <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <SelectTrigger className="min-w-[180px]">
+                  <SelectValue placeholder="Filtrar por rol" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos los roles</SelectItem>
+                  {roles.map((rol) => (
+                    <SelectItem key={rol.id} value={rol.nombre}>
+                      {rol.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Botón limpiar filtros */}
+              {hasActiveFilters && (
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={handleClearFilters}
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-400 cursor-pointer font-medium"
+                >
+                  <X className="h-5 w-5 mr-2" />
+                  Limpiar filtros
+                </Button>
+              )}
             </div>
-            <Select onValueChange={setSelectedRole} defaultValue="Todos">
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filtrar por rol" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todos">Todos los roles</SelectItem>
-                {roles.map((rol) => (
-                  <SelectItem key={rol.id} value={rol.nombre}>
-                    {rol.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            {/* Contador de resultados */}
+            <div className="text-sm text-muted-foreground">
+              Mostrando {filteredUsers.length} de {users.length} usuarios
+            </div>
           </div>
         </CardContent>
       </Card>

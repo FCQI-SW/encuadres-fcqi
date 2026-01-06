@@ -238,7 +238,22 @@ export default function ConfigurarFechaPage() {
                     id="fecha-inicio"
                     type="date"
                     value={fechaInicio}
-                    onChange={(e) => setFechaInicio(e.target.value)}
+                    max={fechaFin || undefined}
+                    onChange={(e) => {
+                      const nuevaFechaInicio = e.target.value;
+                      setFechaInicio(nuevaFechaInicio);
+                      // Si la fecha de fin es anterior a la nueva fecha de inicio, ajustarla
+                      if (
+                        fechaFin &&
+                        nuevaFechaInicio &&
+                        fechaFin < nuevaFechaInicio
+                      ) {
+                        setFechaFin(nuevaFechaInicio);
+                        toast.info(
+                          "La fecha de fin se ha ajustado a la fecha de inicio."
+                        );
+                      }
+                    }}
                     className="sr-only"
                   />
                   <Button
@@ -282,16 +297,38 @@ export default function ConfigurarFechaPage() {
                     id="fecha-fin"
                     type="date"
                     value={fechaFin}
-                    min={fechaInicio}
-                    onChange={(e) => setFechaFin(e.target.value)}
+                    min={fechaInicio || undefined}
+                    onChange={(e) => {
+                      const nuevaFechaFin = e.target.value;
+                      // Validar que la fecha de fin no sea anterior a la fecha de inicio
+                      if (
+                        fechaInicio &&
+                        nuevaFechaFin &&
+                        nuevaFechaFin < fechaInicio
+                      ) {
+                        toast.error(
+                          "La fecha de fin no puede ser anterior a la fecha de inicio."
+                        );
+                        return;
+                      }
+                      setFechaFin(nuevaFechaFin);
+                    }}
                     className="sr-only"
+                    disabled={!fechaInicio}
                   />
                   <Button
                     variant="outline"
                     type="button"
                     className="w-full justify-start text-left font-normal"
+                    disabled={!fechaInicio}
                     onClick={(e) => {
                       e.preventDefault();
+                      if (!fechaInicio) {
+                        toast.error(
+                          "Primero debes seleccionar una fecha de inicio."
+                        );
+                        return;
+                      }
                       const input = document.getElementById(
                         "fecha-fin"
                       ) as HTMLInputElement;
@@ -309,7 +346,9 @@ export default function ConfigurarFechaPage() {
                       formatDateLong(fechaFin)
                     ) : (
                       <span className="text-muted-foreground">
-                        Selecciona fecha
+                        {fechaInicio
+                          ? "Selecciona fecha"
+                          : "Selecciona fecha de inicio primero"}
                       </span>
                     )}
                   </Button>

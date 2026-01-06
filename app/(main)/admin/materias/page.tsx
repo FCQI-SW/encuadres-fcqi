@@ -571,19 +571,20 @@ export default function MateriasPage() {
       <Card>
         <CardContent className="pt-4">
           <div className="space-y-4">
-            {/* Búsqueda */}
-            <div className="flex items-center gap-2">
-              <Search className="h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Buscar por clave o nombre..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1"
-              />
-            </div>
-
-            {/* Filtros por categorías */}
+            {/* Búsqueda y filtros en la misma fila */}
             <div className="flex flex-wrap items-center gap-4">
+              {/* Búsqueda */}
+              <div className="flex items-center gap-2">
+                <Search className="h-5 w-5 text-gray-400" />
+                <Input
+                  placeholder="Buscar por clave o nombre..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-80"
+                />
+              </div>
+
+              {/* Filtros por categorías */}
               <Select value={selectedLic} onValueChange={setSelectedLic}>
                 <SelectTrigger className="w-56">
                   <SelectValue placeholder="Licenciatura" />
@@ -641,12 +642,12 @@ export default function MateriasPage() {
               {/* Botón limpiar filtros */}
               {hasActiveFilters && (
                 <Button
-                  variant="ghost"
-                  size="sm"
+                  variant="outline"
+                  size="default"
                   onClick={handleClearFilters}
-                  className="text-muted-foreground cursor-pointer"
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-400 cursor-pointer font-medium"
                 >
-                  <X className="h-4 w-4 mr-1" />
+                  <X className="h-5 w-5 mr-2" />
                   Limpiar filtros
                 </Button>
               )}
@@ -674,22 +675,31 @@ export default function MateriasPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Clave</TableHead>
-                    <TableHead>Nombre</TableHead>
+                    <TableHead className="max-w-[120px]">Clave</TableHead>
+                    <TableHead className="max-w-[300px]">Nombre</TableHead>
                     <TableHead>Licenciatura</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead>Requisito</TableHead>
-                    <TableHead>Estado</TableHead>
+                    <TableHead className="w-32 min-w-[120px]">Estado</TableHead>
                     <TableHead>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((materia) => (
                     <TableRow key={materia.clave}>
-                      <TableCell className="font-medium">
-                        {materia.clave}
+                      <TableCell className="font-medium max-w-[120px]">
+                        <span className="block truncate" title={materia.clave}>
+                          {materia.clave}
+                        </span>
                       </TableCell>
-                      <TableCell>{materia.nombre_materia}</TableCell>
+                      <TableCell className="max-w-[300px]">
+                        <span
+                          className="block truncate"
+                          title={materia.nombre_materia}
+                        >
+                          {materia.nombre_materia}
+                        </span>
+                      </TableCell>
                       <TableCell>{materia.licenciatura}</TableCell>
                       <TableCell>
                         <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
@@ -707,21 +717,21 @@ export default function MateriasPage() {
                           {materia.requisito}
                         </span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="w-32 min-w-[120px]">
                         <div className="flex items-center gap-2">
                           <span
-                            className={`inline-block w-2 h-2 rounded-full ${
+                            className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
                               materia.estado === "Activa"
                                 ? "bg-green-500"
                                 : "bg-red-500"
                             }`}
                           />
                           <span
-                            className={
+                            className={`whitespace-nowrap ${
                               materia.estado === "Activa"
                                 ? "text-green-600"
                                 : "text-red-600"
-                            }
+                            }`}
                           >
                             {materia.estado}
                           </span>

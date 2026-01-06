@@ -341,21 +341,22 @@ export default function AnunciosPage() {
       <Card>
         <CardContent className="pt-4">
           <div className="space-y-4">
-            {/* Búsqueda */}
-            <div className="flex items-center gap-2">
-              <Search className="h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Buscar por título..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1"
-              />
-            </div>
-
-            {/* Filtros */}
+            {/* Búsqueda y filtros en la misma fila */}
             <div className="flex flex-wrap items-center gap-4">
+              {/* Búsqueda */}
+              <div className="flex items-center gap-2">
+                <Search className="h-5 w-5 text-gray-400" />
+                <Input
+                  placeholder="Buscar por título..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-80"
+                />
+              </div>
+
+              {/* Filtros */}
               <Select value={selectedEstado} onValueChange={setSelectedEstado}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="min-w-[180px]">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent>
@@ -367,7 +368,7 @@ export default function AnunciosPage() {
               </Select>
 
               <Select value={selectedMetodo} onValueChange={setSelectedMetodo}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="min-w-[180px]">
                   <SelectValue placeholder="Método" />
                 </SelectTrigger>
                 <SelectContent>
@@ -378,14 +379,15 @@ export default function AnunciosPage() {
                 </SelectContent>
               </Select>
 
+              {/* Botón limpiar filtros */}
               {hasActiveFilters && (
                 <Button
-                  variant="ghost"
-                  size="sm"
+                  variant="outline"
+                  size="default"
                   onClick={handleClearFilters}
-                  className="text-muted-foreground cursor-pointer"
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-400 cursor-pointer font-medium"
                 >
-                  <X className="h-4 w-4 mr-1" />
+                  <X className="h-5 w-5 mr-2" />
                   Limpiar filtros
                 </Button>
               )}
