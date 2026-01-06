@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useEncuadreAlumnos, AlumnoEncuadre } from "@/hooks/useEncuadreAlumnos";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 import { generarClaveSegura, validarCorreoInstitucional } from "@/lib/password-generator";
 
 type AlumnosTabProps = {
@@ -43,6 +44,7 @@ type AlumnosTabProps = {
 
 export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }: AlumnosTabProps) {
   const confirm = useConfirm();
+  const toast = useToast();
 
   const {
     obtenerAlumnos,
@@ -130,24 +132,13 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
     const result = await registrarAlumno(nuevoCorreo, claveGenerada, materiaNombre, grupo, periodo);
 
     if (result.success) {
-      await confirm({
-        title: "¡Alumno registrado!",
-        message: `El alumno ha sido registrado exitosamente.\n\nLa clave generada es:\n${claveGenerada}\n\nRecuerda enviar el correo con las credenciales.`,
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-
+      toast.success(`Alumno registrado exitosamente. Clave: ${claveGenerada}. Recuerda enviar el correo con las credenciales.`);
       setNuevoCorreo("");
       setClaveGenerada("");
       setMostrarFormulario(false);
       await cargarAlumnos();
     } else {
-      await confirm({
-        title: "Error al registrar",
-        message: result.error || "Ocurrió un error al registrar al alumno",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
+      toast.error(result.error || "Ocurrió un error al registrar al alumno");
     }
   };
 
@@ -170,20 +161,10 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
     );
 
     if (result.success && result.clave) {
-      await confirm({
-        title: "Nueva clave generada",
-        message: `La nueva clave es:\n\n${result.clave}\n\nRecuerda enviarla al alumno.`,
-        confirmText: "Entendido",
-        cancelText: "",
-      });
+      toast.success(`Nueva clave generada: ${result.clave}. Recuerda enviarla al alumno.`);
       await cargarAlumnos();
     } else {
-      await confirm({
-        title: "Error",
-        message: result.error || "No se pudo regenerar la clave",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
+      toast.error(result.error || "No se pudo regenerar la clave");
     }
   };
 
@@ -200,14 +181,10 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
     const result = await revocarAcceso(alumno.alumno_id);
 
     if (result.success) {
+      toast.success(`Acceso revocado para ${alumno.correo}`);
       await cargarAlumnos();
     } else {
-      await confirm({
-        title: "Error",
-        message: result.error || "No se pudo revocar el acceso",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
+      toast.error(result.error || "No se pudo revocar el acceso");
     }
   };
 
@@ -215,14 +192,10 @@ export default function AlumnosTab({ encuadreId, materiaNombre, grupo, periodo }
     const result = await reactivarAcceso(alumno.alumno_id);
 
     if (result.success) {
+      toast.success(`Acceso reactivado para ${alumno.correo}`);
       await cargarAlumnos();
     } else {
-      await confirm({
-        title: "Error",
-        message: result.error || "No se pudo reactivar el acceso",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
+      toast.error(result.error || "No se pudo reactivar el acceso");
     }
   };
 

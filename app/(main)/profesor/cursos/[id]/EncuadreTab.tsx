@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Plus, Trash2, Lock } from "lucide-react";
 import { useEncuadreProfesor } from "@/hooks/useEncuadreProfesor";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 
 type CriterioCalificacion = {
   criterio: string;
@@ -36,6 +37,7 @@ type EncuadreTabProps = {
 
 export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
   const confirm = useConfirm();
+  const toast = useToast();
   const { data: session, status } = useSession();
 
   const [loadingData, setLoadingData] = useState(true);
@@ -58,6 +60,7 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
   const [valoresOriginales, setValoresOriginales] = useState<any>(null);
 
   const { obtenerEncuadre, actualizarEncuadre, loading, error } = useEncuadreProfesor();
+  const [prevError, setPrevError] = useState<string | null>(null);
 
   useEffect(() => {
     if (encuadreId && encuadreId !== "undefined") {
@@ -67,6 +70,14 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encuadreId]);
+
+  // Mostrar error en toast cuando cambie
+  useEffect(() => {
+    if (error && error !== prevError) {
+      toast.error(error);
+      setPrevError(error);
+    }
+  }, [error, prevError, toast]);
 
   const cargarDatos = async () => {
     setLoadingData(true);
@@ -204,14 +215,10 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
     });
 
     if (success) {
-      await confirm({
-        title: "¡Guardado exitoso!",
-        message: "Los cambios se han guardado correctamente.",
-        confirmText: "Aceptar",
-        cancelText: "",
-      });
-
+      toast.success("Los cambios se han guardado correctamente.");
       await cargarDatos();
+    } else {
+      toast.error("Error al guardar los cambios. Intenta de nuevo.");
     }
   };
 
@@ -252,14 +259,6 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
 
   return (
     <div className="space-y-6">
-      {error && (
-        <Card className="border-red-500 bg-red-50">
-          <CardContent className="pt-6">
-            <p className="text-red-600 text-sm">{error}</p>
-          </CardContent>
-        </Card>
-      )}
-
       {!profesorPuedeModificar && (
         <Card className="border-yellow-500 bg-yellow-50">
           <CardContent className="pt-6">

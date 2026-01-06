@@ -11,7 +11,7 @@ import {
   Save,
   Loader2,
   AlertCircle,
-  CheckCircle,
+  CalendarIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/toast";
 
 type ConfiguracionFecha = {
   id?: string;
@@ -54,11 +55,10 @@ function formatDateLong(dateString: string): string {
 
 export default function ConfigurarFechaPage() {
   const router = useRouter();
+  const toast = useToast();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
   const [configId, setConfigId] = useState<string | null>(null);
 
   // Fechas como strings (YYYY-MM-DD)
@@ -71,20 +71,6 @@ export default function ConfigurarFechaPage() {
   useEffect(() => {
     fetchConfiguracion();
   }, []);
-
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
-
-  useEffect(() => {
-    if (errorMessage) {
-      const timer = setTimeout(() => setErrorMessage(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [errorMessage]);
 
   async function fetchConfiguracion() {
     setLoading(true);
@@ -129,7 +115,9 @@ export default function ConfigurarFechaPage() {
       errors.push("La fecha de fin es obligatoria.");
     }
     if (fechaInicio && fechaFin && fechaInicio > fechaFin) {
-      errors.push("La fecha de inicio no puede ser posterior a la fecha de fin.");
+      errors.push(
+        "La fecha de inicio no puede ser posterior a la fecha de fin."
+      );
     }
     if (startTime && endTime && startTime >= endTime) {
       errors.push("La hora de inicio debe ser anterior a la hora de cierre.");
@@ -141,12 +129,11 @@ export default function ConfigurarFechaPage() {
   async function handleSave() {
     const validationErrors = validateDates();
     if (validationErrors.length > 0) {
-      setErrorMessage(validationErrors.join(" "));
+      toast.error(validationErrors.join(" "));
       return;
     }
 
     setSaving(true);
-    setErrorMessage("");
 
     try {
       const configuracion: ConfiguracionFecha = {
@@ -174,16 +161,16 @@ export default function ConfigurarFechaPage() {
 
       if (error) {
         console.error("Error al guardar:", error);
-        setErrorMessage("Error al guardar la configuración. Intenta de nuevo.");
+        toast.error("Error al guardar la configuración. Intenta de nuevo.");
         setSaving(false);
         return;
       }
 
-      setSuccessMessage("Fecha de operación establecida correctamente.");
+      toast.success("Fecha de operación establecida correctamente.");
       await fetchConfiguracion();
     } catch (err) {
       console.error("Error:", err);
-      setErrorMessage("Ocurrió un error inesperado.");
+      toast.error("Ocurrió un error inesperado.");
     }
 
     setSaving(false);
@@ -230,29 +217,6 @@ export default function ConfigurarFechaPage() {
         </Button>
       </div>
 
-      {/* Mensajes */}
-      {successMessage && (
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 text-green-700">
-              <CheckCircle className="h-5 w-5 flex-shrink-0" />
-              <span className="text-sm">{successMessage}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {errorMessage && (
-        <Card className="bg-red-50 border-red-200">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 text-red-700">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
-              <span className="text-sm">{errorMessage}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Selector de fechas */}
         <Card>
@@ -269,13 +233,42 @@ export default function ConfigurarFechaPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="fecha-inicio">Fecha de inicio</Label>
-                <Input
-                  id="fecha-inicio"
-                  type="date"
-                  value={fechaInicio}
-                  onChange={(e) => setFechaInicio(e.target.value)}
-                  className="w-full"
-                />
+                <div className="relative">
+                  <Input
+                    id="fecha-inicio"
+                    type="date"
+                    value={fechaInicio}
+                    onChange={(e) => setFechaInicio(e.target.value)}
+                    className="sr-only"
+                  />
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className="w-full justify-start text-left font-normal"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const input = document.getElementById(
+                        "fecha-inicio"
+                      ) as HTMLInputElement;
+                      if (input) {
+                        input.showPicker?.();
+                        if (!input.showPicker) {
+                          // Fallback para navegadores que no soportan showPicker
+                          input.click();
+                        }
+                      }
+                    }}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {fechaInicio ? (
+                      formatDateLong(fechaInicio)
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Selecciona fecha
+                      </span>
+                    )}
+                  </Button>
+                </div>
                 {fechaInicio && (
                   <p className="text-xs text-muted-foreground">
                     {formatDateLong(fechaInicio)}
@@ -284,14 +277,43 @@ export default function ConfigurarFechaPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="fecha-fin">Fecha de fin</Label>
-                <Input
-                  id="fecha-fin"
-                  type="date"
-                  value={fechaFin}
-                  min={fechaInicio}
-                  onChange={(e) => setFechaFin(e.target.value)}
-                  className="w-full"
-                />
+                <div className="relative">
+                  <Input
+                    id="fecha-fin"
+                    type="date"
+                    value={fechaFin}
+                    min={fechaInicio}
+                    onChange={(e) => setFechaFin(e.target.value)}
+                    className="sr-only"
+                  />
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className="w-full justify-start text-left font-normal"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const input = document.getElementById(
+                        "fecha-fin"
+                      ) as HTMLInputElement;
+                      if (input) {
+                        input.showPicker?.();
+                        if (!input.showPicker) {
+                          // Fallback para navegadores que no soportan showPicker
+                          input.click();
+                        }
+                      }
+                    }}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {fechaFin ? (
+                      formatDateLong(fechaFin)
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Selecciona fecha
+                      </span>
+                    )}
+                  </Button>
+                </div>
                 {fechaFin && (
                   <p className="text-xs text-muted-foreground">
                     {formatDateLong(fechaFin)}
@@ -311,7 +333,8 @@ export default function ConfigurarFechaPage() {
                   </span>
                 </div>
                 <p className="text-center text-xs text-muted-foreground mt-1">
-                  Del {formatDateLong(fechaInicio)} al {formatDateLong(fechaFin)}
+                  Del {formatDateLong(fechaInicio)} al{" "}
+                  {formatDateLong(fechaFin)}
                 </p>
               </div>
             )}
@@ -335,12 +358,42 @@ export default function ConfigurarFechaPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="start-time">Hora de inicio</Label>
-                  <Input
-                    id="start-time"
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="start-time"
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="sr-only"
+                    />
+                    <Button
+                      variant="outline"
+                      type="button"
+                      className="w-full justify-start text-left font-normal"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const input = document.getElementById(
+                          "start-time"
+                        ) as HTMLInputElement;
+                        if (input) {
+                          input.showPicker?.();
+                          if (!input.showPicker) {
+                            // Fallback para navegadores que no soportan showPicker
+                            input.click();
+                          }
+                        }
+                      }}
+                    >
+                      <Clock className="mr-2 h-4 w-4" />
+                      {startTime ? (
+                        formatTime(startTime)
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Selecciona hora
+                        </span>
+                      )}
+                    </Button>
+                  </div>
                   {startTime && (
                     <p className="text-xs text-muted-foreground">
                       {formatTime(startTime)}
@@ -349,12 +402,42 @@ export default function ConfigurarFechaPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="end-time">Hora de cierre</Label>
-                  <Input
-                    id="end-time"
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="end-time"
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="sr-only"
+                    />
+                    <Button
+                      variant="outline"
+                      type="button"
+                      className="w-full justify-start text-left font-normal"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const input = document.getElementById(
+                          "end-time"
+                        ) as HTMLInputElement;
+                        if (input) {
+                          input.showPicker?.();
+                          if (!input.showPicker) {
+                            // Fallback para navegadores que no soportan showPicker
+                            input.click();
+                          }
+                        }
+                      }}
+                    >
+                      <Clock className="mr-2 h-4 w-4" />
+                      {endTime ? (
+                        formatTime(endTime)
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Selecciona hora
+                        </span>
+                      )}
+                    </Button>
+                  </div>
                   {endTime && (
                     <p className="text-xs text-muted-foreground">
                       {formatTime(endTime)}

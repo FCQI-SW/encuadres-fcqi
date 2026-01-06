@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { ConfirmProvider } from "@/components/global-confirm-modal";
 import { SessionProvider } from "@/components/session-provider";
+import { ToastProvider } from "@/components/ui/toast";
 import { getSession } from "@/lib/auth";
 
 const geistSans = Geist({
@@ -30,10 +31,12 @@ export default async function RootLayout({
 
   return (
     <html lang="es">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
         <SessionProvider session={session}>
           <ConfirmProvider>
-            {children}
+            <ToastProvider>{children}</ToastProvider>
           </ConfirmProvider>
         </SessionProvider>
       </body>

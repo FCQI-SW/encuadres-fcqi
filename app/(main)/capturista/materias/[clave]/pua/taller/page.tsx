@@ -18,6 +18,7 @@ import {
   type PracticaTaller as PracticaTallerType,
 } from "@/hooks/useTallerForm";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 
 type Programa = {
   id: string;
@@ -30,6 +31,7 @@ export default function PuaMateriaTaller() {
   const params = useParams<{ clave: string }>();
   const clave = params?.clave;
   const confirm = useConfirm();
+  const toast = useToast();
 
   const [programa, setPrograma] = useState<Programa | null>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -256,14 +258,10 @@ export default function PuaMateriaTaller() {
     const success = await guardarPracticas(todasLasPracticas);
 
     if (success) {
-      await confirm({
-        title: "¡Guardado exitoso!",
-        message: "Las prácticas de taller se han guardado correctamente.",
-        confirmText: "Continuar",
-        cancelText: "",
-      });
-
+      toast.success("Las prácticas de taller se han guardado correctamente.");
       router.push(`/capturista/materias`);
+    } else {
+      toast.error("Error al guardar las prácticas de taller. Intenta de nuevo.");
     }
   };
 

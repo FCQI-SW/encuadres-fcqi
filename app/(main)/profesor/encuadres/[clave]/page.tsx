@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { ChevronLeft, Loader2, Plus, Trash2, Lock } from "lucide-react";
 import { useEncuadreProfesor } from "@/hooks/useEncuadreProfesor";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 import AlumnosEncuadreCard from "@/components/alumnosEncuadreCard";
 
 type CriterioCalificacion = {
@@ -38,6 +39,7 @@ export default function Page() {
   const encuadreId = params.clave as string;
 
   const confirm = useConfirm();
+  const toast = useToast();
   const { data: session, status } = useSession();
 
   console.log("=== CLIENT COMPONENT ===");
@@ -63,6 +65,7 @@ export default function Page() {
   const [valoresOriginales, setValoresOriginales] = useState<any>(null);
 
   const { obtenerEncuadre, actualizarEncuadre, loading, error } = useEncuadreProfesor();
+  const [prevError, setPrevError] = useState<string | null>(null);
 
   useEffect(() => {
     if (encuadreId && encuadreId !== "undefined") {
@@ -74,6 +77,14 @@ export default function Page() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encuadreId]);
+
+  // Mostrar error en toast cuando cambie
+  useEffect(() => {
+    if (error && error !== prevError) {
+      toast.error(error);
+      setPrevError(error);
+    }
+  }, [error, prevError, toast]);
 
   const cargarDatos = async () => {
     console.log("=== INICIO cargarDatos ===");
@@ -241,14 +252,10 @@ export default function Page() {
     });
 
     if (success) {
-      await confirm({
-        title: "¡Guardado exitoso!",
-        message: "Los cambios se han guardado correctamente.",
-        confirmText: "Aceptar",
-        cancelText: "",
-      });
-
+      toast.success("Los cambios se han guardado correctamente.");
       await cargarDatos();
+    } else {
+      toast.error("Error al guardar los cambios. Intenta de nuevo.");
     }
   };
 
@@ -332,14 +339,6 @@ export default function Page() {
             Revisa y edita el encuadre de tu curso.
           </p>
         </div>
-
-        {error && (
-          <Card className="border-red-500 bg-red-50">
-            <CardContent className="pt-6">
-              <p className="text-red-600 text-sm">{error}</p>
-            </CardContent>
-          </Card>
-        )}
 
         {!profesorPuedeModificar && (
           <Card className="border-yellow-500 bg-yellow-50">

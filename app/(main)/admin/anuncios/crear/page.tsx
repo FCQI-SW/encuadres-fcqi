@@ -33,11 +33,18 @@ import {
   Mail,
   Bell,
   Users,
-  CheckCircle,
   Info,
 } from "lucide-react";
-import { format, parseISO, addDays, isAfter, isBefore, addYears } from "date-fns";
+import {
+  format,
+  parseISO,
+  addDays,
+  isAfter,
+  isBefore,
+  addYears,
+} from "date-fns";
 import { es } from "date-fns/locale";
+import { useToast } from "@/components/ui/toast";
 
 type Destinatario = "profesor" | "personal" | "alumno";
 type Metodo = "correo" | "notificacion" | "ambos";
@@ -59,6 +66,7 @@ export default function CrearAnuncioPage() {
   const router = useRouter();
   const params = useSearchParams();
   const anuncioId = params.get("id");
+  const toast = useToast();
 
   // Estados del formulario
   const [titulo, setTitulo] = useState("");
@@ -74,7 +82,6 @@ export default function CrearAnuncioPage() {
   const [advertencias, setAdvertencias] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
   const [anuncioNoEncontrado, setAnuncioNoEncontrado] = useState(false);
 
   // Cargar anuncio si estamos editando
@@ -120,13 +127,6 @@ export default function CrearAnuncioPage() {
       });
   }, [anuncioId]);
 
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
-
   // Sanitizar texto (remover caracteres peligrosos)
   function sanitizarTexto(texto: string): string {
     return texto.replace(CARACTERES_PELIGROSOS, "");
@@ -163,7 +163,11 @@ export default function CrearAnuncioPage() {
   }
 
   // Validación completa
-  function validar(esBorrador: boolean = false): { valido: boolean; errores: string[]; advertencias: string[] } {
+  function validar(esBorrador: boolean = false): {
+    valido: boolean;
+    errores: string[];
+    advertencias: string[];
+  } {
     const errs: string[] = [];
     const warns: string[] = [];
 
@@ -173,10 +177,14 @@ export default function CrearAnuncioPage() {
       errs.push("El título es obligatorio.");
     } else {
       if (tituloLimpio.length < VALIDACION.TITULO_MIN) {
-        errs.push(`El título debe tener al menos ${VALIDACION.TITULO_MIN} caracteres.`);
+        errs.push(
+          `El título debe tener al menos ${VALIDACION.TITULO_MIN} caracteres.`
+        );
       }
       if (tituloLimpio.length > VALIDACION.TITULO_MAX) {
-        errs.push(`El título no puede exceder ${VALIDACION.TITULO_MAX} caracteres.`);
+        errs.push(
+          `El título no puede exceder ${VALIDACION.TITULO_MAX} caracteres.`
+        );
       }
       // Verificar si solo tiene espacios o caracteres repetidos
       if (/^(.)\1+$/.test(tituloLimpio)) {
@@ -195,14 +203,20 @@ export default function CrearAnuncioPage() {
       errs.push("El mensaje es obligatorio.");
     } else {
       if (mensajeLimpio.length < VALIDACION.MENSAJE_MIN) {
-        errs.push(`El mensaje debe tener al menos ${VALIDACION.MENSAJE_MIN} caracteres.`);
+        errs.push(
+          `El mensaje debe tener al menos ${VALIDACION.MENSAJE_MIN} caracteres.`
+        );
       }
       if (mensajeLimpio.length > VALIDACION.MENSAJE_MAX) {
-        errs.push(`El mensaje no puede exceder ${VALIDACION.MENSAJE_MAX} caracteres.`);
+        errs.push(
+          `El mensaje no puede exceder ${VALIDACION.MENSAJE_MAX} caracteres.`
+        );
       }
       // Verificar si solo tiene espacios o caracteres repetidos
       if (/^(.)\1+$/.test(mensajeLimpio)) {
-        errs.push("El mensaje no puede consistir solo en caracteres repetidos.");
+        errs.push(
+          "El mensaje no puede consistir solo en caracteres repetidos."
+        );
       }
     }
 
@@ -242,13 +256,17 @@ export default function CrearAnuncioPage() {
 
           // Verificar que no sea muy lejana
           if (isAfter(fechaHora, maxFecha)) {
-            errs.push(`La fecha no puede ser mayor a ${VALIDACION.MAX_DIAS_FUTURO} días en el futuro.`);
+            errs.push(
+              `La fecha no puede ser mayor a ${VALIDACION.MAX_DIAS_FUTURO} días en el futuro.`
+            );
           }
 
           // Advertencia si es muy pronto (menos de 1 hora)
           const unaHoraDespues = new Date(ahora.getTime() + 60 * 60 * 1000);
           if (isBefore(fechaHora, unaHoraDespues)) {
-            warns.push("La fecha programada es en menos de 1 hora. Asegúrate de que es correcta.");
+            warns.push(
+              "La fecha programada es en menos de 1 hora. Asegúrate de que es correcta."
+            );
           }
         }
       }
@@ -298,7 +316,7 @@ export default function CrearAnuncioPage() {
 
     try {
       let enviadoAt: string | null = null;
-      
+
       if (targetEstado === "programado" && programarFecha) {
         const fechaHora = programarHora
           ? new Date(`${programarFecha}T${programarHora}`)
@@ -338,7 +356,10 @@ export default function CrearAnuncioPage() {
           return;
         }
 
-        result = await supabase.from("anuncios").update(payload).eq("id", anuncioId);
+        result = await supabase
+          .from("anuncios")
+          .update(payload)
+          .eq("id", anuncioId);
       } else {
         result = await supabase.from("anuncios").insert([payload]);
       }
@@ -358,7 +379,7 @@ export default function CrearAnuncioPage() {
           ? "Anuncio programado correctamente."
           : "Anuncio enviado correctamente.";
 
-      setSuccessMessage(mensajeExito);
+      toast.success(mensajeExito);
 
       // Redirigir después de un breve delay
       setTimeout(() => {
@@ -476,18 +497,6 @@ export default function CrearAnuncioPage() {
         </Button>
       </div>
 
-      {/* Mensaje de éxito */}
-      {successMessage && (
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 text-green-700">
-              <CheckCircle className="h-5 w-5" />
-              <span>{successMessage}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Errores */}
       {errores.length > 0 && (
         <Card className="bg-red-50 border-red-200">
@@ -561,7 +570,9 @@ export default function CrearAnuncioPage() {
                   >
                     {tituloLength < VALIDACION.TITULO_MIN &&
                       tituloLength > 0 &&
-                      `Faltan ${VALIDACION.TITULO_MIN - tituloLength} caracteres`}
+                      `Faltan ${
+                        VALIDACION.TITULO_MIN - tituloLength
+                      } caracteres`}
                   </span>
                   <span
                     className={
@@ -598,14 +609,17 @@ export default function CrearAnuncioPage() {
                 <div className="flex justify-between text-xs">
                   <span
                     className={
-                      mensajeLength > 0 && mensajeLength < VALIDACION.MENSAJE_MIN
+                      mensajeLength > 0 &&
+                      mensajeLength < VALIDACION.MENSAJE_MIN
                         ? "text-yellow-600"
                         : "text-muted-foreground"
                     }
                   >
                     {mensajeLength < VALIDACION.MENSAJE_MIN &&
                       mensajeLength > 0 &&
-                      `Faltan ${VALIDACION.MENSAJE_MIN - mensajeLength} caracteres`}
+                      `Faltan ${
+                        VALIDACION.MENSAJE_MIN - mensajeLength
+                      } caracteres`}
                   </span>
                   <span
                     className={
@@ -638,7 +652,9 @@ export default function CrearAnuncioPage() {
                   <Checkbox
                     id="todos"
                     checked={destinatarios.length === 3}
-                    onCheckedChange={(checked) => toggleTodos(checked as boolean)}
+                    onCheckedChange={(checked) =>
+                      toggleTodos(checked as boolean)
+                    }
                     disabled={isSaving}
                   />
                   <Label htmlFor="todos" className="font-medium cursor-pointer">
@@ -657,7 +673,10 @@ export default function CrearAnuncioPage() {
                           }
                           disabled={isSaving}
                         />
-                        <Label htmlFor={d} className="capitalize cursor-pointer">
+                        <Label
+                          htmlFor={d}
+                          className="capitalize cursor-pointer"
+                        >
                           {d === "profesor"
                             ? "Profesores"
                             : d === "personal"
@@ -768,9 +787,13 @@ export default function CrearAnuncioPage() {
                   <p className="text-xs text-blue-700">
                     <Clock className="inline h-3 w-3 mr-1" />
                     Se enviará el{" "}
-                    {format(parseISO(programarFecha), "EEEE d 'de' MMMM 'de' yyyy", {
-                      locale: es,
-                    })}{" "}
+                    {format(
+                      parseISO(programarFecha),
+                      "EEEE d 'de' MMMM 'de' yyyy",
+                      {
+                        locale: es,
+                      }
+                    )}{" "}
                     a las {programarHora || "00:00"}
                   </p>
                 </div>
@@ -843,13 +866,16 @@ export default function CrearAnuncioPage() {
             <CardContent className="pt-4">
               <div className="text-xs text-muted-foreground space-y-2">
                 <p>
-                  <strong>Borrador:</strong> Se guarda sin enviar, puedes editarlo después.
+                  <strong>Borrador:</strong> Se guarda sin enviar, puedes
+                  editarlo después.
                 </p>
                 <p>
-                  <strong>Programar:</strong> Se enviará automáticamente en la fecha indicada.
+                  <strong>Programar:</strong> Se enviará automáticamente en la
+                  fecha indicada.
                 </p>
                 <p>
-                  <strong>Enviar ahora:</strong> Se envía inmediatamente a los destinatarios.
+                  <strong>Enviar ahora:</strong> Se envía inmediatamente a los
+                  destinatarios.
                 </p>
               </div>
             </CardContent>

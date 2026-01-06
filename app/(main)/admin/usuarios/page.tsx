@@ -20,13 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   ChevronLeft,
   ChevronRight,
@@ -37,6 +31,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 import { AddUserModal } from "./add-user";
 import * as XLSX from "xlsx";
 
@@ -62,6 +57,7 @@ type NewUser = {
 export default function UserManagementPage() {
   const router = useRouter();
   const confirm = useConfirm();
+  const toast = useToast();
 
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -82,19 +78,11 @@ export default function UserManagementPage() {
     name: "",
   });
   const [errors, setErrors] = useState<string[]>([]);
-  const [successMessage, setSuccessMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchData();
   }, []);
-
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
 
   async function fetchData() {
     setLoading(true);
@@ -105,7 +93,11 @@ export default function UserManagementPage() {
       ]);
 
       if (usuariosRes.error || rolesRes.error) {
-        console.error("Error al obtener datos:", usuariosRes.error, rolesRes.error);
+        console.error(
+          "Error al obtener datos:",
+          usuariosRes.error,
+          rolesRes.error
+        );
         return;
       }
 
@@ -176,14 +168,15 @@ export default function UserManagementPage() {
         user.id === userId ? { ...user, role_id: newRole.id } : user
       )
     );
-    setSuccessMessage("Rol actualizado correctamente.");
+    toast.success("Rol actualizado correctamente.");
   };
 
   // Eliminar usuario
   const handleDelete = async (userId: string) => {
     const userConfirmed = await confirm({
       title: "Eliminar usuario",
-      message: "¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.",
+      message:
+        "¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.",
       confirmText: "Sí, eliminar",
       cancelText: "Cancelar",
     });
@@ -199,7 +192,7 @@ export default function UserManagementPage() {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
 
     if (deletedUser) {
-      setSuccessMessage(`Usuario "${deletedUser.email}" eliminado correctamente.`);
+      toast.success(`Usuario "${deletedUser.email}" eliminado correctamente.`);
     }
   };
 
@@ -289,7 +282,7 @@ export default function UserManagementPage() {
 
     setIsModalOpen(false);
     setErrors([]);
-    setSuccessMessage(`Usuario "${newUser.email}" creado correctamente.`);
+    toast.success(`Usuario "${newUser.email}" creado correctamente.`);
     setSaving(false);
 
     // Refrescar lista
@@ -341,7 +334,9 @@ export default function UserManagementPage() {
 
       setIsModalOpen(false);
       setErrors([]);
-      setSuccessMessage(`Se importaron ${bulkUsers.length} usuarios correctamente.`);
+      toast.success(
+        `Se importaron ${bulkUsers.length} usuarios correctamente.`
+      );
       setSaving(false);
 
       await fetchData();
@@ -396,25 +391,6 @@ export default function UserManagementPage() {
         </div>
       </div>
 
-      {/* Mensaje de éxito */}
-      {successMessage && (
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <span className="text-green-700">{successMessage}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSuccessMessage("")}
-                className="cursor-pointer"
-              >
-                ✕
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Estadísticas */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
@@ -432,7 +408,9 @@ export default function UserManagementPage() {
           <Card key={r.nombre}>
             <CardContent className="pt-4">
               <div>
-                <p className="text-sm text-muted-foreground capitalize">{r.nombre}</p>
+                <p className="text-sm text-muted-foreground capitalize">
+                  {r.nombre}
+                </p>
                 <p className="text-2xl font-bold">{r.count}</p>
               </div>
             </CardContent>
@@ -498,7 +476,9 @@ export default function UserManagementPage() {
                       <TableCell>
                         <Select
                           defaultValue={rolesMap[user.role_id] || "Desconocido"}
-                          onValueChange={(val) => handleRoleChange(user.id, val)}
+                          onValueChange={(val) =>
+                            handleRoleChange(user.id, val)
+                          }
                         >
                           <SelectTrigger className="w-40">
                             <SelectValue placeholder="Seleccionar rol" />
@@ -543,7 +523,9 @@ export default function UserManagementPage() {
                     return (
                       <Button
                         key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
+                        variant={
+                          currentPage === pageNum ? "default" : "outline"
+                        }
                         className={
                           currentPage === pageNum
                             ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"

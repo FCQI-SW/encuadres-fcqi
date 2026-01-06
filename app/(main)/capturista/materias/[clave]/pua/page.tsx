@@ -25,6 +25,7 @@ import {
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { usePuaForm } from "@/hooks/usePuaForm";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 
 type Materia = {
   id: string;
@@ -37,6 +38,7 @@ export default function PuaMateria() {
   const params = useParams<{ clave: string }>();
   const clave = params?.clave as string;
   const confirm = useConfirm();
+  const toast = useToast();
 
   const [loadingData, setLoadingData] = useState(true);
   const [materia, setMateria] = useState<Materia | null>(null);
@@ -77,6 +79,15 @@ export default function PuaMateria() {
   const [hayCambiosSinGuardar, setHayCambiosSinGuardar] = useState(false);
 
   const { guardarPua, cargarPua, loading, error } = usePuaForm(materia?.id || "");
+  const [prevError, setPrevError] = useState<string | null>(null);
+
+  // Mostrar error en toast cuando cambie
+  useEffect(() => {
+    if (error && error !== prevError) {
+      toast.error(error);
+      setPrevError(error);
+    }
+  }, [error, prevError, toast]);
 
   useEffect(() => {
     (async () => {
@@ -363,12 +374,9 @@ export default function PuaMateria() {
         perfilDocente,
       });
 
-      await confirm({
-        title: "¡Guardado exitoso!",
-        message: "Los cambios se han guardado correctamente.",
-        confirmText: "Aceptar",
-        cancelText: "",
-      });
+      toast.success("Los cambios se han guardado correctamente.");
+    } else {
+      toast.error("Error al guardar los cambios. Intenta de nuevo.");
     }
   };
 
@@ -554,13 +562,6 @@ export default function PuaMateria() {
           </p>
         </div>
 
-        {error && (
-          <Card className="border-red-500 bg-red-50">
-            <CardContent className="pt-6">
-              <p className="text-red-600 text-sm">{error}</p>
-            </CardContent>
-          </Card>
-        )}
 
         {/* I. Datos de identificación */}
         <Card>

@@ -39,6 +39,7 @@ import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 import { ModalAgregarMateria } from "../../../../components/modal-agregar-materia";
 import { ModalEditarMateria } from "../../../../components/modal-editar-materia";
 
@@ -54,6 +55,7 @@ export type Materia = {
 export default function MateriasPage() {
   const router = useRouter();
   const confirm = useConfirm();
+  const toast = useToast();
 
   const [data, setData] = useState<Materia[]>([]);
   const [filteredData, setFilteredData] = useState<Materia[]>([]);
@@ -88,15 +90,15 @@ export default function MateriasPage() {
   const [editMateria, setEditMateria] = useState<Materia | null>(null);
   const [editErrors, setEditErrors] = useState<string[]>([]);
 
-  const [successMessage, setSuccessMessage] = useState("");
-
   // Cargar datos
   const fetchMaterias = async () => {
     setLoading(true);
     try {
       const { data: materias, error } = await supabase
         .from("materias")
-        .select("clave, nombre_materia, licenciatura, categoria, requisito, estado")
+        .select(
+          "clave, nombre_materia, licenciatura, categoria, requisito, estado"
+        )
         .order("nombre_materia", { ascending: true });
 
       if (error) {
@@ -116,13 +118,6 @@ export default function MateriasPage() {
   useEffect(() => {
     fetchMaterias();
   }, []);
-
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
 
   // Limpiar filtros
   const handleClearFilters = () => {
@@ -177,15 +172,25 @@ export default function MateriasPage() {
 
     setFilteredData(temp);
     setCurrentPage(1);
-  }, [data, selectedLic, selectedCategoria, selectedRequisito, selectedEstado, searchTerm]);
+  }, [
+    data,
+    selectedLic,
+    selectedCategoria,
+    selectedRequisito,
+    selectedEstado,
+    searchTerm,
+  ]);
 
-  const licenciaturas = Array.from(new Set(data.map((item) => item.licenciatura)));
+  const licenciaturas = Array.from(
+    new Set(data.map((item) => item.licenciatura))
+  );
 
   // Toggle estado
   async function toggleEstado(clave: string) {
     const materiaActual = data.find((d) => d.clave === clave);
     if (!materiaActual) return;
-    const nuevoEstado = materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
+    const nuevoEstado =
+      materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
 
     const { error } = await supabase
       .from("materias")
@@ -202,27 +207,31 @@ export default function MateriasPage() {
         item.clave === clave ? { ...item, estado: nuevoEstado } : item
       )
     );
-    setSuccessMessage(`Estado de materia "${clave}" actualizado a ${nuevoEstado}.`);
+    toast.success(`Estado de materia "${clave}" actualizado a ${nuevoEstado}.`);
   }
 
   // Eliminar
   async function handleDelete(clave: string) {
     const confirmed = await confirm({
       title: "Eliminar materia",
-      message: "¿Estás seguro de eliminar esta materia? Esta acción no se puede revertir.",
+      message:
+        "¿Estás seguro de eliminar esta materia? Esta acción no se puede revertir.",
       confirmText: "Sí, eliminar",
       cancelText: "Cancelar",
     });
     if (!confirmed) return;
 
-    const { error } = await supabase.from("materias").delete().eq("clave", clave);
+    const { error } = await supabase
+      .from("materias")
+      .delete()
+      .eq("clave", clave);
     if (error) {
       console.error("Error al eliminar materia:", error.message);
       return;
     }
 
     setData((prev) => prev.filter((item) => item.clave !== clave));
-    setSuccessMessage(`Materia "${clave}" eliminada correctamente.`);
+    toast.success(`Materia "${clave}" eliminada correctamente.`);
   }
 
   // Editar
@@ -283,7 +292,7 @@ export default function MateriasPage() {
     }
 
     setShowEditForm(false);
-    setSuccessMessage(`Materia "${editMateria.clave}" actualizada correctamente.`);
+    toast.success(`Materia "${editMateria.clave}" actualizada correctamente.`);
     setSaving(false);
     await fetchMaterias();
   }
@@ -393,7 +402,7 @@ export default function MateriasPage() {
 
     setShowForm(false);
     setErrors([]);
-    setSuccessMessage(`Materia "${newMateria.clave}" agregada correctamente.`);
+    toast.success(`Materia "${newMateria.clave}" agregada correctamente.`);
     setSaving(false);
     await fetchMaterias();
   }
@@ -445,7 +454,9 @@ export default function MateriasPage() {
 
       setShowForm(false);
       setErrors([]);
-      setSuccessMessage(`Se importaron ${bulkMaterias.length} materias correctamente.`);
+      toast.success(
+        `Se importaron ${bulkMaterias.length} materias correctamente.`
+      );
       setSaving(false);
       await fetchMaterias();
     } catch (err: any) {
@@ -478,7 +489,9 @@ export default function MateriasPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">Manejo de Materias</h1>
-          <p className="text-muted-foreground">Administra el catálogo de materias</p>
+          <p className="text-muted-foreground">
+            Administra el catálogo de materias
+          </p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -496,25 +509,6 @@ export default function MateriasPage() {
           </Button>
         </div>
       </div>
-
-      {/* Mensaje de éxito */}
-      {successMessage && (
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <span className="text-green-700">{successMessage}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSuccessMessage("")}
-                className="cursor-pointer"
-              >
-                ✕
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Estadísticas */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -534,7 +528,9 @@ export default function MateriasPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Activas</p>
-                <p className="text-2xl font-bold text-green-600">{stats.activas}</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {stats.activas}
+                </p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
@@ -545,7 +541,9 @@ export default function MateriasPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Inactivas</p>
-                <p className="text-2xl font-bold text-red-600">{stats.inactivas}</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {stats.inactivas}
+                </p>
               </div>
               <XCircle className="h-8 w-8 text-red-500" />
             </div>
@@ -600,7 +598,10 @@ export default function MateriasPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedCategoria} onValueChange={setSelectedCategoria}>
+              <Select
+                value={selectedCategoria}
+                onValueChange={setSelectedCategoria}
+              >
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Categoría" />
                 </SelectTrigger>
@@ -612,7 +613,10 @@ export default function MateriasPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedRequisito} onValueChange={setSelectedRequisito}>
+              <Select
+                value={selectedRequisito}
+                onValueChange={setSelectedRequisito}
+              >
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Requisito" />
                 </SelectTrigger>
@@ -682,7 +686,9 @@ export default function MateriasPage() {
                 <TableBody>
                   {currentItems.map((materia) => (
                     <TableRow key={materia.clave}>
-                      <TableCell className="font-medium">{materia.clave}</TableCell>
+                      <TableCell className="font-medium">
+                        {materia.clave}
+                      </TableCell>
                       <TableCell>{materia.nombre_materia}</TableCell>
                       <TableCell>{materia.licenciatura}</TableCell>
                       <TableCell>
@@ -705,7 +711,9 @@ export default function MateriasPage() {
                         <div className="flex items-center gap-2">
                           <span
                             className={`inline-block w-2 h-2 rounded-full ${
-                              materia.estado === "Activa" ? "bg-green-500" : "bg-red-500"
+                              materia.estado === "Activa"
+                                ? "bg-green-500"
+                                : "bg-red-500"
                             }`}
                           />
                           <span
@@ -747,7 +755,11 @@ export default function MateriasPage() {
                                 ? "text-green-600 hover:text-green-800"
                                 : "text-gray-600 hover:text-gray-800"
                             }`}
-                            title={materia.estado === "Activa" ? "Desactivar" : "Activar"}
+                            title={
+                              materia.estado === "Activa"
+                                ? "Desactivar"
+                                : "Activar"
+                            }
                             onClick={() => toggleEstado(materia.clave)}
                           >
                             {materia.estado === "Activa" ? (
@@ -779,7 +791,9 @@ export default function MateriasPage() {
                     return (
                       <Button
                         key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
+                        variant={
+                          currentPage === pageNum ? "default" : "outline"
+                        }
                         className={
                           currentPage === pageNum
                             ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"

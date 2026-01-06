@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { ChevronLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { useEncuadreForm } from "@/hooks/useEncuadreForm";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 
 type Materia = {
   id: string;
@@ -56,6 +57,7 @@ export default function EncuadreMateria() {
   const params = useParams<{ clave: string }>();
   const clave = params?.clave as string;
   const confirm = useConfirm();
+  const toast = useToast();
   const { data: session, status } = useSession();
 
   const [loadingData, setLoadingData] = useState(true);
@@ -81,6 +83,15 @@ export default function EncuadreMateria() {
   ]);
 
   const { guardarEncuadre, cargarEncuadre, loading, error } = useEncuadreForm(programaId);
+  const [prevError, setPrevError] = useState<string | null>(null);
+
+  // Mostrar error en toast cuando cambie
+  useEffect(() => {
+    if (error && error !== prevError) {
+      toast.error(error);
+      setPrevError(error);
+    }
+  }, [error, prevError, toast]);
 
   useEffect(() => {
     let isMounted = true;
@@ -354,14 +365,10 @@ export default function EncuadreMateria() {
     });
 
     if (success) {
-      await confirm({
-        title: "¡Guardado exitoso!",
-        message: "El encuadre se ha guardado correctamente.",
-        confirmText: "Aceptar",
-        cancelText: "",
-      });
-
+      toast.success("El encuadre se ha guardado correctamente.");
       router.push("/capturista/materias");
+    } else {
+      toast.error("Error al guardar el encuadre. Intenta de nuevo.");
     }
   };
 
@@ -446,13 +453,6 @@ export default function EncuadreMateria() {
   </p>
 </div>
 
-        {error && (
-          <Card className="border-red-500 bg-red-50">
-            <CardContent className="pt-6">
-              <p className="text-red-600 text-sm">{error}</p>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Datos básicos */}
         <Card>

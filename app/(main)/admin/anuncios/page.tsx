@@ -36,9 +36,9 @@ import {
   FileText,
   Search,
   X,
-  AlertCircle,
 } from "lucide-react";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 
 type Anuncio = {
   id: string;
@@ -53,12 +53,11 @@ type Anuncio = {
 export default function AnunciosPage() {
   const router = useRouter();
   const confirm = useConfirm();
+  const toast = useToast();
 
   const [anuncios, setAnuncios] = useState<Anuncio[]>([]);
   const [filteredAnuncios, setFilteredAnuncios] = useState<Anuncio[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -73,29 +72,13 @@ export default function AnunciosPage() {
     fetchAnuncios();
   }, []);
 
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
-
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
-
   // Filtrado
   useEffect(() => {
     let filtered = [...anuncios];
 
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter((a) =>
-        a.titulo.toLowerCase().includes(term)
-      );
+      filtered = filtered.filter((a) => a.titulo.toLowerCase().includes(term));
     }
 
     if (selectedEstado !== "all") {
@@ -112,24 +95,27 @@ export default function AnunciosPage() {
 
   async function fetchAnuncios() {
     setLoading(true);
-    setError("");
 
     try {
       const { data, error: fetchError } = await supabase
         .from("anuncios")
-        .select("id, titulo, estado, metodo, destinatarios, enviado_at, created_at")
+        .select(
+          "id, titulo, estado, metodo, destinatarios, enviado_at, created_at"
+        )
         .order("created_at", { ascending: false });
 
       if (fetchError) {
         console.error("Error al cargar anuncios:", fetchError);
-        setError("Error al cargar los anuncios. Por favor, recarga la página.");
+        toast.error(
+          "Error al cargar los anuncios. Por favor, recarga la página."
+        );
         setAnuncios([]);
       } else {
         setAnuncios(data || []);
       }
     } catch (err) {
       console.error("Error:", err);
-      setError("Ocurrió un error inesperado.");
+      toast.error("Ocurrió un error inesperado.");
       setAnuncios([]);
     }
 
@@ -140,12 +126,12 @@ export default function AnunciosPage() {
     const anuncio = anuncios.find((a) => a.id === id);
 
     if (!anuncio) {
-      setError("No se encontró el anuncio a eliminar.");
+      toast.error("No se encontró el anuncio a eliminar.");
       return;
     }
 
     if (anuncio.estado === "enviado") {
-      setError("No se puede eliminar un anuncio que ya fue enviado.");
+      toast.error("No se puede eliminar un anuncio que ya fue enviado.");
       return;
     }
 
@@ -166,20 +152,20 @@ export default function AnunciosPage() {
 
       if (deleteError) {
         console.error("Error al eliminar anuncio:", deleteError);
-        setError("Error al eliminar el anuncio. Intenta de nuevo.");
+        toast.error("Error al eliminar el anuncio. Intenta de nuevo.");
       } else {
         setAnuncios((prev) => prev.filter((a) => a.id !== id));
-        setSuccessMessage(`Anuncio "${anuncio.titulo}" eliminado correctamente.`);
+        toast.success(`Anuncio "${anuncio.titulo}" eliminado correctamente.`);
       }
     } catch (err) {
       console.error("Error:", err);
-      setError("Ocurrió un error inesperado al eliminar.");
+      toast.error("Ocurrió un error inesperado al eliminar.");
     }
   }
 
   function handleEdit(anuncio: Anuncio) {
     if (anuncio.estado === "enviado") {
-      setError("No se puede editar un anuncio que ya fue enviado.");
+      toast.error("No se puede editar un anuncio que ya fue enviado.");
       return;
     }
     router.push(`/admin/anuncios/crear?id=${encodeURIComponent(anuncio.id)}`);
@@ -241,7 +227,10 @@ export default function AnunciosPage() {
   const totalPages = Math.ceil(filteredAnuncios.length / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredAnuncios.slice(indexOfFirstItem, indexOfLastItem);
+  const currentItems = filteredAnuncios.slice(
+    indexOfFirstItem,
+    indexOfLastItem
+  );
 
   useEffect(() => {
     if (totalPages > 0 && currentPage > totalPages) {
@@ -294,47 +283,6 @@ export default function AnunciosPage() {
         </div>
       </div>
 
-      {/* Mensaje de éxito */}
-      {successMessage && (
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <span className="text-green-700">{successMessage}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSuccessMessage("")}
-                className="cursor-pointer"
-              >
-                ✕
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Mensaje de error */}
-      {error && (
-        <Card className="bg-red-50 border-red-200">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-red-700">
-                <AlertCircle className="h-5 w-5" />
-                <span>{error}</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setError("")}
-                className="cursor-pointer"
-              >
-                ✕
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Estadísticas */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
@@ -353,7 +301,9 @@ export default function AnunciosPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Enviados</p>
-                <p className="text-2xl font-bold text-green-600">{stats.enviados}</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {stats.enviados}
+                </p>
               </div>
               <Send className="h-8 w-8 text-green-500" />
             </div>
@@ -364,7 +314,9 @@ export default function AnunciosPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Programados</p>
-                <p className="text-2xl font-bold text-blue-600">{stats.programados}</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {stats.programados}
+                </p>
               </div>
               <Clock className="h-8 w-8 text-blue-500" />
             </div>
@@ -375,7 +327,9 @@ export default function AnunciosPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Borradores</p>
-                <p className="text-2xl font-bold text-gray-600">{stats.borradores}</p>
+                <p className="text-2xl font-bold text-gray-600">
+                  {stats.borradores}
+                </p>
               </div>
               <FileText className="h-8 w-8 text-gray-400" />
             </div>
@@ -565,7 +519,9 @@ export default function AnunciosPage() {
                     return (
                       <Button
                         key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
+                        variant={
+                          currentPage === pageNum ? "default" : "outline"
+                        }
                         className={
                           currentPage === pageNum
                             ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"

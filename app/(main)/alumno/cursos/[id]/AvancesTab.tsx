@@ -23,6 +23,7 @@ import {
 import { Loader2, ClipboardList, Save, MessageSquare, X } from "lucide-react";
 import { useRegistroAvances, TemaConCheckin } from "@/hooks/useRegistroAvances";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 
 type AvancesTabProps = {
   encuadreId: string;
@@ -38,6 +39,7 @@ type RespuestaTema = {
 export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
   const { data: session } = useSession();
   const confirm = useConfirm();
+  const toast = useToast();
   const { obtenerDatosCompletos, guardarCheckins, loading } = useRegistroAvances(encuadreId);
 
   const [temas, setTemas] = useState<TemaConCheckin[]>([]);
@@ -102,12 +104,7 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
     const tieneRespuestas = Object.values(respuestas).some((r) => r.vista !== null);
 
     if (!tieneRespuestas) {
-      await confirm({
-        title: "Sin cambios",
-        message: "No hay cambios para guardar. Marca al menos un tema como estudiado o no estudiado.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
+      toast.warning("No hay cambios para guardar. Marca al menos un tema como estudiado o no estudiado.");
       return;
     }
 
@@ -123,20 +120,10 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
     const result = await guardarCheckins(respuestas, grupo);
 
     if (result.success) {
-      await confirm({
-        title: "¡Guardado exitoso!",
-        message: result.error || "Tu registro de avances se ha guardado correctamente.",
-        confirmText: "Aceptar",
-        cancelText: "",
-      });
+      toast.success(result.error || "Tu registro de avances se ha guardado correctamente.");
       await cargarDatos();
     } else {
-      await confirm({
-        title: "Error al guardar",
-        message: result.error || "No se pudo guardar el registro de avances.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
+      toast.error(result.error || "No se pudo guardar el registro de avances.");
     }
   };
 

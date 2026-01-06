@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ClipboardList, Save, MessageSquare, X } from "lucide-react";
 import { useRegistroAvances, TemaConCheckin, HeaderCurso } from "@/hooks/useRegistroAvances";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 
 type AvancesTabProps = {
   encuadreId: string;
@@ -41,6 +42,7 @@ type RespuestaLocal = {
 
 export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
   const confirm = useConfirm();
+  const toast = useToast();
   const { obtenerDatosCompletos, guardarCheckins, loading } = useRegistroAvances(encuadreId);
 
   const [loadingData, setLoadingData] = React.useState(true);
@@ -98,12 +100,7 @@ const handleGuardar = async () => {
   const tieneRespuestas = Object.values(respuestas).some(r => r.vista !== null);
   
   if (!tieneRespuestas) {
-    await confirm({
-      title: "Sin cambios",
-      message: "No hay cambios para guardar. Marca al menos un tema como visto o no visto.",
-      confirmText: "Entendido",
-      cancelText: "",
-    });
+    toast.warning("No hay cambios para guardar. Marca al menos un tema como visto o no visto.");
     return;
   }
 
@@ -119,20 +116,10 @@ const handleGuardar = async () => {
   const result = await guardarCheckins(respuestas, grupo);
 
   if (result.success) {
-    await confirm({
-      title: "¡Guardado exitoso!",
-      message: result.error || "El registro de avances se ha guardado correctamente.",
-      confirmText: "Aceptar",
-      cancelText: "",
-    });
+    toast.success(result.error || "El registro de avances se ha guardado correctamente.");
     await cargarDatos();
   } else {
-    await confirm({
-      title: "Error al guardar",
-      message: result.error || "No se pudo guardar el registro de avances.",
-      confirmText: "Entendido",
-      cancelText: "",
-    });
+    toast.error(result.error || "No se pudo guardar el registro de avances.");
   }
 };
   // Agrupar temas por unidad
