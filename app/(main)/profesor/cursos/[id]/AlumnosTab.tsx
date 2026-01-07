@@ -56,6 +56,7 @@ export default function AlumnosTab({
 
   const {
     obtenerAlumnos,
+    agregarAlumno,
     registrarAlumno,
     regenerarClave,
     revocarAcceso,
@@ -69,7 +70,9 @@ export default function AlumnosTab({
   const [claveGenerada, setClaveGenerada] = useState("");
   const [errorCorreo, setErrorCorreo] = useState("");
   const [copiado, setCopiado] = useState(false);
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [tipoFormulario, setTipoFormulario] = useState<
+    "agregar" | "crear" | null
+  >(null);
 
   useEffect(() => {
     cargarAlumnos();
@@ -118,6 +121,41 @@ export default function AlumnosTab({
     }
   };
 
+  const handleAgregar = async () => {
+    if (!nuevoCorreo.trim()) {
+      setErrorCorreo("Ingresa un correo electrónico");
+      return;
+    }
+
+    const validacion = validarCorreoInstitucional(nuevoCorreo);
+    if (!validacion.valido) {
+      setErrorCorreo(validacion.error || "Correo inválido");
+      return;
+    }
+
+    const shouldAdd = await confirm({
+      title: "Agregar alumno existente",
+      message: `¿Deseas agregar al alumno con el correo ${nuevoCorreo} al curso? El usuario debe existir previamente en el sistema.`,
+      confirmText: "Agregar",
+      cancelText: "Cancelar",
+    });
+
+    if (!shouldAdd) return;
+
+    const result = await agregarAlumno(nuevoCorreo);
+
+    if (result.success) {
+      toast.success(`Alumno agregado al curso exitosamente.`);
+      setNuevoCorreo("");
+      setClaveGenerada("");
+      setErrorCorreo("");
+      setTipoFormulario(null);
+      await cargarAlumnos();
+    } else {
+      toast.error(result.error || "Ocurrió un error al agregar al alumno");
+    }
+  };
+
   const handleRegistrar = async () => {
     if (!nuevoCorreo.trim()) {
       setErrorCorreo("Ingresa un correo electrónico");
@@ -133,7 +171,7 @@ export default function AlumnosTab({
     if (!claveGenerada) {
       await confirm({
         title: "Sin clave generada",
-        message: "Primero debes generar una clave segura para el alumno.",
+        message: "Primero debes generar una clave segura para el nuevo alumno.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -141,8 +179,8 @@ export default function AlumnosTab({
     }
 
     const shouldRegister = await confirm({
-      title: "Registrar alumno",
-      message: `¿Deseas registrar al alumno con el correo ${nuevoCorreo}?`,
+      title: "Registrar nuevo alumno",
+      message: `¿Deseas registrar al nuevo alumno con el correo ${nuevoCorreo}? Se creará un nuevo usuario con la clave generada.`,
       confirmText: "Registrar",
       cancelText: "Cancelar",
     });
@@ -159,14 +197,15 @@ export default function AlumnosTab({
 
     if (result.success) {
       toast.success(
-        `Alumno registrado exitosamente. Clave: ${claveGenerada}. Recuerda enviar el correo con las credenciales.`
+        `Alumno creado exitosamente. Clave: ${claveGenerada}. Recuerda enviar el correo con las credenciales.`
       );
       setNuevoCorreo("");
       setClaveGenerada("");
-      setMostrarFormulario(false);
+      setErrorCorreo("");
+      setTipoFormulario(null);
       await cargarAlumnos();
     } else {
-      toast.error(result.error || "Ocurrió un error al registrar al alumno");
+      toast.error(result.error || "Ocurrió un error al crear al alumno");
     }
   };
 
@@ -265,11 +304,31 @@ export default function AlumnosTab({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setMostrarFormulario(!mostrarFormulario)}
+            onClick={() => {
+              setTipoFormulario("agregar");
+              setNuevoCorreo("");
+              setClaveGenerada("");
+              setErrorCorreo("");
+            }}
             className="cursor-pointer"
           >
             <Plus className="mr-2 h-4 w-4" />
             Agregar alumno
+          </Button>
+
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              setTipoFormulario("crear");
+              setNuevoCorreo("");
+              setClaveGenerada("");
+              setErrorCorreo("");
+            }}
+            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Crear alumno
           </Button>
 
           <Button
@@ -286,12 +345,68 @@ export default function AlumnosTab({
           </Button>
         </div>
 
-        {/* Formulario de registro */}
-        {mostrarFormulario && (
+        {/* Formulario para agregar alumno existente */}
+        {tipoFormulario === "agregar" && (
           <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
-            <h4 className="font-medium">Registrar nuevo alumno</h4>
+            <h4 className="font-medium">Agregar alumno existente</h4>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Correo institucional</Label>
+                <Input
+                  type="email"
+                  placeholder="alumno@uabc.edu.mx"
+                  value={nuevoCorreo}
+                  onChange={(e) => handleCorreoChange(e.target.value)}
+                  className={errorCorreo ? "border-red-500" : ""}
+                />
+                {errorCorreo && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {errorCorreo}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  El alumno debe existir previamente en el sistema (creado por
+                  admin).
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setTipoFormulario(null);
+                  setNuevoCorreo("");
+                  setClaveGenerada("");
+                  setErrorCorreo("");
+                }}
+                className="cursor-pointer"
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAgregar}
+                disabled={loading || !nuevoCorreo || !!errorCorreo}
+                className="cursor-pointer"
+              >
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Agregar alumno
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Formulario para crear nuevo alumno */}
+        {tipoFormulario === "crear" && (
+          <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
+            <h4 className="font-medium">Crear nuevo alumno</h4>
+
+            <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Correo institucional</Label>
                 <Input
@@ -316,7 +431,7 @@ export default function AlumnosTab({
                     type="text"
                     value={claveGenerada}
                     readOnly
-                    placeholder="Genera una clave..."
+                    placeholder="Genera una clave para el nuevo usuario..."
                     className="font-mono bg-white"
                   />
                   <Button
@@ -344,6 +459,10 @@ export default function AlumnosTab({
                     </Button>
                   )}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Debes generar una clave para crear el nuevo usuario en el
+                  sistema.
+                </p>
               </div>
             </div>
 
@@ -352,7 +471,7 @@ export default function AlumnosTab({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setMostrarFormulario(false);
+                  setTipoFormulario(null);
                   setNuevoCorreo("");
                   setClaveGenerada("");
                   setErrorCorreo("");
@@ -370,7 +489,7 @@ export default function AlumnosTab({
                 className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
               >
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Registrar alumno
+                Crear alumno
               </Button>
             </div>
           </div>

@@ -6,7 +6,14 @@ import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Loader2, ChevronLeft, FileText, ClipboardList } from "lucide-react";
+import {
+  Loader2,
+  ChevronLeft,
+  FileText,
+  ClipboardList,
+  AlertCircle,
+} from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 import EncuadreViewTab from "./EncuadreViewTab";
 import AvancesTab from "./AvancesTab";
 
@@ -23,11 +30,14 @@ export default function CursoAlumnoPage() {
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession();
+  const toast = useToast();
   const encuadreId = params.id as string;
 
   const [cursoInfo, setCursoInfo] = useState<CursoInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("encuadre");
+  const [haFirmado, setHaFirmado] = useState(false);
+  const [verificandoFirma, setVerificandoFirma] = useState(true);
 
   useEffect(() => {
     if (session?.user?.id && encuadreId) {
@@ -96,14 +106,36 @@ export default function CursoAlumnoPage() {
         periodo: encuadre.periodo,
         docente: docente?.nombre || "Sin asignar",
       });
+
+      // Verificar si el alumno ha firmado el encuadre
+      const { data: firmaExistente } = await supabase
+        .from("encuadre_firmas")
+        .select("id")
+        .eq("encuadre_id", encuadreId)
+        .eq("alumno_id", session?.user?.id)
+        .maybeSingle();
+
+      setHaFirmado(!!firmaExistente);
     } catch (err) {
       console.error("Error:", err);
     }
 
     setLoading(false);
+    setVerificandoFirma(false);
   };
 
-  if (loading) {
+  const handleTabChange = (value: string) => {
+    if (value === "avances" && !haFirmado) {
+      // No permitir cambiar a avances si no ha firmado
+      toast.warning(
+        "Debes firmar el encuadre antes de acceder al Registro de Avances. Ve a la pestaña 'Encuadre' y completa tu firma de enterado."
+      );
+      return;
+    }
+    setActiveTab(value);
+  };
+
+  if (loading || verificandoFirma) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-[#00723F]" />
@@ -124,16 +156,16 @@ export default function CursoAlumnoPage() {
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
         <div className="space-y-3">
-          <div className="flex justify-between items-center gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">
-                {cursoInfo.materiaNombre}
-              </h1>
-              <p className="text-gray-600">
-                {cursoInfo.materiaClave} • Grupo {cursoInfo.grupo} •{" "}
-                {cursoInfo.periodo} • {cursoInfo.docente}
-              </p>
-            </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">
+              {cursoInfo.materiaNombre}
+            </h1>
+            <p className="text-gray-600">
+              {cursoInfo.materiaClave} • Grupo {cursoInfo.grupo} •{" "}
+              {cursoInfo.periodo} • {cursoInfo.docente}
+            </p>
+          </div>
+          <div>
             <Button
               variant="outline"
               onClick={() => router.push("/alumno/cursos")}
@@ -146,7 +178,11 @@ export default function CursoAlumnoPage() {
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs
+          value={activeTab}
+          onValueChange={handleTabChange}
+          className="w-full"
+        >
           <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger
               value="encuadre"
@@ -157,7 +193,15 @@ export default function CursoAlumnoPage() {
             </TabsTrigger>
             <TabsTrigger
               value="avances"
-              className="flex items-center gap-2 cursor-pointer"
+              disabled={!haFirmado}
+              className={`flex items-center gap-2 ${
+                !haFirmado ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+              }`}
+              title={
+                !haFirmado
+                  ? "Debes firmar el encuadre antes de acceder a Registro de Avances"
+                  : ""
+              }
             >
               <ClipboardList className="h-4 w-4" />
               Registro de Avances
@@ -169,11 +213,28 @@ export default function CursoAlumnoPage() {
               encuadreId={encuadreId}
               materiaNombre={cursoInfo.materiaNombre}
               docente={cursoInfo.docente}
+              onFirmaCompletada={() => {
+                setHaFirmado(true);
+                // Cambiar automáticamente a avances después de firmar
+                setActiveTab("avances");
+              }}
             />
           </TabsContent>
 
           <TabsContent value="avances" className="mt-6">
-            <AvancesTab encuadreId={encuadreId} grupo={cursoInfo.grupo} />
+            {haFirmado ? (
+              <AvancesTab encuadreId={encuadreId} grupo={cursoInfo.grupo} />
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-lg font-semibold mb-2">
+                  Debes firmar el encuadre primero
+                </p>
+                <p className="text-sm">
+                  Ve a la pestaña "Encuadre" y firma de enterado antes de
+                  acceder al Registro de Avances.
+                </p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

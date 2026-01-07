@@ -274,29 +274,41 @@ export default function UserManagementPage() {
     }
 
     setSaving(true);
-    const { error } = await supabase.from("usuarios").insert([
-      {
-        correo: newUser.email.trim(),
-        nombre: newUser.name.trim(),
-        contraseña: newUser.password,
-        rol_id: newUser.role_id,
-      },
-    ]);
 
-    if (error) {
-      console.error("Error al crear usuario:", error.message);
-      setErrors([`Error al crear el usuario: ${error.message}`]);
+    try {
+      const response = await fetch("/api/usuarios/crear", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          correo: newUser.email.trim(),
+          nombre: newUser.name.trim(),
+          contraseña: newUser.password,
+          rol_id: newUser.role_id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrors([data.error || "Error al crear el usuario"]);
+        setSaving(false);
+        return;
+      }
+
+      setIsModalOpen(false);
+      setErrors([]);
+      toast.success(`Usuario "${newUser.email}" creado correctamente.`);
       setSaving(false);
-      return;
+
+      // Refrescar lista
+      await fetchData();
+    } catch (error: any) {
+      console.error("Error al crear usuario:", error);
+      setErrors(["Error al crear el usuario. Por favor intenta de nuevo."]);
+      setSaving(false);
     }
-
-    setIsModalOpen(false);
-    setErrors([]);
-    toast.success(`Usuario "${newUser.email}" creado correctamente.`);
-    setSaving(false);
-
-    // Refrescar lista
-    await fetchData();
   };
 
   // Importar desde Excel
@@ -319,14 +331,33 @@ export default function UserManagementPage() {
         return;
       }
 
+      // Crear mapa inverso de roles (nombre -> id)
+      const rolesNombreToId: Record<string, string> = {};
+      roles.forEach((rol) => {
+        rolesNombreToId[rol.nombre.toLowerCase()] = rol.id;
+      });
+
       const bulkUsers = rows
         .filter((row: any) => row[0] && row[1]) // Solo filas con email y nombre
-        .map((row: any) => ({
-          correo: String(row[0] || "").trim(),
-          nombre: String(row[1] || "").trim(),
-          contraseña: String(row[2] || "password123"),
-          rol_id: String(row[3] || "").trim(),
-        }));
+        .map((row: any) => {
+          const correo = String(row[0] || "").trim();
+          const nombre = String(row[1] || "").trim();
+          const contraseña = String(row[2] || "password123");
+          const rolNombre = String(row[3] || "")
+            .trim()
+            .toLowerCase();
+
+          // Buscar el rol_id por nombre
+          const rol_id = rolesNombreToId[rolNombre] || "";
+
+          return {
+            correo,
+            nombre,
+            contraseña,
+            rol_id,
+          };
+        })
+        .filter((u: any) => u.correo && u.nombre && u.rol_id); // Solo usuarios con todos los campos requeridos
 
       if (bulkUsers.length === 0) {
         setErrors(["No se encontraron usuarios válidos en el archivo."]);
@@ -334,22 +365,44 @@ export default function UserManagementPage() {
         return;
       }
 
-      const { error } = await supabase.from("usuarios").insert(bulkUsers);
-      if (error) {
-        console.error("Error al importar Excel:", error);
-        setErrors([`Error al importar usuarios: ${error.message}`]);
+      try {
+        const response = await fetch("/api/usuarios/crear-masivo", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ usuarios: bulkUsers }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setErrors([data.error || "Error al importar usuarios"]);
+          setSaving(false);
+          return;
+        }
+
+        setIsModalOpen(false);
+        setErrors([]);
+
+        if (data.detalles?.errores?.length > 0) {
+          toast.warning(
+            `Se importaron ${data.creados} usuarios. ${data.errores} usuarios tuvieron errores.`
+          );
+        } else {
+          toast.success(
+            `Se importaron ${data.creados} usuarios correctamente.`
+          );
+        }
+
         setSaving(false);
-        return;
+
+        await fetchData();
+      } catch (error: any) {
+        console.error("Error al importar Excel:", error);
+        setErrors(["Error al importar usuarios. Por favor intenta de nuevo."]);
+        setSaving(false);
       }
-
-      setIsModalOpen(false);
-      setErrors([]);
-      toast.success(
-        `Se importaron ${bulkUsers.length} usuarios correctamente.`
-      );
-      setSaving(false);
-
-      await fetchData();
     } catch (err: any) {
       console.error("Error leyendo Excel:", err);
       setErrors(["Error al leer el archivo Excel. Verifica el formato."]);

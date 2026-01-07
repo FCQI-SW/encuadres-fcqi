@@ -12,6 +12,7 @@ import {
   Megaphone,
   BarChart3,
   Eye,
+  Home,
 } from "lucide-react";
 
 import {
@@ -34,16 +35,22 @@ const menuItemsByRole = {
     { title: "Manejo de usuarios", url: "/admin/usuarios", icon: Users },
     { title: "Revisión de resultados", url: "/admin/resultados", icon: Search },
     { title: "Manejo de materias", url: "/admin/materias", icon: BookOpen },
-    { title: "Fecha de operación", url: "/admin/configurar-fecha", icon: Calendar },
+    {
+      title: "Fecha de operación",
+      url: "/admin/configurar-fecha",
+      icon: Calendar,
+    },
     { title: "Anuncios", url: "/admin/anuncios", icon: Megaphone },
   ],
   capturista: [
     { title: "Materias", url: "/capturista/materias", icon: BookOpen },
   ],
   profesor: [
+    { title: "Inicio", url: "/profesor", icon: Home },
     { title: "Mis Cursos", url: "/profesor/cursos", icon: GraduationCap },
   ],
   alumno: [
+    { title: "Inicio", url: "/alumno", icon: Home },
     { title: "Mis Cursos", url: "/alumno/cursos", icon: GraduationCap },
   ],
   lector: [
@@ -64,6 +71,14 @@ export function AppSidebar({ role }: AppSidebarProps) {
     // Para el dashboard del lector, solo es activo si es exactamente /lector
     if (url === "/lector") {
       return pathname === "/lector";
+    }
+    // Para /profesor, solo es activo si es exactamente /profesor
+    if (url === "/profesor") {
+      return pathname === "/profesor";
+    }
+    // Para /alumno, solo es activo si es exactamente /alumno
+    if (url === "/alumno") {
+      return pathname === "/alumno";
     }
     return pathname === url || pathname.startsWith(url + "/");
   };
