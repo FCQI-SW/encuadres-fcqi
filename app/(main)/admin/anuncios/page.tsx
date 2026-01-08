@@ -281,7 +281,7 @@ export default function AnunciosPage() {
       {/* Header */}
       <div className="space-y-3">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">Anuncios</h1>
+          
           <p className="text-sm text-muted-foreground">
             Gestiona los mensajes y notificaciones
           </p>

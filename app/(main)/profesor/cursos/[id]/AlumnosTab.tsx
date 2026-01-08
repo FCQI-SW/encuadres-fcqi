@@ -29,6 +29,8 @@ import {
   Check,
   Users,
   AlertCircle,
+  Key,
+  X,
 } from "lucide-react";
 import { useEncuadreAlumnos, AlumnoEncuadre } from "@/hooks/useEncuadreAlumnos";
 import { useConfirm } from "@/components/global-confirm-modal";
@@ -44,6 +46,14 @@ type AlumnosTabProps = {
   grupo: string;
   periodo: string;
 };
+
+type CredencialesGeneradas = {
+  correo: string;
+  clave: string;
+  tipo: "nuevo" | "regenerada";
+};
+
+type TipoFormulario = "agregar" | "crear" | null;
 
 export default function AlumnosTab({
   encuadreId,
@@ -66,13 +76,19 @@ export default function AlumnosTab({
 
   const [alumnos, setAlumnos] = useState<AlumnoEncuadre[]>([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(true);
+
   const [nuevoCorreo, setNuevoCorreo] = useState("");
   const [claveGenerada, setClaveGenerada] = useState("");
   const [errorCorreo, setErrorCorreo] = useState("");
+
   const [copiado, setCopiado] = useState(false);
-  const [tipoFormulario, setTipoFormulario] = useState<
-    "agregar" | "crear" | null
-  >(null);
+  const [tipoFormulario, setTipoFormulario] = useState<TipoFormulario>(null);
+
+  // Estado para mostrar credenciales generadas
+  const [credencialesGeneradas, setCredencialesGeneradas] =
+    useState<CredencialesGeneradas | null>(null);
+  const [copiadoCorreo, setCopiadoCorreo] = useState(false);
+  const [copiadoClave, setCopiadoClave] = useState(false);
 
   useEffect(() => {
     cargarAlumnos();
@@ -111,13 +127,55 @@ export default function AlumnosTab({
       setCopiado(true);
       toast.success("La clave se copió al portapapeles.");
 
-      // Quitar la palomita después de 3 segundos
-      setTimeout(() => {
-        setCopiado(false);
-      }, 3000);
+      setTimeout(() => setCopiado(false), 3000);
     } catch (err) {
       console.error("Error al copiar al portapapeles:", err);
       toast.error("No se pudo copiar la clave al portapapeles.");
+    }
+  };
+
+  // Funciones para copiar credenciales generadas
+  const handleCopiarCredencialCorreo = async () => {
+    if (!credencialesGeneradas?.correo) return;
+
+    try {
+      await navigator.clipboard.writeText(credencialesGeneradas.correo);
+      setCopiadoCorreo(true);
+      setTimeout(() => setCopiadoCorreo(false), 3000);
+    } catch (err) {
+      console.error("Error al copiar:", err);
+    }
+  };
+
+  const handleCopiarCredencialClave = async () => {
+    if (!credencialesGeneradas?.clave) return;
+
+    try {
+      await navigator.clipboard.writeText(credencialesGeneradas.clave);
+      setCopiadoClave(true);
+      setTimeout(() => setCopiadoClave(false), 3000);
+    } catch (err) {
+      console.error("Error al copiar:", err);
+    }
+  };
+
+  const handleCopiarTodo = async () => {
+    if (!credencialesGeneradas) return;
+
+    const texto = `Correo: ${credencialesGeneradas.correo}\nContraseña: ${credencialesGeneradas.clave}`;
+
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiadoCorreo(true);
+      setCopiadoClave(true);
+      toast.success("Credenciales copiadas al portapapeles.");
+      setTimeout(() => {
+        setCopiadoCorreo(false);
+        setCopiadoClave(false);
+      }, 3000);
+    } catch (err) {
+      console.error("Error al copiar:", err);
+      toast.error("No se pudo copiar al portapapeles.");
     }
   };
 
@@ -145,7 +203,7 @@ export default function AlumnosTab({
     const result = await agregarAlumno(nuevoCorreo);
 
     if (result.success) {
-      toast.success(`Alumno agregado al curso exitosamente.`);
+      toast.success("Alumno agregado al curso exitosamente.");
       setNuevoCorreo("");
       setClaveGenerada("");
       setErrorCorreo("");
@@ -173,7 +231,7 @@ export default function AlumnosTab({
         title: "Sin clave generada",
         message: "Primero debes generar una clave segura para el nuevo alumno.",
         confirmText: "Entendido",
-        cancelText: "",
+        cancelText: "Cerrar",
       });
       return;
     }
@@ -196,9 +254,14 @@ export default function AlumnosTab({
     );
 
     if (result.success) {
-      toast.success(
-        `Alumno creado exitosamente. Clave: ${claveGenerada}. Recuerda enviar el correo con las credenciales.`
-      );
+      // Mostrar las credenciales generadas
+      setCredencialesGeneradas({
+        correo: nuevoCorreo,
+        clave: claveGenerada,
+        tipo: "nuevo",
+      });
+
+      toast.success("Alumno creado exitosamente.");
       setNuevoCorreo("");
       setClaveGenerada("");
       setErrorCorreo("");
@@ -228,9 +291,14 @@ export default function AlumnosTab({
     );
 
     if (result.success && result.clave) {
-      toast.success(
-        `Nueva clave generada: ${result.clave}. Recuerda enviarla al alumno.`
-      );
+      // Mostrar las credenciales generadas
+      setCredencialesGeneradas({
+        correo: alumno.correo,
+        clave: result.clave,
+        tipo: "regenerada",
+      });
+
+      toast.success("Nueva clave generada exitosamente.");
       await cargarAlumnos();
     } else {
       toast.error(result.error || "No se pudo regenerar la clave");
@@ -270,7 +338,9 @@ export default function AlumnosTab({
 
   const formatearFecha = (fecha: string | null) => {
     if (!fecha) return "-";
-    return new Date(fecha).toLocaleDateString("es-MX", {
+    const d = new Date(fecha);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleString("es-MX", {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -298,7 +368,99 @@ export default function AlumnosTab({
           </div>
         </div>
       </CardHeader>
+
       <CardContent className="space-y-6">
+        {/* Sección de credenciales generadas */}
+        {credencialesGeneradas && (
+          <div className="border-2 border-green-500 rounded-lg p-4 bg-green-50 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-green-800 flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                {credencialesGeneradas.tipo === "nuevo"
+                  ? "Credenciales del nuevo alumno"
+                  : "Nueva clave generada"}
+              </h4>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setCredencialesGeneradas(null)}
+                className="h-8 w-8 cursor-pointer text-green-700 hover:text-green-900"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="grid gap-3">
+              {/* Correo */}
+              <div className="space-y-1">
+                <Label className="text-green-700 text-xs">Correo</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={credencialesGeneradas.correo}
+                    readOnly
+                    className="font-mono bg-white border-green-300"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopiarCredencialCorreo}
+                    className="cursor-pointer border-green-300 hover:bg-green-100"
+                  >
+                    {copiadoCorreo ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4 text-green-600" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Clave */}
+              <div className="space-y-1">
+                <Label className="text-green-700 text-xs">Contraseña</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={credencialesGeneradas.clave}
+                    readOnly
+                    className="font-mono bg-white border-green-300 text-lg tracking-wider"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopiarCredencialClave}
+                    className="cursor-pointer border-green-300 hover:bg-green-100"
+                  >
+                    {copiadoClave ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4 text-green-600" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Botón copiar todo */}
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopiarTodo}
+                className="cursor-pointer border-green-500 text-green-700 hover:bg-green-100"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copiar todo
+              </Button>
+            </div>
+
+            <p className="text-xs text-green-700">
+              ⚠️ Guarda estas credenciales antes de cerrar. Deberás enviarlas al
+              alumno para que pueda acceder al sistema.
+            </p>
+          </div>
+        )}
+
         {/* Botones de acción */}
         <div className="flex flex-wrap gap-2">
           <Button
@@ -443,6 +605,7 @@ export default function AlumnosTab({
                   >
                     <RefreshCw className="h-4 w-4" />
                   </Button>
+
                   {claveGenerada && (
                     <Button
                       variant="outline"
@@ -459,6 +622,7 @@ export default function AlumnosTab({
                     </Button>
                   )}
                 </div>
+
                 <p className="text-xs text-muted-foreground">
                   Debes generar una clave para crear el nuevo usuario en el
                   sistema.
@@ -483,9 +647,7 @@ export default function AlumnosTab({
               <Button
                 size="sm"
                 onClick={handleRegistrar}
-                disabled={
-                  loading || !nuevoCorreo || !claveGenerada || !!errorCorreo
-                }
+                disabled={loading || !nuevoCorreo || !claveGenerada || !!errorCorreo}
                 className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
               >
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -519,18 +681,20 @@ export default function AlumnosTab({
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
                 {alumnos.map((alumno) => (
                   <TableRow key={alumno.id}>
-                    <TableCell className="font-medium">
-                      {alumno.correo}
-                    </TableCell>
+                    <TableCell className="font-medium">{alumno.correo}</TableCell>
+
                     <TableCell className="text-sm text-muted-foreground">
                       {formatearFecha(alumno.invitado_at)}
                     </TableCell>
+
                     <TableCell className="text-sm text-muted-foreground">
                       {formatearFecha(alumno.ultimo_acceso)}
                     </TableCell>
+
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button

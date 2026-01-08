@@ -181,9 +181,137 @@ export default function MateriasPage() {
     searchTerm,
   ]);
 
+  // Licenciaturas predefinidas que siempre deben aparecer
+  const licenciaturasPredefinidas = [
+    "Ingeniero Químico",
+    "Ingeniero Industrial",
+    "Ingeniero en Computación",
+    "Ingeniero en Electrónica",
+    "Ingeniero en Software y Tecnologías Emergentes",
+    "Químico Industrial",
+    "Químico Farmacobiólogo",
+  ];
+
+  // Mapa de normalización para detectar variaciones de licenciaturas
+  const licenciaturasNormalizadas: { [key: string]: string } = {
+    // Ingeniero Químico
+    "ingeniero químico": "Ingeniero Químico",
+    "ing. químico": "Ingeniero Químico",
+    "ing. quimico": "Ingeniero Químico",
+    "ingeniero quimico": "Ingeniero Químico",
+    
+    // Ingeniero Industrial
+    "ingeniero industrial": "Ingeniero Industrial",
+    "ing. industrial": "Ingeniero Industrial",
+    
+    // Ingeniero en Computación
+    "ingeniero en computación": "Ingeniero en Computación",
+    "ing. en computación": "Ingeniero en Computación",
+    "ing. en computacion": "Ingeniero en Computación",
+    "ingeniero en computacion": "Ingeniero en Computación",
+    "ingeniero computacion": "Ingeniero en Computación",
+    "ing computacion": "Ingeniero en Computación",
+    
+    // Ingeniero en Electrónica
+    "ingeniero en electrónica": "Ingeniero en Electrónica",
+    "ing. en electrónica": "Ingeniero en Electrónica",
+    "ing. en electronica": "Ingeniero en Electrónica",
+    "ingeniero en electronica": "Ingeniero en Electrónica",
+    
+    // Ingeniero en Software y Tecnologías Emergentes
+    "ingeniero en software y tecnologías emergentes": "Ingeniero en Software y Tecnologías Emergentes",
+    "ing. en software y tecnologías emergentes": "Ingeniero en Software y Tecnologías Emergentes",
+    "ing. en software y tecnologias emergentes": "Ingeniero en Software y Tecnologías Emergentes",
+    "ingeniero en software y tecnologias emergentes": "Ingeniero en Software y Tecnologías Emergentes",
+    "ing software": "Ingeniero en Software y Tecnologías Emergentes",
+    "software": "Ingeniero en Software y Tecnologías Emergentes",
+    
+    // Químico Industrial
+    "químico industrial": "Químico Industrial",
+    "quimico industrial": "Químico Industrial",
+    
+    // Químico Farmacobiólogo
+    "químico farmacobiólogo": "Químico Farmacobiólogo",
+    "quimico farmacobiolog": "Químico Farmacobiólogo",
+    "farmacobiólogo": "Químico Farmacobiólogo",
+    "farmacobiolog": "Químico Farmacobiólogo",
+  };
+
+  // Función para normalizar licenciatura
+  const normalizarLicenciatura = (licenciatura: string): string => {
+    const licLower = licenciatura.trim().toLowerCase();
+    return licenciaturasNormalizadas[licLower] || licenciatura;
+  };
+
+  // Mapa de normalización para Categoría
+  const categoriasNormalizadas: { [key: string]: string } = {
+    "basica": "Basica",
+    "básica": "Basica",
+    "basico": "Basica",
+    "básico": "Basica",
+    
+    "disciplinaria": "Disciplinaria",
+    "disciplinario": "Disciplinaria",
+    "disciplinar": "Disciplinaria",
+    
+    "terminal": "Terminal",
+    "terminales": "Terminal",
+  };
+
+  // Mapa de normalización para Requisito
+  const requisitosNormalizados: { [key: string]: string } = {
+    "obligatoria": "obligatoria",
+    "obligatorio": "obligatoria",
+    "obligatories": "obligatoria",
+    "oblig": "obligatoria",
+    
+    "optativa": "optativa",
+    "optativo": "optativa",
+    "opt": "optativa",
+  };
+
+  // Mapa de normalización para Estado
+  const estadosNormalizados: { [key: string]: string } = {
+    "activa": "Activa",
+    "activo": "Activa",
+    "active": "Activa",
+    "act": "Activa",
+    "a": "Activa",
+    "1": "Activa",
+    
+    "inactiva": "Inactiva",
+    "inactivo": "Inactiva",
+    "inactive": "Inactiva",
+    "inact": "Inactiva",
+    "i": "Inactiva",
+    "0": "Inactiva",
+  };
+
+  // Función para normalizar categoría
+  const normalizarCategoria = (categoria: string): string => {
+    const catLower = categoria.trim().toLowerCase();
+    return categoriasNormalizadas[catLower] || "Basica";
+  };
+
+  // Función para normalizar requisito
+  const normalizarRequisito = (requisito: string): string => {
+    const reqLower = requisito.trim().toLowerCase();
+    return requisitosNormalizados[reqLower] || "obligatoria";
+  };
+
+  // Función para normalizar estado
+  const normalizarEstado = (estado: string): string => {
+    const estLower = estado.trim().toLowerCase();
+    return estadosNormalizados[estLower] || "Activa";
+  };
+
+  // Combinar licenciaturas predefinidas con las que existan en la BD
   const licenciaturas = Array.from(
-    new Set(data.map((item) => item.licenciatura))
-  );
+    new Set([
+      ...licenciaturasPredefinidas,
+      ...data.map((item) => item.licenciatura).filter((lic) => lic),
+    ])
+  ).sort();
 
   // Toggle estado
   async function toggleEstado(clave: string) {
@@ -431,10 +559,10 @@ export default function MateriasPage() {
         .map((row: any) => ({
           clave: String(row[0] || "").trim(),
           nombre_materia: String(row[1] || "").trim(),
-          licenciatura: String(row[2] || "").trim(),
-          categoria: row[3] || "Basica",
-          requisito: row[4] || "obligatoria",
-          estado: row[5] || "Activa",
+          licenciatura: normalizarLicenciatura(String(row[2] || "")),
+          categoria: normalizarCategoria(String(row[3] || "")) as "Basica" | "Disciplinaria" | "Terminal",
+          requisito: normalizarRequisito(String(row[4] || "")) as "obligatoria" | "optativa",
+          estado: normalizarEstado(String(row[5] || "")) as "Activa" | "Inactiva",
         }));
 
       if (bulkMaterias.length === 0) {
@@ -488,7 +616,7 @@ export default function MateriasPage() {
       {/* Header */}
       <div className="space-y-3">
         <div>
-          <h1 className="text-2xl font-bold">Manejo de Materias</h1>
+      
           <p className="text-muted-foreground">
             Administra el catálogo de materias
           </p>

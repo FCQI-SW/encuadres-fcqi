@@ -35,6 +35,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   Loader2,
   GraduationCap,
   Search,
@@ -42,6 +49,8 @@ import {
   FileSignature,
   ClipboardCheck,
   X,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 
 type Curso = {
@@ -56,6 +65,14 @@ type Curso = {
   avances_completados: number;
 };
 
+type AlumnoDetalle = {
+  id: string;
+  correo: string;
+  nombre: string | null;
+  completado: boolean;
+  fecha: string | null;
+};
+
 export default function CursosProfesorPage() {
   const router = useRouter();
   const { data: session } = useSession();
@@ -66,6 +83,13 @@ export default function CursosProfesorPage() {
   const [selectedPeriodo, setSelectedPeriodo] = useState<string>("Todos");
   const [selectedGrupo, setSelectedGrupo] = useState<string>("Todos");
   const [loading, setLoading] = useState(true);
+
+  // Estados para el modal de detalles
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTipo, setModalTipo] = useState<"firmas" | "avances">("firmas");
+  const [modalCurso, setModalCurso] = useState<Curso | null>(null);
+  const [alumnosDetalle, setAlumnosDetalle] = useState<AlumnoDetalle[]>([]);
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -184,6 +208,122 @@ export default function CursosProfesorPage() {
     setLoading(false);
   };
 
+  // Cargar detalles de firmas o avances
+  const cargarDetalle = async (curso: Curso, tipo: "firmas" | "avances") => {
+    setLoadingDetalle(true);
+    setAlumnosDetalle([]);
+
+    try {
+      // Obtener todos los alumnos del encuadre
+      const { data: alumnosEncuadre } = await supabase
+        .from("encuadre_alumnos")
+        .select(
+          `
+          alumno_id,
+          usuarios!encuadre_alumnos_alumno_id_fkey (
+            id,
+            correo,
+            nombre
+          )
+        `
+        )
+        .eq("encuadre_id", curso.encuadre_id)
+        .neq("estado", "revocada");
+
+      if (!alumnosEncuadre || alumnosEncuadre.length === 0) {
+        setAlumnosDetalle([]);
+        setLoadingDetalle(false);
+        return;
+      }
+
+      if (tipo === "firmas") {
+        // Obtener firmas de este encuadre
+        const { data: firmas } = await supabase
+          .from("encuadre_firmas")
+          .select("alumno_id, firmado_at")
+          .eq("encuadre_id", curso.encuadre_id);
+
+        const firmasMap = new Map(
+          (firmas || []).map((f: any) => [f.alumno_id, f.firmado_at])
+        );
+
+        const detalle: AlumnoDetalle[] = alumnosEncuadre.map((ae: any) => ({
+          id: ae.alumno_id,
+          correo: ae.usuarios?.correo || "Sin correo",
+          nombre: ae.usuarios?.nombre || null,
+          completado: firmasMap.has(ae.alumno_id),
+          fecha: firmasMap.get(ae.alumno_id) || null,
+        }));
+
+        // Ordenar: primero los que NO han firmado
+        detalle.sort((a, b) => {
+          if (a.completado === b.completado) return 0;
+          return a.completado ? 1 : -1;
+        });
+
+        setAlumnosDetalle(detalle);
+      } else {
+        // Obtener avances de este encuadre
+        const { data: avances } = await supabase
+          .from("temas_checkin")
+          .select("usuario_id, created_at")
+          .eq("encuadre_id", curso.encuadre_id);
+
+        // Agrupar por usuario y obtener la fecha más reciente
+        const avancesMap = new Map<string, string>();
+        (avances || []).forEach((a: any) => {
+          const existente = avancesMap.get(a.usuario_id);
+          if (!existente || new Date(a.created_at) > new Date(existente)) {
+            avancesMap.set(a.usuario_id, a.created_at);
+          }
+        });
+
+        const detalle: AlumnoDetalle[] = alumnosEncuadre.map((ae: any) => ({
+          id: ae.alumno_id,
+          correo: ae.usuarios?.correo || "Sin correo",
+          nombre: ae.usuarios?.nombre || null,
+          completado: avancesMap.has(ae.alumno_id),
+          fecha: avancesMap.get(ae.alumno_id) || null,
+        }));
+
+        // Ordenar: primero los que NO han registrado avances
+        detalle.sort((a, b) => {
+          if (a.completado === b.completado) return 0;
+          return a.completado ? 1 : -1;
+        });
+
+        setAlumnosDetalle(detalle);
+      }
+    } catch (err) {
+      console.error("Error al cargar detalle:", err);
+    }
+
+    setLoadingDetalle(false);
+  };
+
+  const handleOpenModal = (
+    curso: Curso,
+    tipo: "firmas" | "avances",
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    setModalCurso(curso);
+    setModalTipo(tipo);
+    setModalOpen(true);
+    cargarDetalle(curso, tipo);
+  };
+
+  const formatearFecha = (fecha: string | null) => {
+    if (!fecha) return "-";
+    return new Date(fecha).toLocaleDateString("es-MX", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   useEffect(() => {
     let filtered = [...cursos];
 
@@ -245,13 +385,15 @@ export default function CursosProfesorPage() {
     );
   }
 
+  const completados = alumnosDetalle.filter((a) => a.completado).length;
+  const pendientes = alumnosDetalle.length - completados;
+
   return (
     <TooltipProvider>
       <div className="px-4 py-8">
         <div className="mx-auto max-w-7xl space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">Mis Cursos</h1>
               <p className="text-gray-600 mt-1">
                 Administra tus cursos, alumnos y avances
               </p>
@@ -403,8 +545,11 @@ export default function CursosProfesorPage() {
                           <TableCell className="text-center">
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                                <button
+                                  onClick={(e) =>
+                                    handleOpenModal(curso, "firmas", e)
+                                  }
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(
                                     curso.firmas_completadas,
                                     curso.total_alumnos
                                   )}`}
@@ -414,13 +559,13 @@ export default function CursosProfesorPage() {
                                     {curso.firmas_completadas}/
                                     {curso.total_alumnos}
                                   </span>
-                                </div>
+                                </button>
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p>
                                   {curso.firmas_completadas} de{" "}
                                   {curso.total_alumnos} alumnos han firmado el
-                                  encuadre
+                                  encuadre. Clic para ver detalles.
                                 </p>
                               </TooltipContent>
                             </Tooltip>
@@ -428,8 +573,11 @@ export default function CursosProfesorPage() {
                           <TableCell className="text-center">
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                                <button
+                                  onClick={(e) =>
+                                    handleOpenModal(curso, "avances", e)
+                                  }
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(
                                     curso.avances_completados,
                                     curso.total_alumnos
                                   )}`}
@@ -439,13 +587,13 @@ export default function CursosProfesorPage() {
                                     {curso.avances_completados}/
                                     {curso.total_alumnos}
                                   </span>
-                                </div>
+                                </button>
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p>
                                   {curso.avances_completados} de{" "}
                                   {curso.total_alumnos} alumnos han registrado
-                                  avances
+                                  avances. Clic para ver detalles.
                                 </p>
                               </TooltipContent>
                             </Tooltip>
@@ -474,6 +622,120 @@ export default function CursosProfesorPage() {
           )}
         </div>
       </div>
+
+      {/* Modal de detalles de firmas/avances */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {modalTipo === "firmas" ? (
+                <FileSignature className="h-5 w-5 text-[#00723F]" />
+              ) : (
+                <ClipboardCheck className="h-5 w-5 text-[#00723F]" />
+              )}
+              {modalTipo === "firmas"
+                ? "Firmas del Encuadre"
+                : "Registro de Avances"}
+            </DialogTitle>
+            <DialogDescription>
+              {modalCurso?.materia_nombre} - Grupo {modalCurso?.grupo}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Resumen */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <span className="text-sm">
+                  <strong>{completados}</strong>{" "}
+                  {modalTipo === "firmas" ? "firmaron" : "registraron"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <XCircle className="h-4 w-4 text-red-500" />
+                <span className="text-sm">
+                  <strong>{pendientes}</strong> pendientes
+                </span>
+              </div>
+            </div>
+            <div
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                completados === alumnosDetalle.length &&
+                alumnosDetalle.length > 0
+                  ? "bg-green-100 text-green-800"
+                  : alumnosDetalle.length === 0
+                  ? "bg-gray-100 text-gray-600"
+                  : "bg-yellow-100 text-yellow-800"
+              }`}
+            >
+              {completados}/{alumnosDetalle.length}
+            </div>
+          </div>
+
+          {/* Tabla de alumnos */}
+          {loadingDetalle ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-[#00723F]" />
+            </div>
+          ) : alumnosDetalle.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No hay alumnos registrados en este curso</p>
+            </div>
+          ) : (
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">Estado</TableHead>
+                    <TableHead>Alumno</TableHead>
+                    <TableHead>
+                      {modalTipo === "firmas"
+                        ? "Fecha de firma"
+                        : "Último registro"}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {alumnosDetalle.map((alumno) => (
+                    <TableRow key={alumno.id}>
+                      <TableCell>
+                        {alumno.completado ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">
+                            {alumno.nombre || alumno.correo}
+                          </p>
+                          {alumno.nombre && (
+                            <p className="text-sm text-muted-foreground">
+                              {alumno.correo}
+                            </p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {alumno.completado ? (
+                          formatearFecha(alumno.fecha)
+                        ) : (
+                          <span className="text-red-500 font-medium">
+                            Pendiente
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }

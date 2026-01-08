@@ -379,7 +379,7 @@ export default function ResultsPage() {
       {/* Header */}
       <div className="space-y-3">
         <div>
-          <h1 className="text-2xl font-bold">Revisión de Resultados</h1>
+         
           <p className="text-muted-foreground">
             Comparación de avances entre profesores y alumnos
           </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
@@ -20,28 +20,37 @@ type ContenidoEditorProps = {
 
 export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEditorProps) {
   const [temas, setTemas] = useState<Tema[]>([]);
-  const [inicializado, setInicializado] = useState(false);
+  const inicializadoRef = useRef(false);
+  const valueInicialRef = useRef(value);
 
-  // Cargar contenido inicial desde value
+  // Cargar contenido inicial desde value (solo una vez)
   useEffect(() => {
-    if (!inicializado && value && value.trim()) {
-      console.log('📥 Cargando contenido:', value);
-      const temasParseados = parseContenidoATexto(value);
-      console.log('✅ Temas parseados:', temasParseados);
-      if (temasParseados.length > 0) {
-        setTemas(temasParseados);
+    if (!inicializadoRef.current) {
+      if (value && value.trim()) {
+        const temasParseados = parseContenidoATexto(value);
+        if (temasParseados.length > 0) {
+          setTemas(temasParseados);
+        }
       }
-      setInicializado(true);
+      inicializadoRef.current = true;
     }
-  }, [value, inicializado]);
+  }, [value]);
 
-  // Notificar cambios al padre
+  // Notificar cambios al padre (después de la inicialización)
   useEffect(() => {
-    if (inicializado && onChange) {
+    if (inicializadoRef.current && onChange) {
       const textoEstructurado = convertirTemasATexto(temas, numeroUnidad);
-      onChange(textoEstructurado);
+      // Solo notificar si cambió respecto al valor inicial
+      if (textoEstructurado !== valueInicialRef.current) {
+        onChange(textoEstructurado);
+      }
     }
-  }, [temas, numeroUnidad, onChange, inicializado]);
+  }, [temas, numeroUnidad, onChange]);
+
+  // Forzar inicialización después del primer render
+  useEffect(() => {
+    inicializadoRef.current = true;
+  }, []);
 
   const agregarTemaPrincipal = () => {
     const nuevoId = `tema-${Date.now()}-${Math.random()}`;
@@ -181,7 +190,7 @@ export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEdit
     <div className="space-y-2">
       {temas.length === 0 ? (
         <div className="text-sm text-muted-foreground text-center py-4 border-2 border-dashed rounded-md">
-          No hay temas agregados. Haz clic en "Agregar tema" para comenzar.
+          No hay temas agregados. Haz clic en &quot;Agregar tema&quot; para comenzar.
         </div>
       ) : (
         temas.map((tema, temaIdx) => (
@@ -336,21 +345,14 @@ function parseContenidoATexto(contenido: string): Tema[] {
   let subtemaActual: Tema | null = null;
 
   lineas.forEach((linea, index) => {
-    // Extraer numeración y texto
     const match = linea.trim().match(/^(\d+(?:\.\d+)+)\s+(.+)$/);
-    if (!match) {
-      console.warn('❌ No se pudo parsear línea:', linea);
-      return;
-    }
+    if (!match) return;
 
     const numeracion = match[1];
     const texto = match[2];
     const niveles = numeracion.split(".").filter((n) => n).length;
 
-    console.log(`📝 Parseando: ${numeracion} - "${texto}" (${niveles} niveles)`);
-
     if (niveles === 2) {
-      // Tema principal (1.1)
       temaActual = { 
         id: `tema-${index}-${Date.now()}-${Math.random()}`, 
         texto, 
@@ -359,9 +361,7 @@ function parseContenidoATexto(contenido: string): Tema[] {
       };
       temas.push(temaActual);
       subtemaActual = null;
-      console.log('✅ Tema creado:', temaActual.id);
     } else if (niveles === 3 && temaActual) {
-      // Subtema (1.1.1)
       subtemaActual = { 
         id: `subtema-${index}-${Date.now()}-${Math.random()}`, 
         texto, 
@@ -369,19 +369,15 @@ function parseContenidoATexto(contenido: string): Tema[] {
         hijos: [] 
       };
       temaActual.hijos = [...(temaActual.hijos || []), subtemaActual];
-      console.log('✅ Subtema creado:', subtemaActual.id);
     } else if (niveles === 4 && subtemaActual) {
-      // Inciso (1.1.1.1)
       const inciso = { 
         id: `inciso-${index}-${Date.now()}-${Math.random()}`, 
         texto, 
         nivel: 3 
       };
       subtemaActual.hijos = [...(subtemaActual.hijos || []), inciso];
-      console.log('✅ Inciso creado:', inciso.id);
     }
   });
 
-  console.log('🎯 Total de temas parseados:', temas.length);
   return temas;
 }

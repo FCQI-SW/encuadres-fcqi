@@ -11,7 +11,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { ChevronLeft, Loader2, Plus } from "lucide-react";
+import { ChevronLeft, Loader2, Plus, AlertCircle } from "lucide-react";
 import { PracticaTaller } from "@/components/practica-taller";
 import {
   useTallerForm,
@@ -24,6 +24,12 @@ type Programa = {
   id: string;
   materia_id: string;
   unidades: number;
+};
+
+type ErroresCampos = {
+  competencia?: string;
+  descripcion?: string;
+  duracion?: string;
 };
 
 export default function PuaMateriaTaller() {
@@ -42,16 +48,18 @@ export default function PuaMateriaTaller() {
 
   const [practicasCargadas, setPracticasCargadas] = useState(false);
 
-  // NUEVO: estado de colapsado por práctica (unidad-numero)
   const [collapsedState, setCollapsedState] = useState<Record<string, boolean>>(
     {}
   );
+
+  const [erroresPorPractica, setErroresPorPractica] = useState<
+    Record<string, ErroresCampos>
+  >({});
 
   const { loading, guardarPracticas, cargarPracticas } = useTallerForm(
     programa?.id || ""
   );
 
-  // Obtener programa
   useEffect(() => {
     const fetchPrograma = async () => {
       if (!clave) return;
@@ -93,7 +101,6 @@ export default function PuaMateriaTaller() {
     fetchPrograma();
   }, [clave]);
 
-  // Cargar prácticas existentes una sola vez
   useEffect(() => {
     if (!programa?.id || practicasCargadas) return;
 
@@ -109,7 +116,6 @@ export default function PuaMateriaTaller() {
         }
         agrupadas[p.unidad].push(p);
 
-        // si quieres que las que vienen de BD lleguen ya minimizadas:
         const key = `${p.unidad}-${p.numero}`;
         collapsedInicial[key] = true;
       });
@@ -118,8 +124,7 @@ export default function PuaMateriaTaller() {
       setCollapsedState(collapsedInicial);
       setPracticasCargadas(true);
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [programa?.id, practicasCargadas]);
+  }, [programa?.id, practicasCargadas, cargarPracticas]);
 
   const handleBack = () => {
     router.push(`/capturista/materias/${clave}/pua/unidades`);
@@ -139,7 +144,6 @@ export default function PuaMateriaTaller() {
         duracion: 0,
       };
 
-      // La nueva práctica empieza expandida
       const key = `${unidad}-${nuevoNumero}`;
       setCollapsedState((prevCollapsed) => ({
         ...prevCollapsed,
@@ -160,7 +164,6 @@ export default function PuaMateriaTaller() {
         .filter((p) => p.numero !== numero)
         .map((p, index) => ({ ...p, numero: index + 1 }));
 
-      // Limpiar estados de colapsado antiguos (opcional)
       setCollapsedState((prevCollapsed) => {
         const nuevo: Record<string, boolean> = {};
         nuevasPracticas.forEach((p) => {
@@ -168,6 +171,12 @@ export default function PuaMateriaTaller() {
           nuevo[key] = prevCollapsed[key] ?? true;
         });
         return { ...prevCollapsed, ...nuevo };
+      });
+
+      setErroresPorPractica((prevErrores) => {
+        const nuevo = { ...prevErrores };
+        delete nuevo[`${unidad}-${numero}`];
+        return nuevo;
       });
 
       return {
@@ -197,7 +206,6 @@ export default function PuaMateriaTaller() {
     });
   };
 
-  // Toggle colapsado
   const toggleCollapse = (unidad: number, numero: number) => {
     const key = `${unidad}-${numero}`;
     setCollapsedState((prev) => ({
@@ -206,44 +214,59 @@ export default function PuaMateriaTaller() {
     }));
   };
 
-  const handleGuardar = async () => {
-    if (!programa) return;
+  const validarPracticas = (): Record<string, ErroresCampos> => {
+    const erroresPorPract: Record<string, ErroresCampos> = {};
+
+    if (!programa) {
+      return erroresPorPract;
+    }
 
     const todasLasPracticas: PracticaTallerType[] = [];
     Object.values(practicasPorUnidad).forEach((practicas) => {
       todasLasPracticas.push(...practicas);
     });
 
-    for (const practica of todasLasPracticas) {
-      if (!practica.competencia.trim()) {
-        await confirm({
-          title: "Campo requerido",
-          message: `La Unidad ${practica.unidad}, Práctica ${practica.numero} debe tener una competencia.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
-        return;
+    todasLasPracticas.forEach((practica) => {
+      const key = `${practica.unidad}-${practica.numero}`;
+      const errores: ErroresCampos = {};
+
+      if (!practica.competencia || !practica.competencia.trim()) {
+        errores.competencia = "La competencia es obligatoria.";
       }
 
-      if (!practica.descripcion.trim()) {
-        await confirm({
-          title: "Campo requerido",
-          message: `La Unidad ${practica.unidad}, Práctica ${practica.numero} debe tener una descripción.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
-        return;
+      if (!practica.descripcion || !practica.descripcion.trim()) {
+        errores.descripcion = "La descripción es obligatoria.";
       }
 
-      if (practica.duracion <= 0) {
-        await confirm({
-          title: "Duración inválida",
-          message: `La Unidad ${practica.unidad}, Práctica ${practica.numero} debe tener una duración mayor a 0 horas.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
-        return;
+      if (!practica.duracion || practica.duracion <= 0) {
+        errores.duracion = "La duración debe ser mayor a 0 horas.";
       }
+
+      if (Object.keys(errores).length > 0) {
+        erroresPorPract[key] = errores;
+      }
+    });
+
+    return erroresPorPract;
+  };
+
+  const handleGuardar = async () => {
+    const erroresValidacion = validarPracticas();
+    setErroresPorPractica(erroresValidacion);
+
+    if (Object.keys(erroresValidacion).length > 0) {
+      toast.error("Por favor completa todos los campos obligatorios antes de guardar.");
+      return;
+    }
+
+    const totalPracticas = Object.values(practicasPorUnidad).reduce(
+      (sum, practicas) => sum + practicas.length,
+      0
+    );
+
+    if (totalPracticas === 0) {
+      toast.error("Debes agregar al menos una práctica de taller antes de continuar.");
+      return;
     }
 
     const shouldSave = await confirm({
@@ -255,10 +278,22 @@ export default function PuaMateriaTaller() {
 
     if (!shouldSave) return;
 
+    if (!programa) return;
+
+    const todasLasPracticas: PracticaTallerType[] = [];
+    Object.values(practicasPorUnidad).forEach((practicas) => {
+      todasLasPracticas.push(...practicas);
+    });
+
     const success = await guardarPracticas(todasLasPracticas);
 
     if (success) {
-      toast.success("Las prácticas de taller se han guardado correctamente.");
+      await confirm({
+        title: "¡Guardado exitoso!",
+        message: "Las prácticas de taller se han guardado correctamente. El PUA está completado.",
+        confirmText: "Finalizar",
+        cancelText: "",
+      });
       router.push(`/capturista/materias`);
     } else {
       toast.error("Error al guardar las prácticas de taller. Intenta de nuevo.");
@@ -300,6 +335,7 @@ export default function PuaMateriaTaller() {
   }
 
   const nUnidades = Array.from({ length: programa.unidades }, (_, i) => i + 1);
+  const totalErrores = Object.keys(erroresPorPractica).length;
 
   return (
     <div className="px-4 py-8">
@@ -319,7 +355,28 @@ export default function PuaMateriaTaller() {
           <h1 className="text-2xl font-bold">
             VI. ESTRUCTURA DE LAS PRÁCTICAS DE TALLER
           </h1>
+          <p className="text-muted-foreground mt-2">
+            Agrega prácticas para cada unidad. Es obligatorio agregar al menos una práctica.
+          </p>
         </div>
+
+        {totalErrores > 0 && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-red-800">
+                    {totalErrores} práctica{totalErrores > 1 ? "s" : ""} con errores
+                  </h3>
+                  <p className="text-sm text-red-700 mt-1">
+                    Por favor completa los campos marcados en rojo antes de guardar.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {nUnidades.map((unidad) => {
           const practicas = practicasPorUnidad[unidad] || [];
@@ -365,6 +422,7 @@ export default function PuaMateriaTaller() {
                         onDelete={() =>
                           eliminarPractica(unidad, practica.numero)
                         }
+                        errores={erroresPorPractica[key]}
                       />
                     );
                   })}

@@ -1,4 +1,3 @@
-// components/unidad.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -103,61 +102,60 @@ export function Unidad({
         )}
       </CardHeader>
 
-      {!collapsed && (
-        <CardContent className="pt-6 space-y-4">
+      {/* Siempre renderizado, solo oculto con CSS */}
+      <CardContent className={`pt-6 space-y-4 ${collapsed ? "hidden" : ""}`}>
+        <div>
+          <Label className="mb-2 block">
+            Nombre de la unidad <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej: Funciones de una variable"
+          />
+        </div>
+
+        <div>
+          <Label className="mb-2 block">
+            Competencia <span className="text-red-500">*</span>
+          </Label>
+          <textarea
+            className={ta}
+            value={competencia}
+            onChange={(e) => setCompetencia(e.target.value)}
+            placeholder="Describe la competencia que se desarrollará en esta unidad..."
+          />
+        </div>
+
+        <div>
+          <Label className="mb-2 block">
+            Contenido <span className="text-red-500">*</span>
+          </Label>
+          <p className="text-xs text-muted-foreground mb-2">
+            Los temas agregados aquí se usarán en el registro de avances
+          </p>
+          <ContenidoEditor
+            numeroUnidad={nUnidad}
+            value={contenido}
+            onChange={setContenido}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div>
             <Label className="mb-2 block">
-              Nombre de la unidad <span className="text-red-500">*</span>
+              Duración (horas) <span className="text-red-500">*</span>
             </Label>
             <Input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej: Funciones de una variable"
+              type="number"
+              min={0}
+              value={duracion}
+              onChange={(e) => setDuracion(e.target.value)}
+              placeholder="10"
             />
           </div>
-
-          <div>
-            <Label className="mb-2 block">
-              Competencia <span className="text-red-500">*</span>
-            </Label>
-            <textarea
-              className={ta}
-              value={competencia}
-              onChange={(e) => setCompetencia(e.target.value)}
-              placeholder="Describe la competencia que se desarrollará en esta unidad..."
-            />
-          </div>
-
-          <div>
-            <Label className="mb-2 block">
-              Contenido <span className="text-red-500">*</span>
-            </Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Los temas agregados aquí se usarán en el registro de avances
-            </p>
-            <ContenidoEditor
-              numeroUnidad={nUnidad}
-              value={contenido}
-              onChange={setContenido}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div>
-              <Label className="mb-2 block">
-                Duración (horas) <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                value={duracion}
-                onChange={(e) => setDuracion(e.target.value)}
-                placeholder="10"
-              />
-            </div>
-          </div>
-        </CardContent>
-      )}
+        </div>
+      </CardContent>
     </Card>
   );
 }

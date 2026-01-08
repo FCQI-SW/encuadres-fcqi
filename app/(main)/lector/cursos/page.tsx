@@ -341,7 +341,7 @@ export default function CursosLectorPage() {
       {/* Header */}
       <div className="space-y-3">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">Cursos</h1>
+        
           <p className="text-sm text-muted-foreground">
             Visualiza el progreso de todos los encuadres
           </p>

@@ -203,7 +203,7 @@ export default function ConfigurarFechaPage() {
       {/* Header */}
       <div className="space-y-3">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">Fecha de Operación</h1>
+          
           <p className="text-sm text-muted-foreground">
             Establece el periodo de operación del sistema
           </p>

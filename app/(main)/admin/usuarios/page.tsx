@@ -81,6 +81,42 @@ export default function UserManagementPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Mapa de normalización para Roles
+  const rolesNormalizados: { [key: string]: string } = {
+    "profesor": "profesor",
+    "profesora": "profesor",
+    "prof": "profesor",
+    "teacher": "profesor",
+    "docente": "profesor",
+    
+    "alumno": "alumno",
+    "alumna": "alumno",
+    "alumnos": "alumno",
+    "student": "alumno",
+    "estudiante": "alumno",
+    
+    "capturista": "capturista",
+    "capturist": "capturista",
+    "captura": "capturista",
+    "data entry": "capturista",
+    
+    "lector": "lector",
+    "lectora": "lector",
+    "reader": "lector",
+    "lectura": "lector",
+    
+    "admin": "admin",
+    "administrador": "admin",
+    "administrator": "admin",
+    "adm": "admin",
+  };
+
+  // Función para normalizar rol
+  const normalizarRol = (rol: string): string => {
+    const rolLower = rol.trim().toLowerCase();
+    return rolesNormalizados[rolLower] || rol;
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -331,10 +367,12 @@ export default function UserManagementPage() {
         return;
       }
 
-      // Crear mapa inverso de roles (nombre -> id)
+      // Crear mapa inverso de roles (nombre normalizado -> id)
       const rolesNombreToId: Record<string, string> = {};
       roles.forEach((rol) => {
-        rolesNombreToId[rol.nombre.toLowerCase()] = rol.id;
+        // Normalizar el nombre del rol de la BD para comparación
+        const rolNormalizado = normalizarRol(rol.nombre);
+        rolesNombreToId[rolNormalizado.toLowerCase()] = rol.id;
       });
 
       const bulkUsers = rows
@@ -343,12 +381,13 @@ export default function UserManagementPage() {
           const correo = String(row[0] || "").trim();
           const nombre = String(row[1] || "").trim();
           const contraseña = String(row[2] || "password123");
-          const rolNombre = String(row[3] || "")
-            .trim()
-            .toLowerCase();
+          const rolDelExcel = String(row[3] || "").trim();
 
-          // Buscar el rol_id por nombre
-          const rol_id = rolesNombreToId[rolNombre] || "";
+          // Normalizar el rol del Excel
+          const rolNormalizado = normalizarRol(rolDelExcel);
+          
+          // Buscar el rol_id por el rol normalizado
+          const rol_id = rolesNombreToId[rolNormalizado.toLowerCase()] || "";
 
           return {
             correo,
@@ -432,7 +471,7 @@ export default function UserManagementPage() {
       {/* Header */}
       <div className="space-y-3">
         <div>
-          <h1 className="text-2xl font-bold">Manejo de Usuarios</h1>
+          
           <p className="text-muted-foreground">
             Administra los usuarios del sistema
           </p>
