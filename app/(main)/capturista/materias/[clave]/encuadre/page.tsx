@@ -39,6 +39,7 @@ type Materia = {
   id: string;
   clave: string;
   nombre: string;
+  periodo: string;
 };
 
 type Profesor = {
@@ -74,18 +75,19 @@ export default function EncuadreMateria() {
   const [bibliografiaBasica, setBibliografiaBasica] = useState("");
   const [normasConducta, setNormasConducta] = useState("");
   const [profesorPuedeModificar, setProfesorPuedeModificar] = useState(true);
-  
-  // Criterios de calificación (tabla)
-  const [criteriosCalificacion, setCriteriosCalificacion] = useState<CriterioCalificacion[]>([
+
+  const [criteriosCalificacion, setCriteriosCalificacion] = useState<
+    CriterioCalificacion[]
+  >([
     { criterio: "", valor: 0, descripcion: "" },
     { criterio: "", valor: 0, descripcion: "" },
     { criterio: "", valor: 0, descripcion: "" },
   ]);
 
-  const { guardarEncuadre, cargarEncuadre, loading, error } = useEncuadreForm(programaId);
+  const { guardarEncuadre, cargarEncuadre, loading, error } =
+    useEncuadreForm(programaId);
   const [prevError, setPrevError] = useState<string | null>(null);
 
-  // Mostrar error en toast cuando cambie
   useEffect(() => {
     if (error && error !== prevError) {
       toast.error(error);
@@ -101,7 +103,7 @@ export default function EncuadreMateria() {
       const [{ data: matData }, { data: profData }] = await Promise.all([
         supabase
           .from("materias")
-          .select("id, clave, nombre_materia")
+          .select("id, clave, nombre_materia, periodo")
           .eq("clave", clave),
         supabase
           .from("usuarios")
@@ -113,9 +115,16 @@ export default function EncuadreMateria() {
 
       if (matData && matData.length > 0) {
         const m = matData[0] as any;
-        setMateria({ id: m.id, clave: m.clave, nombre: m.nombre_materia });
 
-        // Obtener el programa_id
+        setMateria({
+          id: m.id,
+          clave: m.clave,
+          nombre: m.nombre_materia,
+          periodo: m.periodo || "",
+        });
+
+        setPeriodo(m.periodo || "");
+
         const { data: programaData } = await supabase
           .from("programas")
           .select("id")
@@ -127,6 +136,7 @@ export default function EncuadreMateria() {
         }
       } else {
         setMateria(null);
+        setPeriodo("");
       }
 
       if (profData) {
@@ -153,16 +163,16 @@ export default function EncuadreMateria() {
       if (encuadre) {
         setProfesorId(encuadre.usuario_id || "");
         setGrupo(encuadre.grupo || "");
-        setPeriodo(encuadre.periodo || "");
         setDescripcionEvaluacion(encuadre.descripcion_evaluacion || "");
         setDerechoOrdinario(encuadre.derecho_ordinario || "");
         setDerechoExtraordinario(encuadre.derecho_extraordinario || "");
         setDescripcionProducto(encuadre.descripcion_producto || "");
         setBibliografiaBasica(encuadre.bibliografia_basica || "");
         setNormasConducta(encuadre.normas_conducta || "");
-        setProfesorPuedeModificar(encuadre.profesor_puede_modificar_criterios ?? true);
-        
-        // Cargar criterios
+        setProfesorPuedeModificar(
+          encuadre.profesor_puede_modificar_criterios ?? true
+        );
+
         if (encuadre.criterios && encuadre.criterios.length > 0) {
           setCriteriosCalificacion(
             encuadre.criterios.map((c: any) => ({
@@ -178,10 +188,11 @@ export default function EncuadreMateria() {
   }, [programaId]);
 
   const handleBack = async () => {
-    if (profesorId || periodo || grupo) {
+    if (profesorId || grupo) {
       const shouldLeave = await confirm({
         title: "¿Salir sin guardar?",
-        message: "Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?",
+        message:
+          "Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?",
         confirmText: "Sí, salir",
         cancelText: "Cancelar",
       });
@@ -195,7 +206,6 @@ export default function EncuadreMateria() {
   const handleGuardar = async () => {
     if (!materia || !programaId) return;
 
-    // Esperar a que la sesión esté completamente cargada
     if (status === "loading") {
       await confirm({
         title: "Cargando sesión",
@@ -209,18 +219,13 @@ export default function EncuadreMateria() {
     if (status === "unauthenticated" || !session?.user?.id) {
       await confirm({
         title: "Sesión no válida",
-        message: "No se pudo verificar tu sesión. Por favor, cierra sesión y vuelve a iniciar.",
+        message:
+          "No se pudo verificar tu sesión. Por favor, cierra sesión y vuelve a iniciar.",
         confirmText: "Entendido",
         cancelText: "",
       });
       return;
     }
-
-    const userId = session.user.id;
-
-    // ========================================
-    // VALIDACIONES BÁSICAS (Campos requeridos)
-    // ========================================
 
     if (!profesorId) {
       await confirm({
@@ -234,8 +239,9 @@ export default function EncuadreMateria() {
 
     if (!periodo.trim()) {
       await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa el periodo.",
+        title: "Periodo no configurado",
+        message:
+          "Esta materia no tiene un periodo asignado por el administrador. Solicita al administrador que lo configure antes de guardar el encuadre.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -252,11 +258,9 @@ export default function EncuadreMateria() {
       return;
     }
 
-    // ========================================
-    // VALIDACIONES DE CRITERIOS DE CALIFICACIÓN
-    // ========================================
-
-    const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
+    const criteriosConValor = criteriosCalificacion.filter(
+      (c) => c.criterio.trim() !== ""
+    );
 
     if (criteriosConValor.length > 0) {
       const criterioSinValor = criteriosConValor.find((c) => c.valor <= 0);
@@ -270,7 +274,10 @@ export default function EncuadreMateria() {
         return;
       }
 
-      const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
+      const totalPorcentaje = criteriosConValor.reduce(
+        (sum, c) => sum + c.valor,
+        0
+      );
       if (totalPorcentaje !== 100) {
         await confirm({
           title: "Porcentajes incorrectos",
@@ -296,21 +303,19 @@ export default function EncuadreMateria() {
     if (criteriosConValor.length === 0) {
       await confirm({
         title: "Sin criterios de calificación",
-        message: "Debes agregar al menos un criterio de evaluación con su porcentaje.",
+        message:
+          "Debes agregar al menos un criterio de evaluación con su porcentaje.",
         confirmText: "Entendido",
         cancelText: "",
       });
       return;
     }
 
-    // ========================================
-    // ADVERTENCIAS OPCIONALES
-    // ========================================
-
     if (!descripcionEvaluacion.trim()) {
       const shouldContinue = await confirm({
         title: "Campo vacío",
-        message: "No has ingresado una descripción general de la evaluación. ¿Deseas continuar de todas formas?",
+        message:
+          "No has ingresado una descripción general de la evaluación. ¿Deseas continuar de todas formas?",
         confirmText: "Sí, continuar",
         cancelText: "Cancelar",
       });
@@ -321,7 +326,8 @@ export default function EncuadreMateria() {
     if (!derechoOrdinario.trim() || !derechoExtraordinario.trim()) {
       const shouldContinue = await confirm({
         title: "Información incompleta",
-        message: "No has completado los criterios para el Derecho a Examen Ordinario y/o Extraordinario. ¿Deseas continuar de todas formas?",
+        message:
+          "No has completado los criterios para el Derecho a Examen Ordinario y/o Extraordinario. ¿Deseas continuar de todas formas?",
         confirmText: "Sí, continuar",
         cancelText: "Cancelar",
       });
@@ -329,24 +335,19 @@ export default function EncuadreMateria() {
       if (!shouldContinue) return;
     }
 
-    // ========================================
-    // CONFIRMACIÓN FINAL
-    // ========================================
-
     const shouldSave = await confirm({
       title: "Guardar encuadre",
-      message: "¿Estás seguro de que deseas guardar la configuración del encuadre?",
+      message:
+        "¿Estás seguro de que deseas guardar la configuración del encuadre?",
       confirmText: "Guardar",
       cancelText: "Cancelar",
     });
 
     if (!shouldSave) return;
 
-    // ========================================
-    // PREPARAR Y GUARDAR DATOS
-    // ========================================
-
-    const criteriosAGuardar = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
+    const criteriosAGuardar = criteriosCalificacion.filter(
+      (c) => c.criterio.trim() !== ""
+    );
 
     const success = await guardarEncuadre({
       programaId: programaId,
@@ -361,7 +362,6 @@ export default function EncuadreMateria() {
       normasConducta,
       profesorPuedeModificarCriterios: profesorPuedeModificar,
       criterios: criteriosAGuardar,
-     
     });
 
     if (success) {
@@ -373,20 +373,31 @@ export default function EncuadreMateria() {
   };
 
   const agregarCriterioCalificacion = () => {
-    setCriteriosCalificacion([...criteriosCalificacion, { criterio: "", valor: 0, descripcion: "" }]);
+    setCriteriosCalificacion([
+      ...criteriosCalificacion,
+      { criterio: "", valor: 0, descripcion: "" },
+    ]);
   };
 
   const eliminarCriterioCalificacion = (index: number) => {
-    setCriteriosCalificacion(criteriosCalificacion.filter((_, i) => i !== index));
+    setCriteriosCalificacion(
+      criteriosCalificacion.filter((_, i) => i !== index)
+    );
   };
 
-  const actualizarCriterioCalificacion = (index: number, field: keyof CriterioCalificacion, value: string | number) => {
+  const actualizarCriterioCalificacion = (
+    index: number,
+    field: keyof CriterioCalificacion,
+    value: string | number
+  ) => {
     const nuevosCriterios = [...criteriosCalificacion];
     nuevosCriterios[index] = { ...nuevosCriterios[index], [field]: value };
     setCriteriosCalificacion(nuevosCriterios);
   };
 
-  const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
+  const criteriosConValor = criteriosCalificacion.filter(
+    (c) => c.criterio.trim() !== ""
+  );
   const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
 
   if (loadingData) {
@@ -443,16 +454,17 @@ export default function EncuadreMateria() {
           </Button>
         </div>
 
- <div className="text-center">
-  <h1 className="text-2xl font-bold">Encuadre de la Unidad de Aprendizaje</h1>
-  <p className="text-lg font-semibold text-[#00723F] mt-2">
-    {materia.clave} - {materia.nombre}
-  </p>
-  <p className="text-sm text-muted-foreground mt-1">
-    Completa la información del encuadre del curso.
-  </p>
-</div>
-
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">
+            Encuadre de la Unidad de Aprendizaje
+          </h1>
+          <p className="text-lg font-semibold text-[#00723F] mt-2">
+            {materia.clave} - {materia.nombre}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Completa la información del encuadre del curso.
+          </p>
+        </div>
 
         {/* Datos básicos */}
         <Card>
@@ -464,6 +476,7 @@ export default function EncuadreMateria() {
               <Label className="mb-2 block">Clave</Label>
               <Input value={materia.clave} disabled />
             </div>
+
             <div className="sm:col-span-9">
               <Label className="mb-2 block">Nombre del Curso</Label>
               <Input value={materia.nombre} disabled />
@@ -497,16 +510,12 @@ export default function EncuadreMateria() {
               </Select>
             </div>
 
-            <div className="sm:col-span-3">
-              <Label className="mb-2 block">
-                Periodo <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                value={periodo}
-                onChange={(e) => setPeriodo(e.target.value)}
-                placeholder="2025-1"
-              />
-            </div>
+          <div className="sm:col-span-3">
+  <Label className="mb-2 block">
+    Periodo <span className="text-red-500">*</span>
+  </Label>
+  <Input value={periodo} disabled className="bg-gray-100" />
+</div>
 
             <div className="sm:col-span-3">
               <Label className="mb-2 block">
@@ -526,11 +535,11 @@ export default function EncuadreMateria() {
           <CardHeader>
             <CardTitle>Evaluación de Curso</CardTitle>
             <CardDescription>
-              Descripción detallada de cómo se evaluará el curso. Asignar valor a cada actividad.
+              Descripción detallada de cómo se evaluará el curso. Asignar valor
+              a cada actividad.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Checkbox permitir modificar */}
             <div className="flex items-center space-x-2 pb-4 border-b">
               <input
                 type="checkbox"
@@ -544,7 +553,6 @@ export default function EncuadreMateria() {
               </Label>
             </div>
 
-            {/* Descripción general de evaluación */}
             <div>
               <Label className="mb-2 block">Descripción general</Label>
               <textarea
@@ -555,13 +563,14 @@ export default function EncuadreMateria() {
               />
             </div>
 
-            {/* Tabla de criterios */}
             <div className="border rounded-md">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[35%]">Criterio</TableHead>
-                    <TableHead className="w-[15%] text-center">Valor %</TableHead>
+                    <TableHead className="w-[15%] text-center">
+                      Valor %
+                    </TableHead>
                     <TableHead className="w-[40%]">Descripción</TableHead>
                     <TableHead className="w-[10%]"></TableHead>
                   </TableRow>
@@ -573,7 +582,11 @@ export default function EncuadreMateria() {
                         <Input
                           value={crit.criterio}
                           onChange={(e) =>
-                            actualizarCriterioCalificacion(index, "criterio", e.target.value)
+                            actualizarCriterioCalificacion(
+                              index,
+                              "criterio",
+                              e.target.value
+                            )
                           }
                           placeholder="Nombre del criterio"
                         />
@@ -585,7 +598,11 @@ export default function EncuadreMateria() {
                           max={100}
                           value={crit.valor}
                           onChange={(e) =>
-                            actualizarCriterioCalificacion(index, "valor", Number(e.target.value))
+                            actualizarCriterioCalificacion(
+                              index,
+                              "valor",
+                              Number(e.target.value)
+                            )
                           }
                           className="text-center"
                           placeholder="%"
@@ -595,7 +612,11 @@ export default function EncuadreMateria() {
                         <Input
                           value={crit.descripcion}
                           onChange={(e) =>
-                            actualizarCriterioCalificacion(index, "descripcion", e.target.value)
+                            actualizarCriterioCalificacion(
+                              index,
+                              "descripcion",
+                              e.target.value
+                            )
                           }
                           placeholder="Descripción del criterio"
                         />
@@ -628,8 +649,8 @@ export default function EncuadreMateria() {
                         {totalPorcentaje}%
                       </span>
                     </TableCell>
-                    <TableCell></TableCell>
-                    <TableCell></TableCell>
+                    <TableCell />
+                    <TableCell />
                   </TableRow>
                 </TableBody>
               </Table>
@@ -680,9 +701,12 @@ export default function EncuadreMateria() {
         {/* Descripción de Producto */}
         <Card>
           <CardHeader>
-            <CardTitle>Descripción de Producto o Evidencia de Desempeño</CardTitle>
+            <CardTitle>
+              Descripción de Producto o Evidencia de Desempeño
+            </CardTitle>
             <CardDescription>
-              En caso de existir rúbrica del trabajo final, incluirla en este apartado
+              En caso de existir rúbrica del trabajo final, incluirla en este
+              apartado
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -715,7 +739,8 @@ export default function EncuadreMateria() {
           <CardHeader>
             <CardTitle>Normas de Conducta dentro del Salón de Clases</CardTitle>
             <CardDescription>
-              Describir las reglas de conducta, retardos, uso de celular, alimentos, etc.
+              Describir las reglas de conducta, retardos, uso de celular,
+              alimentos, etc.
             </CardDescription>
           </CardHeader>
           <CardContent>

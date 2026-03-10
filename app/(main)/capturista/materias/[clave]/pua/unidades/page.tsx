@@ -20,6 +20,8 @@ type Programa = {
   id: string;
   materia_id: string;
   unidades: number;
+  ht: number;
+  hl: number;
 };
 
 type UnidadData = {
@@ -48,7 +50,7 @@ export default function PuaMateriaUnidades() {
   // Unidades cargadas desde BD
   const [unidadesCargadas, setUnidadesCargadas] = useState<UnidadData[]>([]);
 
-  // NUEVO: estado de colapsado por unidad (1,2,3...)
+  // Estado de colapsado por unidad
   const [collapsedState, setCollapsedState] = useState<Record<number, boolean>>(
     {}
   );
@@ -77,7 +79,7 @@ export default function PuaMateriaUnidades() {
 
         const { data: programaData, error } = await supabase
           .from("programas")
-          .select("id, materia_id, unidades")
+          .select("id, materia_id, unidades, ht, hl")
           .eq("materia_id", materiaData.id)
           .single();
 
@@ -85,7 +87,7 @@ export default function PuaMateriaUnidades() {
           console.error("Error al obtener programa:", error);
           setPrograma(null);
         } else {
-          setPrograma(programaData);
+          setPrograma(programaData as Programa);
         }
       } catch (err) {
         console.error("Error:", err);
@@ -98,7 +100,6 @@ export default function PuaMateriaUnidades() {
     fetchPrograma();
   }, [clave]);
 
-  // Cargar unidades existentes
   useEffect(() => {
     if (!programa?.id) return;
 
@@ -106,7 +107,6 @@ export default function PuaMateriaUnidades() {
       const unidades = await cargarUnidades();
       setUnidadesCargadas(unidades);
 
-      // NUEVO: las unidades que ya tienen info llegan minimizadas
       const collapsedInicial: Record<number, boolean> = {};
       unidades.forEach((u) => {
         const tieneAlgo =
@@ -128,7 +128,6 @@ export default function PuaMateriaUnidades() {
     }));
   };
 
-  // NUEVO: alternar colapsado
   const toggleCollapse = (numero: number) => {
     setCollapsedState((prev) => ({
       ...prev,
@@ -139,7 +138,6 @@ export default function PuaMateriaUnidades() {
   const handleContinuar = async () => {
     if (!programa) return;
 
-    // Tomar lo que se ha editado en esta pantalla
     const unidadesArray = Object.values(unidadesData);
 
     if (unidadesArray.length < programa.unidades) {
@@ -206,14 +204,41 @@ export default function PuaMateriaUnidades() {
     const success = await guardarUnidades(unidadesArray);
 
     if (success) {
+      if ((programa.ht || 0) > 0) {
+        await confirm({
+          title: "¡Guardado exitoso!",
+          message:
+            "Las unidades se han guardado correctamente. Ahora continuarás con las prácticas de taller.",
+          confirmText: "Continuar",
+          cancelText: "",
+        });
+
+        router.push(`/capturista/materias/${clave}/pua/taller`);
+        return;
+      }
+
+      if ((programa.hl || 0) > 0) {
+        await confirm({
+          title: "¡Guardado exitoso!",
+          message:
+            "Las unidades se han guardado correctamente. Ahora continuarás con las prácticas de laboratorio.",
+          confirmText: "Continuar",
+          cancelText: "",
+        });
+
+        router.push(`/capturista/materias/${clave}/pua/laboratorio`);
+        return;
+      }
+
       await confirm({
         title: "¡Guardado exitoso!",
-        message: "Las unidades se han guardado correctamente.",
-        confirmText: "Continuar",
+        message:
+          "Las unidades se han guardado correctamente. Esta materia no requiere prácticas de taller ni de laboratorio.",
+        confirmText: "Finalizar",
         cancelText: "",
       });
 
-      router.push(`/capturista/materias/${clave}/pua/taller`);
+      router.push(`/capturista/materias`);
     }
   };
 
@@ -257,7 +282,6 @@ export default function PuaMateriaUnidades() {
   return (
     <div className="px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* Botón regresar */}
         <div>
           <Button
             variant="outline"
@@ -269,12 +293,10 @@ export default function PuaMateriaUnidades() {
           </Button>
         </div>
 
-        {/* Título */}
         <div className="text-center py-4">
           <h1 className="text-2xl font-bold">V. DESARROLLO POR UNIDADES</h1>
         </div>
 
-        {/* Unidades */}
         <div className="space-y-8">
           {nUnidades.map((num) => {
             const unidadCargada = unidadesCargadas.find(
@@ -296,7 +318,6 @@ export default function PuaMateriaUnidades() {
           })}
         </div>
 
-        {/* Botones de acción */}
         <div className="flex justify-end gap-2 pt-4">
           <Button
             variant="outline"

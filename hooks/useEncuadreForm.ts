@@ -42,16 +42,17 @@ type GuardarEncuadreParams = {
 };
 
 export function useEncuadreForm(programaId: string) {
-  const { data: session } = useSession(); // ← IGUAL QUE PUA
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const guardarEncuadre = async (params: GuardarEncuadreParams): Promise<boolean> => {
+  const guardarEncuadre = async (
+    params: GuardarEncuadreParams
+  ): Promise<boolean> => {
     setLoading(true);
     setError(null);
 
     try {
-      // Obtener usuario de NextAuth (igual que PUA)
       if (!session?.user?.id) {
         setError("No hay usuario autenticado");
         setLoading(false);
@@ -60,7 +61,6 @@ export function useEncuadreForm(programaId: string) {
 
       const userId = session.user.id;
 
-      // Verificar si ya existe un encuadre para este programa
       const { data: encuadreExistente } = await supabase
         .from("encuadres")
         .select("id")
@@ -70,7 +70,7 @@ export function useEncuadreForm(programaId: string) {
       let encuadreId: string;
 
       const encuadreData = {
-        usuario_id: params.usuarioId, // Profesor seleccionado
+        usuario_id: params.usuarioId,
         grupo: params.grupo,
         periodo: params.periodo,
         descripcion_evaluacion: params.descripcionEvaluacion,
@@ -79,13 +79,13 @@ export function useEncuadreForm(programaId: string) {
         descripcion_producto: params.descripcionProducto,
         bibliografia_basica: params.bibliografiaBasica,
         normas_conducta: params.normasConducta,
-        profesor_puede_modificar_criterios: params.profesorPuedeModificarCriterios,
-        ultimo_editor_id: userId, // Capturista de NextAuth
+        profesor_puede_modificar_criterios:
+          params.profesorPuedeModificarCriterios,
+        ultimo_editor_id: userId,
         ultima_edicion: new Date().toISOString(),
       };
 
       if (encuadreExistente) {
-        // Actualizar encuadre existente
         const { error: errorActualizar } = await supabase
           .from("encuadres")
           .update(encuadreData)
@@ -100,13 +100,11 @@ export function useEncuadreForm(programaId: string) {
 
         encuadreId = encuadreExistente.id;
 
-        // Eliminar criterios antiguos
         await supabase
           .from("criterios_evaluacion")
           .delete()
           .eq("encuadre_id", encuadreId);
       } else {
-        // Crear nuevo encuadre
         const { data: nuevoEncuadre, error: errorCrear } = await supabase
           .from("encuadres")
           .insert({
@@ -126,7 +124,6 @@ export function useEncuadreForm(programaId: string) {
         encuadreId = nuevoEncuadre.id;
       }
 
-      // Insertar criterios de evaluación
       if (params.criterios.length > 0) {
         const criteriosParaInsertar = params.criterios.map((c) => ({
           encuadre_id: encuadreId,
@@ -175,7 +172,6 @@ export function useEncuadreForm(programaId: string) {
         return null;
       }
 
-      // Cargar criterios de evaluación
       const { data: criterios, error: errorCriterios } = await supabase
         .from("criterios_evaluacion")
         .select("id, criterio, valor, descripcion")
@@ -196,7 +192,8 @@ export function useEncuadreForm(programaId: string) {
         descripcion_producto: encuadre.descripcion_producto || "",
         bibliografia_basica: encuadre.bibliografia_basica || "",
         normas_conducta: encuadre.normas_conducta || "",
-        profesor_puede_modificar_criterios: encuadre.profesor_puede_modificar_criterios ?? true,
+        profesor_puede_modificar_criterios:
+          encuadre.profesor_puede_modificar_criterios ?? true,
         criterios: criterios || [],
       };
     } catch (err) {

@@ -1,100 +1,462 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabase";
-import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { ChevronLeft, Loader2, Plus, AlertCircle } from "lucide-react";
+import { PracticaLaboratorio } from "@/components/practica-laboratorio";
+import {
+  useLaboratorioForm,
+  type PracticaLaboratorio as PracticaLaboratorioType,
+} from "@/hooks/useLaboratorioForm";
+import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 
-type Materia = {
+type Programa = {
   id: string;
-  clave: string;
+  materia_id: string;
   unidades: number;
+  hl: number;
+};
+
+type ErroresCampos = {
+  competencia?: string;
+  descripcion?: string;
+  duracion?: string;
 };
 
 export default function PuaMateriaLaboratorio() {
+  const router = useRouter();
   const params = useParams<{ clave: string }>();
   const clave = params?.clave;
-  const [materia, setMateria] = useState<Materia>();
+  const confirm = useConfirm();
+  const toast = useToast();
+
+  const [programa, setPrograma] = useState<Programa | null>(null);
+  const [loadingData, setLoadingData] = useState(true);
+
+  const [practicasPorUnidad, setPracticasPorUnidad] = useState<
+    Record<number, PracticaLaboratorioType[]>
+  >({});
+
+  const [practicasCargadas, setPracticasCargadas] = useState(false);
+
+  const [collapsedState, setCollapsedState] = useState<Record<string, boolean>>(
+    {}
+  );
+
+  const [erroresPorPractica, setErroresPorPractica] = useState<
+    Record<string, ErroresCampos>
+  >({});
+
+  const { loading, guardarPracticas, cargarPracticas } = useLaboratorioForm(
+    programa?.id || ""
+  );
 
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: materiaData, error: materiasError } = await supabase
-        .from("programas")
-        .select("id, materia_id, unidades")
-        .eq("materia_id", clave);
+    const fetchPrograma = async () => {
+      if (!clave) return;
 
-      if (materiasError) {
-        console.error("Error al obtener materias:", {
-          materiasError,
-        });
-        return;
+      setLoadingData(true);
+      try {
+        const { data: materiaData } = await supabase
+          .from("materias")
+          .select("id")
+          .eq("clave", clave)
+          .single();
+
+        if (!materiaData) {
+          setPrograma(null);
+          setLoadingData(false);
+          return;
+        }
+
+        const { data: programaData, error } = await supabase
+          .from("programas")
+          .select("id, materia_id, unidades, hl")
+          .eq("materia_id", materiaData.id)
+          .single();
+
+        if (error) {
+          console.error("Error al obtener programa:", error);
+          setPrograma(null);
+        } else {
+          if (!programaData?.hl || Number(programaData.hl) <= 0) {
+            router.push(`/capturista/materias`);
+            return;
+          }
+          setPrograma(programaData as Programa);
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        setPrograma(null);
+      } finally {
+        setLoadingData(false);
       }
-
-      const mappedMateria = (materiaData || []).map((m) => ({
-        id: m.id,
-        clave: m.materia_id,
-        unidades: m.unidades,
-      }));
-
-      setMateria(mappedMateria[0]);
     };
 
-    fetchData();
-  }, [clave]);
+    fetchPrograma();
+  }, [clave, router]);
 
-  const nUnidades = [];
+  useEffect(() => {
+    if (!programa?.id || practicasCargadas) return;
 
-  if (materia) {
-    for (let i = 1; i <= materia?.unidades; i++) {
-      nUnidades.push(i);
+    (async () => {
+      const practicas = await cargarPracticas();
+
+      const agrupadas: Record<number, PracticaLaboratorioType[]> = {};
+      const collapsedInicial: Record<string, boolean> = {};
+
+      practicas.forEach((p) => {
+        if (!agrupadas[p.unidad]) {
+          agrupadas[p.unidad] = [];
+        }
+        agrupadas[p.unidad].push(p);
+
+        const key = `${p.unidad}-${p.numero}`;
+        collapsedInicial[key] = true;
+      });
+
+      setPracticasPorUnidad(agrupadas);
+      setCollapsedState(collapsedInicial);
+      setPracticasCargadas(true);
+    })();
+  }, [programa?.id, practicasCargadas, cargarPracticas]);
+
+  const handleBack = () => {
+    router.push(`/capturista/materias/${clave}/pua/taller`);
+  };
+
+  const agregarPractica = (unidad: number) => {
+    setPracticasPorUnidad((prev) => {
+      const practicasUnidad = prev[unidad] || [];
+      const nuevoNumero = practicasUnidad.length + 1;
+
+      const nuevaPractica: PracticaLaboratorioType = {
+        unidad,
+        numero: nuevoNumero,
+        competencia: "",
+        descripcion: "",
+        material_apoyo: "",
+        duracion: 0,
+      };
+
+      const key = `${unidad}-${nuevoNumero}`;
+      setCollapsedState((prevCollapsed) => ({
+        ...prevCollapsed,
+        [key]: false,
+      }));
+
+      return {
+        ...prev,
+        [unidad]: [...practicasUnidad, nuevaPractica],
+      };
+    });
+  };
+
+  const eliminarPractica = (unidad: number, numero: number) => {
+    setPracticasPorUnidad((prev) => {
+      const practicasUnidad = prev[unidad] || [];
+      const nuevasPracticas = practicasUnidad
+        .filter((p) => p.numero !== numero)
+        .map((p, index) => ({ ...p, numero: index + 1 }));
+
+      setCollapsedState((prevCollapsed) => {
+        const nuevo: Record<string, boolean> = {};
+        nuevasPracticas.forEach((p) => {
+          const key = `${p.unidad}-${p.numero}`;
+          nuevo[key] = prevCollapsed[key] ?? true;
+        });
+        return { ...prevCollapsed, ...nuevo };
+      });
+
+      setErroresPorPractica((prevErrores) => {
+        const nuevo = { ...prevErrores };
+        delete nuevo[`${unidad}-${numero}`];
+        return nuevo;
+      });
+
+      return {
+        ...prev,
+        [unidad]: nuevasPracticas,
+      };
+    });
+  };
+
+  const handlePracticaChange = (data: PracticaLaboratorioType) => {
+    setPracticasPorUnidad((prev) => {
+      const practicasUnidad = [...(prev[data.unidad] || [])];
+      const index = practicasUnidad.findIndex((p) => p.numero === data.numero);
+
+      if (index >= 0) {
+        practicasUnidad[index] = data;
+      } else {
+        practicasUnidad.push(data);
+      }
+
+      return {
+        ...prev,
+        [data.unidad]: practicasUnidad,
+      };
+    });
+  };
+
+  const toggleCollapse = (unidad: number, numero: number) => {
+    const key = `${unidad}-${numero}`;
+    setCollapsedState((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const validarPracticas = (): Record<string, ErroresCampos> => {
+    const erroresPorPract: Record<string, ErroresCampos> = {};
+
+    if (!programa) return erroresPorPract;
+
+    const todasLasPracticas: PracticaLaboratorioType[] = [];
+    Object.values(practicasPorUnidad).forEach((practicas) => {
+      todasLasPracticas.push(...practicas);
+    });
+
+    todasLasPracticas.forEach((practica) => {
+      const key = `${practica.unidad}-${practica.numero}`;
+      const errores: ErroresCampos = {};
+
+      if (!practica.competencia || !practica.competencia.trim()) {
+        errores.competencia = "La competencia es obligatoria.";
+      }
+
+      if (!practica.descripcion || !practica.descripcion.trim()) {
+        errores.descripcion = "La descripción es obligatoria.";
+      }
+
+      if (!practica.duracion || practica.duracion <= 0) {
+        errores.duracion = "La duración debe ser mayor a 0 horas.";
+      }
+
+      if (Object.keys(errores).length > 0) {
+        erroresPorPract[key] = errores;
+      }
+    });
+
+    return erroresPorPract;
+  };
+
+  const handleGuardar = async () => {
+    const erroresValidacion = validarPracticas();
+    setErroresPorPractica(erroresValidacion);
+
+    if (Object.keys(erroresValidacion).length > 0) {
+      toast.error(
+        "Por favor completa todos los campos obligatorios antes de guardar."
+      );
+      return;
     }
-  } else {
-    for (let i = 1; i <= 5; i++) {
-      nUnidades.push(i);
+
+    const totalPracticas = Object.values(practicasPorUnidad).reduce(
+      (sum, practicas) => sum + practicas.length,
+      0
+    );
+
+    if (totalPracticas === 0) {
+      toast.error(
+        "Debes agregar al menos una práctica de laboratorio antes de continuar."
+      );
+      return;
     }
+
+    const shouldSave = await confirm({
+      title: "Guardar prácticas",
+      message: "¿Deseas guardar todas las prácticas de laboratorio?",
+      confirmText: "Guardar",
+      cancelText: "Cancelar",
+    });
+
+    if (!shouldSave || !programa) return;
+
+    const todasLasPracticas: PracticaLaboratorioType[] = [];
+    Object.values(practicasPorUnidad).forEach((practicas) => {
+      todasLasPracticas.push(...practicas);
+    });
+
+    const success = await guardarPracticas(todasLasPracticas);
+
+    if (success) {
+      await confirm({
+        title: "¡Guardado exitoso!",
+        message:
+          "Las prácticas de laboratorio se han guardado correctamente. El PUA está completado.",
+        confirmText: "Finalizar",
+        cancelText: "",
+      });
+      router.push(`/capturista/materias`);
+    } else {
+      toast.error(
+        "Error al guardar las prácticas de laboratorio. Intenta de nuevo."
+      );
+    }
+  };
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
+  if (!programa) {
+    return (
+      <div className="px-4 py-8">
+        <div className="mx-auto max-w-3xl">
+          <Card>
+            <CardHeader>
+              <CardTitle>No se encontró el programa</CardTitle>
+              <CardDescription>
+                Por favor regresa y completa los datos del PUA primero.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                className="cursor-pointer"
+              >
+                Volver
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const nUnidades = Array.from({ length: programa.unidades }, (_, i) => i + 1);
+  const totalErrores = Object.keys(erroresPorPractica).length;
+
   return (
-    <>
-      <div className="h-auto w-auto m-8">
-        <div className="items-center border-2 border-black bg-gray-200 justify-items-center py-8 gap-8 mx-24 my-12 font-[family-name:var(--font-geist-sans)]">
-          <h1 className="text-center font-bold text-2xl col-span-2">
-            VI. ESTRUCTURA DE LAS PRÁCTICAS DE LABORATORIO
-          </h1>
-          {nUnidades.map((m) => {
-            return (
-              <div key={m} className="my-16">
-                <h1 className="text-center font-bold text-2xl pt-8">
-                  UNIDAD {m}
-                </h1>
-                <h2 className="text-center font-bold mt-8">Práctica #1</h2>
-                <div className="grid grid-cols-4 gap-x-4 my-8">
-                  <h2>Nombre de la práctica: </h2>
-                  <Input
-                    className="border-black bg-gray-50"
-                    placeholder="Ingresar nombre..."
-                  />
-                  <h2>Duración de la práctica: </h2>
-                  <Input className="border-black bg-gray-50" type="number" />
-                </div>
-                <h2 className="text-center font-bold mt-8">
-                  [+] Agregar práctica (#2)
-                </h2>
-              </div>
-            );
-          })}
+    <div className="px-4 py-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div>
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            className="cursor-pointer"
+          >
+            <ChevronLeft className="mr-2 h-5 w-5" />
+            Volver
+          </Button>
         </div>
 
-        <div className="pb-8 justify-self-center">
-          <Button className="px-8 bg-[#00723F] hover:bg-[#00A23F]">
-            <Link href={`/capturista/materias/${clave}/pua/taller`}>
-              Continuar
-            </Link>
+        <div className="text-center py-4">
+          <h1 className="text-2xl font-bold">
+            VI. ESTRUCTURA DE LAS PRÁCTICAS DE LABORATORIO
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Agrega prácticas para cada unidad. Es obligatorio agregar al menos una práctica.
+          </p>
+        </div>
+
+        {totalErrores > 0 && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-red-800">
+                    {totalErrores} práctica{totalErrores > 1 ? "s" : ""} con errores
+                  </h3>
+                  <p className="text-sm text-red-700 mt-1">
+                    Por favor completa los campos marcados en rojo antes de guardar.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {nUnidades.map((unidad) => {
+          const practicas = practicasPorUnidad[unidad] || [];
+
+          return (
+            <div key={unidad} className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">UNIDAD {unidad}</h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => agregarPractica(unidad)}
+                  className="cursor-pointer"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Agregar práctica
+                </Button>
+              </div>
+
+              {practicas.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    No hay prácticas agregadas para esta unidad.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {practicas.map((practica) => {
+                    const key = `${unidad}-${practica.numero}`;
+                    const isCollapsed = collapsedState[key] ?? false;
+
+                    return (
+                      <PracticaLaboratorio
+                        key={key}
+                        unidad={unidad}
+                        numero={practica.numero}
+                        value={practica}
+                        collapsed={isCollapsed}
+                        onToggleCollapse={() =>
+                          toggleCollapse(unidad, practica.numero)
+                        }
+                        onChange={handlePracticaChange}
+                        onDelete={() =>
+                          eliminarPractica(unidad, practica.numero)
+                        }
+                        errores={erroresPorPractica[key]}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="flex justify-end gap-2 pt-4">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={loading}
+            className="cursor-pointer"
+          >
+            Cancelar
+          </Button>
+          <Button
+            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+            onClick={handleGuardar}
+            disabled={loading}
+          >
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? "Guardando..." : "Guardar y finalizar"}
           </Button>
         </div>
       </div>
-    </>
+    </div>
   );
 }

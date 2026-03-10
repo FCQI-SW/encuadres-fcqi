@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -43,13 +43,22 @@ import { useToast } from "@/components/ui/toast";
 import { ModalAgregarMateria } from "../../../../components/modal-agregar-materia";
 import { ModalEditarMateria } from "../../../../components/modal-editar-materia";
 
+export type Licenciatura = {
+  id: string;
+  nombre: string;
+  activa: boolean;
+};
+
 export type Materia = {
   clave: string;
   nombre_materia: string;
   licenciatura: string;
+  licenciatura_id: string;
   categoria: "Basica" | "Disciplinaria" | "Terminal";
   requisito: "obligatoria" | "optativa";
   estado: "Activa" | "Inactiva";
+  periodo: string;
+  plan_estudios: string;
 };
 
 export default function MateriasPage() {
@@ -59,45 +68,67 @@ export default function MateriasPage() {
 
   const [data, setData] = useState<Materia[]>([]);
   const [filteredData, setFilteredData] = useState<Materia[]>([]);
+  const [licenciaturas, setLicenciaturas] = useState<Licenciatura[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Filtros
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLic, setSelectedLic] = useState("all");
   const [selectedCategoria, setSelectedCategoria] = useState("all");
   const [selectedRequisito, setSelectedRequisito] = useState("all");
   const [selectedEstado, setSelectedEstado] = useState("all");
 
-  // Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Modal agregar
   const [showForm, setShowForm] = useState(false);
   const [newMateria, setNewMateria] = useState<Materia>({
     clave: "",
     nombre_materia: "",
     licenciatura: "",
+    licenciatura_id: "",
     categoria: "Basica",
     requisito: "obligatoria",
     estado: "Activa",
+    periodo: "",
+    plan_estudios: "",
   });
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Modal editar
   const [showEditForm, setShowEditForm] = useState(false);
   const [editMateria, setEditMateria] = useState<Materia | null>(null);
   const [editErrors, setEditErrors] = useState<string[]>([]);
 
-  // Cargar datos
+  const sortLicenciaturas = (list: Licenciatura[]) =>
+    [...list].sort((a, b) =>
+      a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })
+    );
+
+  const normalizeText = (value: string) => value.trim().toLowerCase();
+
+  const fetchLicenciaturas = async () => {
+    const { data: licData, error } = await supabase
+      .from("licenciaturas")
+      .select("id, nombre, activa")
+      .eq("activa", true)
+      .order("nombre", { ascending: true });
+
+    if (error) {
+      console.error("Error al obtener licenciaturas:", error);
+      toast.error("No se pudieron cargar las licenciaturas.");
+      return;
+    }
+
+    setLicenciaturas(sortLicenciaturas((licData || []) as Licenciatura[]));
+  };
+
   const fetchMaterias = async () => {
     setLoading(true);
     try {
       const { data: materias, error } = await supabase
         .from("materias")
         .select(
-          "clave, nombre_materia, licenciatura, categoria, requisito, estado"
+          "clave, nombre_materia, licenciatura, licenciatura_id, categoria, requisito, estado, periodo, plan_estudios"
         )
         .order("nombre_materia", { ascending: true });
 
@@ -105,10 +136,21 @@ export default function MateriasPage() {
         console.error("Error al obtener materias:", error);
         return;
       }
-      if (materias) {
-        setData(materias);
-        setFilteredData(materias);
-      }
+
+      const normalizadas: Materia[] = ((materias || []) as any[]).map((m) => ({
+        clave: m.clave,
+        nombre_materia: m.nombre_materia,
+        licenciatura: m.licenciatura || "",
+        licenciatura_id: m.licenciatura_id || "",
+        categoria: m.categoria,
+        requisito: m.requisito,
+        estado: m.estado,
+        periodo: m.periodo || "",
+        plan_estudios: m.plan_estudios || "",
+      }));
+
+      setData(normalizadas);
+      setFilteredData(normalizadas);
     } catch (err) {
       console.error("Error:", err);
     }
@@ -116,10 +158,11 @@ export default function MateriasPage() {
   };
 
   useEffect(() => {
-    fetchMaterias();
+    (async () => {
+      await Promise.all([fetchMaterias(), fetchLicenciaturas()]);
+    })();
   }, []);
 
-  // Limpiar filtros
   const handleClearFilters = () => {
     setSearchTerm("");
     setSelectedLic("all");
@@ -128,45 +171,41 @@ export default function MateriasPage() {
     setSelectedEstado("all");
   };
 
-  // Verificar si hay filtros activos
   const hasActiveFilters =
-    searchTerm ||
+    !!searchTerm ||
     selectedLic !== "all" ||
     selectedCategoria !== "all" ||
     selectedRequisito !== "all" ||
     selectedEstado !== "all";
 
-  // Filtrado
   useEffect(() => {
     let temp = [...data];
 
-    // Filtro por licenciatura
     if (selectedLic !== "all") {
-      temp = temp.filter((item) => item.licenciatura === selectedLic);
+      temp = temp.filter((item) => item.licenciatura_id === selectedLic);
     }
 
-    // Filtro por categoría
     if (selectedCategoria !== "all") {
       temp = temp.filter((item) => item.categoria === selectedCategoria);
     }
 
-    // Filtro por requisito
     if (selectedRequisito !== "all") {
       temp = temp.filter((item) => item.requisito === selectedRequisito);
     }
 
-    // Filtro por estado
     if (selectedEstado !== "all") {
       temp = temp.filter((item) => item.estado === selectedEstado);
     }
 
-    // Búsqueda por texto
     if (searchTerm.trim() !== "") {
       const search = searchTerm.toLowerCase();
       temp = temp.filter(
         (item) =>
           item.clave.toLowerCase().includes(search) ||
-          item.nombre_materia.toLowerCase().includes(search)
+          item.nombre_materia.toLowerCase().includes(search) ||
+          (item.licenciatura || "").toLowerCase().includes(search) ||
+          (item.periodo || "").toLowerCase().includes(search) ||
+          (item.plan_estudios || "").toLowerCase().includes(search)
       );
     }
 
@@ -181,142 +220,61 @@ export default function MateriasPage() {
     searchTerm,
   ]);
 
-  // Licenciaturas predefinidas que siempre deben aparecer
-  const licenciaturasPredefinidas = [
-    "Ingeniero Químico",
-    "Ingeniero Industrial",
-    "Ingeniero en Computación",
-    "Ingeniero en Electrónica",
-    "Ingeniero en Software y Tecnologías Emergentes",
-    "Químico Industrial",
-    "Químico Farmacobiólogo",
-  ];
-
-  // Mapa de normalización para detectar variaciones de licenciaturas
-  const licenciaturasNormalizadas: { [key: string]: string } = {
-    // Ingeniero Químico
-    "ingeniero químico": "Ingeniero Químico",
-    "ing. químico": "Ingeniero Químico",
-    "ing. quimico": "Ingeniero Químico",
-    "ingeniero quimico": "Ingeniero Químico",
-    
-    // Ingeniero Industrial
-    "ingeniero industrial": "Ingeniero Industrial",
-    "ing. industrial": "Ingeniero Industrial",
-    
-    // Ingeniero en Computación
-    "ingeniero en computación": "Ingeniero en Computación",
-    "ing. en computación": "Ingeniero en Computación",
-    "ing. en computacion": "Ingeniero en Computación",
-    "ingeniero en computacion": "Ingeniero en Computación",
-    "ingeniero computacion": "Ingeniero en Computación",
-    "ing computacion": "Ingeniero en Computación",
-    
-    // Ingeniero en Electrónica
-    "ingeniero en electrónica": "Ingeniero en Electrónica",
-    "ing. en electrónica": "Ingeniero en Electrónica",
-    "ing. en electronica": "Ingeniero en Electrónica",
-    "ingeniero en electronica": "Ingeniero en Electrónica",
-    
-    // Ingeniero en Software y Tecnologías Emergentes
-    "ingeniero en software y tecnologías emergentes": "Ingeniero en Software y Tecnologías Emergentes",
-    "ing. en software y tecnologías emergentes": "Ingeniero en Software y Tecnologías Emergentes",
-    "ing. en software y tecnologias emergentes": "Ingeniero en Software y Tecnologías Emergentes",
-    "ingeniero en software y tecnologias emergentes": "Ingeniero en Software y Tecnologías Emergentes",
-    "ing software": "Ingeniero en Software y Tecnologías Emergentes",
-    "software": "Ingeniero en Software y Tecnologías Emergentes",
-    
-    // Químico Industrial
-    "químico industrial": "Químico Industrial",
-    "quimico industrial": "Químico Industrial",
-    
-    // Químico Farmacobiólogo
-    "químico farmacobiólogo": "Químico Farmacobiólogo",
-    "quimico farmacobiolog": "Químico Farmacobiólogo",
-    "farmacobiólogo": "Químico Farmacobiólogo",
-    "farmacobiolog": "Químico Farmacobiólogo",
-  };
-
-  // Función para normalizar licenciatura
-  const normalizarLicenciatura = (licenciatura: string): string => {
-    const licLower = licenciatura.trim().toLowerCase();
-    return licenciaturasNormalizadas[licLower] || licenciatura;
-  };
-
-  // Mapa de normalización para Categoría
   const categoriasNormalizadas: { [key: string]: string } = {
-    "basica": "Basica",
-    "básica": "Basica",
-    "basico": "Basica",
-    "básico": "Basica",
-    
-    "disciplinaria": "Disciplinaria",
-    "disciplinario": "Disciplinaria",
-    "disciplinar": "Disciplinaria",
-    
-    "terminal": "Terminal",
-    "terminales": "Terminal",
+    basica: "Basica",
+    básica: "Basica",
+    basico: "Basica",
+    básico: "Basica",
+    disciplinaria: "Disciplinaria",
+    disciplinario: "Disciplinaria",
+    disciplinar: "Disciplinaria",
+    terminal: "Terminal",
+    terminales: "Terminal",
   };
 
-  // Mapa de normalización para Requisito
   const requisitosNormalizados: { [key: string]: string } = {
-    "obligatoria": "obligatoria",
-    "obligatorio": "obligatoria",
-    "obligatories": "obligatoria",
-    "oblig": "obligatoria",
-    
-    "optativa": "optativa",
-    "optativo": "optativa",
-    "opt": "optativa",
+    obligatoria: "obligatoria",
+    obligatorio: "obligatoria",
+    oblig: "obligatoria",
+    optativa: "optativa",
+    optativo: "optativa",
+    opt: "optativa",
   };
 
-  // Mapa de normalización para Estado
   const estadosNormalizados: { [key: string]: string } = {
-    "activa": "Activa",
-    "activo": "Activa",
-    "active": "Activa",
-    "act": "Activa",
-    "a": "Activa",
+    activa: "Activa",
+    activo: "Activa",
+    active: "Activa",
+    act: "Activa",
+    a: "Activa",
     "1": "Activa",
-    
-    "inactiva": "Inactiva",
-    "inactivo": "Inactiva",
-    "inactive": "Inactiva",
-    "inact": "Inactiva",
-    "i": "Inactiva",
+    inactiva: "Inactiva",
+    inactivo: "Inactiva",
+    inactive: "Inactiva",
+    inact: "Inactiva",
+    i: "Inactiva",
     "0": "Inactiva",
   };
 
-  // Función para normalizar categoría
   const normalizarCategoria = (categoria: string): string => {
     const catLower = categoria.trim().toLowerCase();
     return categoriasNormalizadas[catLower] || "Basica";
   };
 
-  // Función para normalizar requisito
   const normalizarRequisito = (requisito: string): string => {
     const reqLower = requisito.trim().toLowerCase();
     return requisitosNormalizados[reqLower] || "obligatoria";
   };
 
-  // Función para normalizar estado
   const normalizarEstado = (estado: string): string => {
     const estLower = estado.trim().toLowerCase();
     return estadosNormalizados[estLower] || "Activa";
   };
 
-  // Combinar licenciaturas predefinidas con las que existan en la BD
-  const licenciaturas = Array.from(
-    new Set([
-      ...licenciaturasPredefinidas,
-      ...data.map((item) => item.licenciatura).filter((lic) => lic),
-    ])
-  ).sort();
-
-  // Toggle estado
   async function toggleEstado(clave: string) {
     const materiaActual = data.find((d) => d.clave === clave);
     if (!materiaActual) return;
+
     const nuevoEstado =
       materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
 
@@ -327,6 +285,7 @@ export default function MateriasPage() {
 
     if (error) {
       console.error("Error al actualizar estado:", error.message);
+      toast.error("No se pudo actualizar el estado.");
       return;
     }
 
@@ -335,10 +294,10 @@ export default function MateriasPage() {
         item.clave === clave ? { ...item, estado: nuevoEstado } : item
       )
     );
+
     toast.success(`Estado de materia "${clave}" actualizado a ${nuevoEstado}.`);
   }
 
-  // Eliminar
   async function handleDelete(clave: string) {
     const confirmed = await confirm({
       title: "Eliminar materia",
@@ -353,8 +312,10 @@ export default function MateriasPage() {
       .from("materias")
       .delete()
       .eq("clave", clave);
+
     if (error) {
       console.error("Error al eliminar materia:", error.message);
+      toast.error("No se pudo eliminar la materia.");
       return;
     }
 
@@ -362,7 +323,6 @@ export default function MateriasPage() {
     toast.success(`Materia "${clave}" eliminada correctamente.`);
   }
 
-  // Editar
   const handleEdit = (materia: Materia) => {
     setEditMateria(materia);
     setEditErrors([]);
@@ -383,81 +343,23 @@ export default function MateriasPage() {
 
   function handleEditSelectChange(name: string, value: string) {
     if (!editMateria) return;
+
+    if (name === "licenciatura_id") {
+      const lic = licenciaturas.find((l) => l.id === value);
+      setEditMateria((prev) =>
+        prev
+          ? {
+              ...prev,
+              licenciatura_id: value,
+              licenciatura: lic?.nombre || "",
+            }
+          : null
+      );
+      return;
+    }
+
     setEditMateria((prev) => (prev ? { ...prev, [name]: value } : null));
   }
-
-  async function handleUpdateMateria() {
-    if (!editMateria) return;
-
-    const tempErrors: string[] = [];
-    if (!editMateria.nombre_materia.trim())
-      tempErrors.push("El nombre de la materia es obligatorio.");
-    if (!editMateria.licenciatura.trim())
-      tempErrors.push("Debe seleccionar una licenciatura.");
-
-    if (tempErrors.length > 0) {
-      setEditErrors(tempErrors);
-      return;
-    }
-
-    setSaving(true);
-    const { error } = await supabase
-      .from("materias")
-      .update({
-        nombre_materia: editMateria.nombre_materia,
-        licenciatura: editMateria.licenciatura,
-        categoria: editMateria.categoria,
-        requisito: editMateria.requisito,
-        estado: editMateria.estado,
-      })
-      .eq("clave", editMateria.clave);
-
-    if (error) {
-      console.error("Error al actualizar materia:", error);
-      setEditErrors([traducirErrorBD(error)]);
-      setSaving(false);
-      return;
-    }
-
-    setShowEditForm(false);
-    toast.success(`Materia "${editMateria.clave}" actualizada correctamente.`);
-    setSaving(false);
-    await fetchMaterias();
-  }
-
-  // Paginación
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-
-  useEffect(() => {
-    if (totalPages > 0 && currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    } else if (totalPages === 0) {
-      setCurrentPage(1);
-    }
-  }, [totalPages, currentPage]);
-
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
-
-  // Modal agregar handlers
-  const handleShowForm = () => {
-    setNewMateria({
-      clave: "",
-      nombre_materia: "",
-      licenciatura: "",
-      categoria: "Basica",
-      requisito: "obligatoria",
-      estado: "Activa",
-    });
-    setErrors([]);
-    setShowForm(true);
-  };
-
-  const handleCloseForm = () => {
-    setShowForm(false);
-    setErrors([]);
-  };
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     setNewMateria((prev) => ({
@@ -467,6 +369,16 @@ export default function MateriasPage() {
   }
 
   function handleSelectChange(name: string, value: string) {
+    if (name === "licenciatura_id") {
+      const lic = licenciaturas.find((l) => l.id === value);
+      setNewMateria((prev) => ({
+        ...prev,
+        licenciatura_id: value,
+        licenciatura: lic?.nombre || "",
+      }));
+      return;
+    }
+
     setNewMateria((prev) => ({
       ...prev,
       [name]: value,
@@ -474,11 +386,11 @@ export default function MateriasPage() {
   }
 
   function traducirErrorBD(error: any): string {
-    const errorMessage = error.message || "";
-    const errorCode = error.code || "";
+    const errorMessage = error?.message || "";
+    const errorCode = error?.code || "";
 
     if (errorCode === "23505" || errorMessage.includes("duplicate key")) {
-      return `La clave ya existe. Por favor usa una clave diferente.`;
+      return "Ya existe un registro con esos datos.";
     }
     if (errorCode === "23503") {
       return "Error de integridad referencial. Verifica que los datos sean correctos.";
@@ -486,7 +398,189 @@ export default function MateriasPage() {
     if (errorCode === "23502") {
       return "Faltan campos obligatorios. Por favor completa todos los campos requeridos.";
     }
+
     return `Error al guardar: ${errorMessage}`;
+  }
+
+  async function crearLicenciatura(nombre: string): Promise<Licenciatura | null> {
+    const nombreLimpio = nombre.trim();
+
+    if (!nombreLimpio) {
+      toast.error("El nombre de la licenciatura es obligatorio.");
+      return null;
+    }
+
+    const existe = licenciaturas.some(
+      (l) => normalizeText(l.nombre) === normalizeText(nombreLimpio)
+    );
+
+    if (existe) {
+      toast.error("Esa licenciatura ya existe.");
+      return null;
+    }
+
+    const { data: nuevaLicenciatura, error } = await supabase
+      .from("licenciaturas")
+      .insert({
+        nombre: nombreLimpio,
+        activa: true,
+      })
+      .select("id, nombre, activa")
+      .single();
+
+    if (error || !nuevaLicenciatura) {
+      console.error("Error al crear licenciatura:", error);
+      toast.error(traducirErrorBD(error));
+      return null;
+    }
+
+    const creada = nuevaLicenciatura as Licenciatura;
+    setLicenciaturas((prev) => sortLicenciaturas([...prev, creada]));
+    toast.success(`Licenciatura "${creada.nombre}" agregada correctamente.`);
+    return creada;
+  }
+
+  async function actualizarLicenciatura(
+    id: string,
+    nuevoNombre: string
+  ): Promise<Licenciatura | null> {
+    const nombreLimpio = nuevoNombre.trim();
+
+    if (!nombreLimpio) {
+      toast.error("El nombre de la licenciatura es obligatorio.");
+      return null;
+    }
+
+    const actual = licenciaturas.find((l) => l.id === id);
+    if (!actual) {
+      toast.error("No se encontró la licenciatura.");
+      return null;
+    }
+
+    const existe = licenciaturas.some(
+      (l) =>
+        l.id !== id &&
+        normalizeText(l.nombre) === normalizeText(nombreLimpio)
+    );
+
+    if (existe) {
+      toast.error("Ya existe otra licenciatura con ese nombre.");
+      return null;
+    }
+
+    const { error } = await supabase
+      .from("licenciaturas")
+      .update({ nombre: nombreLimpio })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error al actualizar licenciatura:", error);
+      toast.error(traducirErrorBD(error));
+      return null;
+    }
+
+    const { error: errorMaterias } = await supabase
+      .from("materias")
+      .update({ licenciatura: nombreLimpio })
+      .eq("licenciatura_id", id);
+
+    if (errorMaterias) {
+      console.error("Error al sincronizar materias:", errorMaterias);
+      toast.error(
+        "La licenciatura se actualizó, pero no se pudo sincronizar en materias."
+      );
+      return null;
+    }
+
+    setLicenciaturas((prev) =>
+      sortLicenciaturas(
+        prev.map((l) => (l.id === id ? { ...l, nombre: nombreLimpio } : l))
+      )
+    );
+
+    setData((prev) =>
+      prev.map((m) =>
+        m.licenciatura_id === id ? { ...m, licenciatura: nombreLimpio } : m
+      )
+    );
+
+    setNewMateria((prev) =>
+      prev.licenciatura_id === id
+        ? { ...prev, licenciatura: nombreLimpio }
+        : prev
+    );
+
+    setEditMateria((prev) =>
+      prev && prev.licenciatura_id === id
+        ? { ...prev, licenciatura: nombreLimpio }
+        : prev
+    );
+
+    toast.success(`Licenciatura actualizada a "${nombreLimpio}".`);
+    return { ...actual, nombre: nombreLimpio };
+  }
+
+  async function eliminarLicenciatura(id: string): Promise<boolean> {
+    const lic = licenciaturas.find((l) => l.id === id);
+    if (!lic) {
+      toast.error("No se encontró la licenciatura.");
+      return false;
+    }
+
+    const { count, error: countError } = await supabase
+      .from("materias")
+      .select("*", { count: "exact", head: true })
+      .eq("licenciatura_id", id);
+
+    if (countError) {
+      console.error("Error al validar uso de licenciatura:", countError);
+      toast.error("No se pudo validar si la licenciatura está en uso.");
+      return false;
+    }
+
+    if ((count || 0) > 0) {
+      toast.error(
+        `No se puede quitar "${lic.nombre}" porque ya está asignada a ${(count || 0)} materia(s).`
+      );
+      return false;
+    }
+
+    const confirmed = await confirm({
+      title: "Quitar licenciatura",
+      message: `¿Deseas eliminar la licenciatura "${lic.nombre}"?`,
+      confirmText: "Sí, quitar",
+      cancelText: "Cancelar",
+    });
+
+    if (!confirmed) return false;
+
+    const { error } = await supabase
+      .from("licenciaturas")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error al eliminar licenciatura:", error);
+      toast.error(traducirErrorBD(error));
+      return false;
+    }
+
+    setLicenciaturas((prev) => prev.filter((l) => l.id !== id));
+
+    setNewMateria((prev) =>
+      prev.licenciatura_id === id
+        ? { ...prev, licenciatura_id: "", licenciatura: "" }
+        : prev
+    );
+
+    setEditMateria((prev) =>
+      prev && prev.licenciatura_id === id
+        ? { ...prev, licenciatura_id: "", licenciatura: "" }
+        : prev
+    );
+
+    toast.success(`Licenciatura "${lic.nombre}" eliminada correctamente.`);
+    return true;
   }
 
   async function handleSaveMateria() {
@@ -496,15 +590,18 @@ export default function MateriasPage() {
     if (!newMateria.clave.trim()) tempErrors.push("La clave es obligatoria.");
     if (!newMateria.nombre_materia.trim())
       tempErrors.push("El nombre de la materia es obligatorio.");
-    if (!newMateria.licenciatura.trim())
+    if (!newMateria.licenciatura_id.trim())
       tempErrors.push("Seleccione una licenciatura.");
+    if (!newMateria.periodo.trim())
+      tempErrors.push("El periodo es obligatorio.");
+    if (!newMateria.plan_estudios.trim())
+      tempErrors.push("El plan de estudios es obligatorio.");
 
     if (tempErrors.length > 0) {
       setErrors(tempErrors);
       return;
     }
 
-    // Verificar clave existente
     const { data: materiaExistente } = await supabase
       .from("materias")
       .select("clave")
@@ -519,7 +616,20 @@ export default function MateriasPage() {
     }
 
     setSaving(true);
-    const { error } = await supabase.from("materias").insert([newMateria]);
+
+    const payload = {
+      clave: newMateria.clave.trim(),
+      nombre_materia: newMateria.nombre_materia.trim(),
+      licenciatura_id: newMateria.licenciatura_id,
+      licenciatura: newMateria.licenciatura,
+      categoria: newMateria.categoria,
+      requisito: newMateria.requisito,
+      estado: newMateria.estado,
+      periodo: newMateria.periodo.trim(),
+      plan_estudios: newMateria.plan_estudios.trim(),
+    };
+
+    const { error } = await supabase.from("materias").insert([payload]);
 
     if (error) {
       console.error("Error al agregar materia:", error.message);
@@ -535,18 +645,66 @@ export default function MateriasPage() {
     await fetchMaterias();
   }
 
-  // Importar Excel
+  async function handleUpdateMateria() {
+    if (!editMateria) return;
+
+    const tempErrors: string[] = [];
+    if (!editMateria.nombre_materia.trim())
+      tempErrors.push("El nombre de la materia es obligatorio.");
+    if (!editMateria.licenciatura_id.trim())
+      tempErrors.push("Debe seleccionar una licenciatura.");
+    if (!editMateria.periodo.trim())
+      tempErrors.push("El periodo es obligatorio.");
+    if (!editMateria.plan_estudios.trim())
+      tempErrors.push("El plan de estudios es obligatorio.");
+
+    if (tempErrors.length > 0) {
+      setEditErrors(tempErrors);
+      return;
+    }
+
+    setSaving(true);
+
+    const payload = {
+      nombre_materia: editMateria.nombre_materia.trim(),
+      licenciatura_id: editMateria.licenciatura_id,
+      licenciatura: editMateria.licenciatura,
+      categoria: editMateria.categoria,
+      requisito: editMateria.requisito,
+      estado: editMateria.estado,
+      periodo: editMateria.periodo.trim(),
+      plan_estudios: editMateria.plan_estudios.trim(),
+    };
+
+    const { error } = await supabase
+      .from("materias")
+      .update(payload)
+      .eq("clave", editMateria.clave);
+
+    if (error) {
+      console.error("Error al actualizar materia:", error);
+      setEditErrors([traducirErrorBD(error)]);
+      setSaving(false);
+      return;
+    }
+
+    setShowEditForm(false);
+    toast.success(`Materia "${editMateria.clave}" actualizada correctamente.`);
+    setSaving(false);
+    await fetchMaterias();
+  }
+
   async function handleImportFromExcel(file: File) {
     try {
       setErrors([]);
       setSaving(true);
 
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: "array" });
+      const fileData = await file.arrayBuffer();
+      const workbook = XLSX.read(fileData, { type: "array" });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      const rows = jsonData.slice(1);
+      const rows = (jsonData as any[]).slice(1);
 
       if (rows.length === 0) {
         setErrors(["El archivo Excel está vacío o no tiene datos válidos."]);
@@ -554,19 +712,58 @@ export default function MateriasPage() {
         return;
       }
 
+      const licMap = new Map(
+        licenciaturas.map((lic) => [normalizeText(lic.nombre), lic])
+      );
+
+      const faltantes = new Set<string>();
+
       const bulkMaterias = rows
-        .filter((row: any) => row[0] && row[1])
-        .map((row: any) => ({
-          clave: String(row[0] || "").trim(),
-          nombre_materia: String(row[1] || "").trim(),
-          licenciatura: normalizarLicenciatura(String(row[2] || "")),
-          categoria: normalizarCategoria(String(row[3] || "")) as "Basica" | "Disciplinaria" | "Terminal",
-          requisito: normalizarRequisito(String(row[4] || "")) as "obligatoria" | "optativa",
-          estado: normalizarEstado(String(row[5] || "")) as "Activa" | "Inactiva",
-        }));
+        .filter((row: any) => row[0] && row[1] && row[2] && row[5] && row[6])
+        .map((row: any) => {
+          const nombreLic = String(row[2] || "").trim();
+          const lic = licMap.get(normalizeText(nombreLic));
+
+          if (!lic) {
+            faltantes.add(nombreLic);
+            return null;
+          }
+
+          return {
+            clave: String(row[0] || "").trim(),
+            nombre_materia: String(row[1] || "").trim(),
+            licenciatura_id: lic.id,
+            licenciatura: lic.nombre,
+            categoria: normalizarCategoria(String(row[3] || "")) as
+              | "Basica"
+              | "Disciplinaria"
+              | "Terminal",
+            requisito: normalizarRequisito(String(row[4] || "")) as
+              | "obligatoria"
+              | "optativa",
+            periodo: String(row[5] || "").trim(),
+            plan_estudios: String(row[6] || "").trim(),
+            estado: normalizarEstado(String(row[7] || "")) as
+              | "Activa"
+              | "Inactiva",
+          };
+        })
+        .filter(Boolean) as Materia[];
+
+      if (faltantes.size > 0) {
+        setErrors([
+          `Estas licenciaturas no existen todavía: ${Array.from(faltantes).join(
+            ", "
+          )}. Agrégalas primero en el modal y luego vuelve a importar.`,
+        ]);
+        setSaving(false);
+        return;
+      }
 
       if (bulkMaterias.length === 0) {
-        setErrors(["No se encontraron materias válidas en el archivo."]);
+        setErrors([
+          "No se encontraron materias válidas en el archivo. Verifica que incluya Clave, Nombre, Licenciatura, Periodo y Plan de Estudios.",
+        ]);
         setSaving(false);
         return;
       }
@@ -594,14 +791,51 @@ export default function MateriasPage() {
     }
   }
 
-  // Estadísticas
-  const stats = {
-    total: data.length,
-    activas: data.filter((m) => m.estado === "Activa").length,
-    inactivas: data.filter((m) => m.estado === "Inactiva").length,
-    obligatorias: data.filter((m) => m.requisito === "obligatoria").length,
-    optativas: data.filter((m) => m.requisito === "optativa").length,
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    } else if (totalPages === 0) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
+
+  const handleShowForm = () => {
+    setNewMateria({
+      clave: "",
+      nombre_materia: "",
+      licenciatura: "",
+      licenciatura_id: "",
+      categoria: "Basica",
+      requisito: "obligatoria",
+      estado: "Activa",
+      periodo: "",
+      plan_estudios: "",
+    });
+    setErrors([]);
+    setShowForm(true);
   };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setErrors([]);
+  };
+
+  const stats = useMemo(
+    () => ({
+      total: data.length,
+      activas: data.filter((m) => m.estado === "Activa").length,
+      inactivas: data.filter((m) => m.estado === "Inactiva").length,
+      obligatorias: data.filter((m) => m.requisito === "obligatoria").length,
+      optativas: data.filter((m) => m.requisito === "optativa").length,
+    }),
+    [data]
+  );
 
   if (loading) {
     return (
@@ -613,14 +847,13 @@ export default function MateriasPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="space-y-3">
         <div>
-      
           <p className="text-muted-foreground">
             Administra el catálogo de materias
           </p>
         </div>
+
         <div className="flex items-center justify-between gap-2">
           <Button
             variant="outline"
@@ -629,6 +862,7 @@ export default function MateriasPage() {
           >
             <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
           </Button>
+
           <Button
             onClick={handleShowForm}
             className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
@@ -638,7 +872,6 @@ export default function MateriasPage() {
         </div>
       </div>
 
-      {/* Estadísticas */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-4">
@@ -651,6 +884,7 @@ export default function MateriasPage() {
             </div>
           </CardContent>
         </Card>
+
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
@@ -664,6 +898,7 @@ export default function MateriasPage() {
             </div>
           </CardContent>
         </Card>
+
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
@@ -677,6 +912,7 @@ export default function MateriasPage() {
             </div>
           </CardContent>
         </Card>
+
         <Card>
           <CardContent className="pt-4">
             <div>
@@ -685,6 +921,7 @@ export default function MateriasPage() {
             </div>
           </CardContent>
         </Card>
+
         <Card>
           <CardContent className="pt-4">
             <div>
@@ -695,24 +932,20 @@ export default function MateriasPage() {
         </Card>
       </div>
 
-      {/* Filtros */}
       <Card>
         <CardContent className="pt-4">
           <div className="space-y-4">
-            {/* Búsqueda y filtros en la misma fila */}
             <div className="flex flex-wrap items-center gap-4">
-              {/* Búsqueda */}
               <div className="flex items-center gap-2">
                 <Search className="h-5 w-5 text-gray-400" />
                 <Input
-                  placeholder="Buscar por clave o nombre..."
+                  placeholder="Buscar por clave, nombre, licenciatura, periodo o plan..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-80"
                 />
               </div>
 
-              {/* Filtros por categorías */}
               <Select value={selectedLic} onValueChange={setSelectedLic}>
                 <SelectTrigger className="w-56">
                   <SelectValue placeholder="Licenciatura" />
@@ -720,8 +953,8 @@ export default function MateriasPage() {
                 <SelectContent>
                   <SelectItem value="all">Todas las licenciaturas</SelectItem>
                   {licenciaturas.map((lic) => (
-                    <SelectItem key={lic} value={lic}>
-                      {lic}
+                    <SelectItem key={lic.id} value={lic.id}>
+                      {lic.nombre}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -767,7 +1000,6 @@ export default function MateriasPage() {
                 </SelectContent>
               </Select>
 
-              {/* Botón limpiar filtros */}
               {hasActiveFilters && (
                 <Button
                   variant="outline"
@@ -781,7 +1013,6 @@ export default function MateriasPage() {
               )}
             </div>
 
-            {/* Contador de resultados */}
             <div className="text-sm text-muted-foreground">
               Mostrando {filteredData.length} de {data.length} materias
             </div>
@@ -789,7 +1020,6 @@ export default function MateriasPage() {
         </CardContent>
       </Card>
 
-      {/* Tabla */}
       <Card>
         <CardContent className="pt-4">
           {filteredData.length === 0 ? (
@@ -804,14 +1034,17 @@ export default function MateriasPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="max-w-[120px]">Clave</TableHead>
-                    <TableHead className="max-w-[300px]">Nombre</TableHead>
+                    <TableHead className="max-w-[260px]">Nombre</TableHead>
                     <TableHead>Licenciatura</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead>Requisito</TableHead>
+                    <TableHead>Periodo</TableHead>
+                    <TableHead>Plan</TableHead>
                     <TableHead className="w-32 min-w-[120px]">Estado</TableHead>
                     <TableHead>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
+
                 <TableBody>
                   {currentItems.map((materia) => (
                     <TableRow key={materia.clave}>
@@ -820,7 +1053,8 @@ export default function MateriasPage() {
                           {materia.clave}
                         </span>
                       </TableCell>
-                      <TableCell className="max-w-[300px]">
+
+                      <TableCell className="max-w-[260px]">
                         <span
                           className="block truncate"
                           title={materia.nombre_materia}
@@ -828,12 +1062,15 @@ export default function MateriasPage() {
                           {materia.nombre_materia}
                         </span>
                       </TableCell>
-                      <TableCell>{materia.licenciatura}</TableCell>
+
+                      <TableCell>{materia.licenciatura || "-"}</TableCell>
+
                       <TableCell>
                         <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
                           {materia.categoria}
                         </span>
                       </TableCell>
+
                       <TableCell>
                         <span
                           className={`px-2 py-1 text-xs rounded-full ${
@@ -845,6 +1082,10 @@ export default function MateriasPage() {
                           {materia.requisito}
                         </span>
                       </TableCell>
+
+                      <TableCell>{materia.periodo || "-"}</TableCell>
+                      <TableCell>{materia.plan_estudios || "-"}</TableCell>
+
                       <TableCell className="w-32 min-w-[120px]">
                         <div className="flex items-center gap-2">
                           <span
@@ -865,6 +1106,7 @@ export default function MateriasPage() {
                           </span>
                         </div>
                       </TableCell>
+
                       <TableCell>
                         <div className="flex gap-1">
                           <Button
@@ -876,6 +1118,7 @@ export default function MateriasPage() {
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
+
                           <Button
                             variant="ghost"
                             size="icon"
@@ -885,6 +1128,7 @@ export default function MateriasPage() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
+
                           <Button
                             variant="ghost"
                             size="icon"
@@ -913,7 +1157,6 @@ export default function MateriasPage() {
                 </TableBody>
               </Table>
 
-              {/* Paginación */}
               {totalPages > 1 && (
                 <div className="flex justify-center mt-4 gap-2">
                   <Button
@@ -924,6 +1167,7 @@ export default function MateriasPage() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
+
                   {[...Array(Math.min(totalPages, 5))].map((_, i) => {
                     const pageNum = i + 1;
                     return (
@@ -943,7 +1187,9 @@ export default function MateriasPage() {
                       </Button>
                     );
                   })}
+
                   {totalPages > 5 && <span className="px-2 py-2">...</span>}
+
                   <Button
                     variant="outline"
                     disabled={currentPage === totalPages}
@@ -959,7 +1205,6 @@ export default function MateriasPage() {
         </CardContent>
       </Card>
 
-      {/* Modal Agregar */}
       <ModalAgregarMateria
         isOpen={showForm}
         materia={newMateria}
@@ -971,9 +1216,11 @@ export default function MateriasPage() {
         onImportFromExcel={handleImportFromExcel}
         saving={saving}
         licenciaturas={licenciaturas}
+        onCreateLicenciatura={crearLicenciatura}
+        onUpdateLicenciatura={actualizarLicenciatura}
+        onDeleteLicenciatura={eliminarLicenciatura}
       />
 
-      {/* Modal Editar */}
       {showEditForm && editMateria && (
         <ModalEditarMateria
           isOpen={showEditForm}
@@ -985,6 +1232,9 @@ export default function MateriasPage() {
           errors={editErrors}
           saving={saving}
           licenciaturas={licenciaturas}
+          onCreateLicenciatura={crearLicenciatura}
+          onUpdateLicenciatura={actualizarLicenciatura}
+          onDeleteLicenciatura={eliminarLicenciatura}
         />
       )}
     </div>

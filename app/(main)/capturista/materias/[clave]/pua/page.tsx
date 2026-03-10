@@ -31,6 +31,7 @@ type Materia = {
   id: string;
   clave: string;
   nombre: string;
+  plan_estudios: string;
 };
 
 export default function PuaMateria() {
@@ -44,6 +45,9 @@ export default function PuaMateria() {
   const [materia, setMateria] = useState<Materia | null>(null);
   const [puaCompleto, setPuaCompleto] = useState(false);
   const [programaId, setProgramaId] = useState<string>("");
+
+  const [horasTaller, setHorasTaller] = useState(0);
+  const [horasLaboratorio, setHorasLaboratorio] = useState(0);
 
   // Estados para los campos de la sección I
   const [unidadAcademica, setUnidadAcademica] = useState("");
@@ -71,17 +75,19 @@ export default function PuaMateria() {
   const [metodoEstrategiaDocente, setMetodoEstrategiaDocente] = useState("");
   const [metodoEstrategiaAlumno, setMetodoEstrategiaAlumno] = useState("");
   const [referenciaBasicas, setReferenciaBasicas] = useState("");
-  const [referenciasComplementarias, setReferenciasComplementarias] = useState("");
+  const [referenciasComplementarias, setReferenciasComplementarias] =
+    useState("");
   const [perfilDocente, setPerfilDocente] = useState("");
 
   // Estados para detectar cambios sin guardar
   const [valoresOriginales, setValoresOriginales] = useState<any>(null);
   const [hayCambiosSinGuardar, setHayCambiosSinGuardar] = useState(false);
 
-  const { guardarPua, cargarPua, loading, error } = usePuaForm(materia?.id || "");
+  const { guardarPua, cargarPua, loading, error } = usePuaForm(
+    materia?.id || ""
+  );
   const [prevError, setPrevError] = useState<string | null>(null);
 
-  // Mostrar error en toast cuando cambie
   useEffect(() => {
     if (error && error !== prevError) {
       toast.error(error);
@@ -95,7 +101,9 @@ export default function PuaMateria() {
 
       const { data, error } = await supabase
         .from("materias")
-        .select("id, clave, nombre_materia, categoria, requisito")
+        .select(
+          "id, clave, nombre_materia, categoria, requisito, plan_estudios"
+        )
         .eq("clave", clave);
 
       if (error) {
@@ -107,11 +115,20 @@ export default function PuaMateria() {
 
       if (data && data.length > 0) {
         const m = data[0] as any;
-        setMateria({ id: m.id, clave: m.clave, nombre: m.nombre_materia });
-        
-        // Pre-cargar categoría y requisito desde la materia
+
+        setMateria({
+          id: m.id,
+          clave: m.clave,
+          nombre: m.nombre_materia,
+          plan_estudios: m.plan_estudios || "",
+        });
+
+        // Pre-cargar datos desde la materia
         setEtapaFormacion(m.categoria || "");
-        setCaracterUA(m.requisito === "obligatoria" ? "Obligatoria" : "Optativa");
+        setCaracterUA(
+          m.requisito === "obligatoria" ? "Obligatoria" : "Optativa"
+        );
+        setPlanEstudios(m.plan_estudios || "");
       } else {
         setMateria(null);
       }
@@ -120,16 +137,18 @@ export default function PuaMateria() {
     })();
   }, [clave]);
 
-  // Cargar PUA existente (si hay)
+  // Cargar PUA existente
   useEffect(() => {
     if (!materia?.id) return;
 
     (async () => {
       const pua = await cargarPua();
+
       if (pua) {
         setUnidadAcademica(pua.unidad_academica || "");
         setProgramaEducativo(pua.programa_educativo || "");
-        setPlanEstudios(pua.plan_estudios || "");
+
+        // NO sobrescribir planEstudios porque viene desde la materia
         setHc(String(pua.hc || 0));
         setHl(String(pua.hl || 0));
         setHt(String(pua.ht || 0));
@@ -137,17 +156,13 @@ export default function PuaMateria() {
         setHcl(String(pua.hcl || 0));
         setHe(String(pua.he || 0));
         setCr(String(pua.cr || 0));
-        
-        // NO sobrescribir etapaFormacion y caracterUA porque ya vienen de la materia
-        // Estos campos se cargan del primer useEffect
-        
+
         setRequisitos(pua.requisitos || "");
         setPropositoUA(pua.proposito || "");
         setCompetenciaUA(pua.competencia || "");
         setEvidencias(pua.evidencias || "");
         setNumUnidades(String(pua.unidades || ""));
 
-        // Cargar nuevos campos (VII, VIII, IX)
         setMetodoEncuadre(pua.metodo_encuadre || "");
         setMetodoEstrategiaDocente(pua.metodo_estrategia_docente || "");
         setMetodoEstrategiaAlumno(pua.metodo_estrategia_alumno || "");
@@ -155,42 +170,16 @@ export default function PuaMateria() {
         setReferenciasComplementarias(pua.referencias_complementarias || "");
         setPerfilDocente(pua.perfil_docente || "");
 
-        // Guardar valores originales para detectar cambios
-        setValoresOriginales({
-          unidadAcademica: pua.unidad_academica || "",
-          programaEducativo: pua.programa_educativo || "",
-          planEstudios: pua.plan_estudios || "",
-          hc: String(pua.hc || 0),
-          hl: String(pua.hl || 0),
-          ht: String(pua.ht || 0),
-          hpc: String(pua.hpc || 0),
-          hcl: String(pua.hcl || 0),
-          he: String(pua.he || 0),
-          cr: String(pua.cr || 0),
-          etapaFormacion: etapaFormacion,
-          caracterUA: caracterUA,
-          requisitos: pua.requisitos || "",
-          propositoUA: pua.proposito || "",
-          competenciaUA: pua.competencia || "",
-          evidencias: pua.evidencias || "",
-          numUnidades: String(pua.unidades || ""),
-          metodoEncuadre: pua.metodo_encuadre || "",
-          metodoEstrategiaDocente: pua.metodo_estrategia_docente || "",
-          metodoEstrategiaAlumno: pua.metodo_estrategia_alumno || "",
-          referenciaBasicas: pua.referencias_basicas || "",
-          referenciasComplementarias: pua.referencias_complementarias || "",
-          perfilDocente: pua.perfil_docente || "",
-        });
-
-        // Obtener el programa_id y verificar si está completo
         const { data: programaData } = await supabase
           .from("programas")
-          .select("id, unidades")
+          .select("id, unidades, ht, hl")
           .eq("materia_id", materia.id)
           .single();
 
         if (programaData) {
           setProgramaId(programaData.id);
+          setHorasTaller(Number(programaData.ht || 0));
+          setHorasLaboratorio(Number(programaData.hl || 0));
 
           // Verificar si todas las unidades están completas
           const { data: unidades } = await supabase
@@ -207,35 +196,119 @@ export default function PuaMateria() {
               u.duracion > 0
           );
 
-          const todasUnidadesCompletas = unidadesCompletas.length === numUnidadesEsperadas;
-          
-          // Verificar prácticas de taller
-          let practicasTallerCompletas = false;
-          const { data: practicasTaller } = await supabase
-            .from("practicas_taller")
-            .select("competencia, descripcion, duracion")
-            .eq("programa_id", programaData.id);
+          const todasUnidadesCompletas =
+            unidadesCompletas.length === numUnidadesEsperadas;
 
-          if (practicasTaller && practicasTaller.length > 0) {
-            const practicasValidas = practicasTaller.filter(
-              (p) =>
-                p.competencia?.trim() &&
-                p.descripcion?.trim() &&
-                p.duracion > 0
-            );
-            practicasTallerCompletas = practicasValidas.length === practicasTaller.length;
-          } else {
-            practicasTallerCompletas = false;
+          // Verificar prácticas de taller
+          let practicasTallerCompletas = true;
+
+          if (Number(programaData.ht || 0) > 0) {
+            const { data: practicasTaller } = await supabase
+              .from("practicas_taller")
+              .select("competencia, descripcion, duracion")
+              .eq("programa_id", programaData.id);
+
+            if (practicasTaller && practicasTaller.length > 0) {
+              const practicasValidas = practicasTaller.filter(
+                (p) =>
+                  p.competencia?.trim() &&
+                  p.descripcion?.trim() &&
+                  p.duracion > 0
+              );
+              practicasTallerCompletas =
+                practicasValidas.length === practicasTaller.length;
+            } else {
+              practicasTallerCompletas = false;
+            }
           }
 
-          setPuaCompleto(todasUnidadesCompletas && practicasTallerCompletas);
+          // Verificar prácticas de laboratorio
+          let practicasLaboratorioCompletas = true;
+
+          if (Number(programaData.hl || 0) > 0) {
+            const { data: practicasLaboratorio } = await supabase
+              .from("practicas_laboratorio")
+              .select("competencia, descripcion, duracion")
+              .eq("programa_id", programaData.id);
+
+            if (practicasLaboratorio && practicasLaboratorio.length > 0) {
+              const practicasValidas = practicasLaboratorio.filter(
+                (p) =>
+                  p.competencia?.trim() &&
+                  p.descripcion?.trim() &&
+                  p.duracion > 0
+              );
+              practicasLaboratorioCompletas =
+                practicasValidas.length === practicasLaboratorio.length;
+            } else {
+              practicasLaboratorioCompletas = false;
+            }
+          }
+
+          setPuaCompleto(
+            todasUnidadesCompletas &&
+              practicasTallerCompletas &&
+              practicasLaboratorioCompletas
+          );
         }
+
+        setValoresOriginales({
+          unidadAcademica: pua.unidad_academica || "",
+          programaEducativo: pua.programa_educativo || "",
+          planEstudios: materia.plan_estudios || "",
+          hc: String(pua.hc || 0),
+          hl: String(pua.hl || 0),
+          ht: String(pua.ht || 0),
+          hpc: String(pua.hpc || 0),
+          hcl: String(pua.hcl || 0),
+          he: String(pua.he || 0),
+          cr: String(pua.cr || 0),
+          etapaFormacion,
+          caracterUA,
+          requisitos: pua.requisitos || "",
+          propositoUA: pua.proposito || "",
+          competenciaUA: pua.competencia || "",
+          evidencias: pua.evidencias || "",
+          numUnidades: String(pua.unidades || ""),
+          metodoEncuadre: pua.metodo_encuadre || "",
+          metodoEstrategiaDocente: pua.metodo_estrategia_docente || "",
+          metodoEstrategiaAlumno: pua.metodo_estrategia_alumno || "",
+          referenciaBasicas: pua.referencias_basicas || "",
+          referenciasComplementarias: pua.referencias_complementarias || "",
+          perfilDocente: pua.perfil_docente || "",
+        });
+      } else {
+        // Si todavía no existe programa, valores base
+        setValoresOriginales({
+          unidadAcademica: "",
+          programaEducativo: "",
+          planEstudios: materia.plan_estudios || "",
+          hc: "0",
+          hl: "0",
+          ht: "0",
+          hpc: "0",
+          hcl: "0",
+          he: "0",
+          cr: "0",
+          etapaFormacion,
+          caracterUA,
+          requisitos: "",
+          propositoUA: "",
+          competenciaUA: "",
+          evidencias: "",
+          numUnidades: "",
+          metodoEncuadre: "",
+          metodoEstrategiaDocente: "",
+          metodoEstrategiaAlumno: "",
+          referenciaBasicas: "",
+          referenciasComplementarias: "",
+          perfilDocente: "",
+        });
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materia?.id]);
 
-  // Detectar cambios sin guardar
   useEffect(() => {
     if (!valoresOriginales) {
       setHayCambiosSinGuardar(false);
@@ -268,7 +341,8 @@ export default function PuaMateria() {
       perfilDocente,
     };
 
-    const hayCambios = JSON.stringify(valoresOriginales) !== JSON.stringify(valoresActuales);
+    const hayCambios =
+      JSON.stringify(valoresOriginales) !== JSON.stringify(valoresActuales);
     setHayCambiosSinGuardar(hayCambios);
   }, [
     valoresOriginales,
@@ -347,7 +421,10 @@ export default function PuaMateria() {
     });
 
     if (savedProgramaId) {
-      // Actualizar valores originales
+      setProgramaId(savedProgramaId);
+      setHorasTaller(Number(ht || 0));
+      setHorasLaboratorio(Number(hl || 0));
+
       setValoresOriginales({
         unidadAcademica,
         programaEducativo,
@@ -383,7 +460,6 @@ export default function PuaMateria() {
   const handleContinuar = async () => {
     if (!materia) return;
 
-    // Validaciones
     if (!unidadAcademica.trim()) {
       await confirm({
         title: "Campo requerido",
@@ -406,8 +482,9 @@ export default function PuaMateria() {
 
     if (!planEstudios.trim()) {
       await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa el Plan de Estudios.",
+        title: "Plan de estudios no configurado",
+        message:
+          "Esta materia no tiene un plan de estudios asignado por el administrador. Solicita al administrador que lo configure antes de continuar.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -417,7 +494,8 @@ export default function PuaMateria() {
     if (!propositoUA.trim()) {
       await confirm({
         title: "Campo requerido",
-        message: "Por favor ingresa el propósito de la unidad de aprendizaje.",
+        message:
+          "Por favor ingresa el propósito de la unidad de aprendizaje.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -427,7 +505,8 @@ export default function PuaMateria() {
     if (!competenciaUA.trim()) {
       await confirm({
         title: "Campo requerido",
-        message: "Por favor ingresa la competencia de la unidad de aprendizaje.",
+        message:
+          "Por favor ingresa la competencia de la unidad de aprendizaje.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -447,7 +526,8 @@ export default function PuaMateria() {
     if (!numUnidades || Number(numUnidades) < 1) {
       await confirm({
         title: "Campo requerido",
-        message: "Por favor ingresa un número válido de unidades (mínimo 1).",
+        message:
+          "Por favor ingresa un número válido de unidades (mínimo 1).",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -457,7 +537,8 @@ export default function PuaMateria() {
     if (!requisitos.trim()) {
       const shouldContinue = await confirm({
         title: "Campo vacío",
-        message: "No has ingresado los requisitos para cursar la UA. Si no hay requisitos, puedes escribir 'Ninguno'. ¿Deseas continuar de todas formas?",
+        message:
+          "No has ingresado los requisitos para cursar la UA. Si no hay requisitos, puedes escribir 'Ninguno'. ¿Deseas continuar de todas formas?",
         confirmText: "Sí, continuar",
         cancelText: "Cancelar",
       });
@@ -465,7 +546,6 @@ export default function PuaMateria() {
       if (!shouldContinue) return;
     }
 
-    // Guardar y continuar
     const savedProgramaId = await guardarPua({
       materiaId: materia.id,
       unidadAcademica,
@@ -494,6 +574,9 @@ export default function PuaMateria() {
     });
 
     if (savedProgramaId) {
+      setProgramaId(savedProgramaId);
+      setHorasTaller(Number(ht || 0));
+      setHorasLaboratorio(Number(hl || 0));
       router.push(`/capturista/materias/${clave}/pua/unidades`);
     }
   };
@@ -553,15 +636,17 @@ export default function PuaMateria() {
         </div>
 
         <div className="text-center">
-          <h1 className="text-2xl font-bold">Plan de Unidad de Aprendizaje (PUA)</h1>
+          <h1 className="text-2xl font-bold">
+            Plan de Unidad de Aprendizaje (PUA)
+          </h1>
           <p className="text-lg font-semibold text-[#00723F] mt-2">
             {materia.clave} - {materia.nombre}
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            Completa la información de la unidad de aprendizaje antes de continuar.
+            Completa la información de la unidad de aprendizaje antes de
+            continuar.
           </p>
         </div>
-
 
         {/* I. Datos de identificación */}
         <Card>
@@ -605,15 +690,17 @@ export default function PuaMateria() {
                 </Label>
                 <Input
                   value={planEstudios}
-                  onChange={(e) => setPlanEstudios(e.target.value)}
-                  placeholder="2019-2"
+                  readOnly
+                  className="bg-white text-black opacity-100 cursor-default"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
               <div className="sm:col-span-8">
-                <Label className="mb-2 block">4. Nombre de la Unidad de Aprendizaje</Label>
+                <Label className="mb-2 block">
+                  4. Nombre de la Unidad de Aprendizaje
+                </Label>
                 <Input value={materia.nombre} disabled />
               </div>
               <div className="sm:col-span-4">
@@ -697,14 +784,17 @@ export default function PuaMateria() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                HC: Horas Clase | HL: Horas Laboratorio | HT: Horas Taller | HPC: Horas Práctica de Campo | HCL: Horas Clínicas | HE: Horas Extra Clase | CR: Créditos
+                HC: Horas Clase | HL: Horas Laboratorio | HT: Horas Taller | HPC:
+                Horas Práctica de Campo | HCL: Horas Clínicas | HE: Horas Extra
+                Clase | CR: Créditos
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="mb-2 block">
-                  7. Etapa de Formación a la que Pertenece <span className="text-red-500">*</span>
+                  7. Etapa de Formación a la que Pertenece{" "}
+                  <span className="text-red-500">*</span>
                 </Label>
                 <Select
                   value={etapaFormacion}
@@ -723,12 +813,15 @@ export default function PuaMateria() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Este campo se define al crear la materia y no puede modificarse aquí.
+                  Este campo se define al crear la materia y no puede
+                  modificarse aquí.
                 </p>
               </div>
+
               <div>
                 <Label className="mb-2 block">
-                  8. Carácter de la Unidad de Aprendizaje <span className="text-red-500">*</span>
+                  8. Carácter de la Unidad de Aprendizaje{" "}
+                  <span className="text-red-500">*</span>
                 </Label>
                 <Select
                   value={caracterUA}
@@ -746,13 +839,16 @@ export default function PuaMateria() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Este campo se define al crear la materia y no puede modificarse aquí.
+                  Este campo se define al crear la materia y no puede
+                  modificarse aquí.
                 </p>
               </div>
             </div>
 
             <div>
-              <Label className="mb-2 block">9. Requisitos para Cursar la Unidad de Aprendizaje</Label>
+              <Label className="mb-2 block">
+                9. Requisitos para Cursar la Unidad de Aprendizaje
+              </Label>
               <Input
                 value={requisitos}
                 onChange={(e) => setRequisitos(e.target.value)}
@@ -865,7 +961,9 @@ export default function PuaMateria() {
             </div>
 
             <div>
-              <Label className="mb-2 block font-semibold">Estrategia de enseñanza (docente)</Label>
+              <Label className="mb-2 block font-semibold">
+                Estrategia de enseñanza (docente)
+              </Label>
               <textarea
                 className={ta}
                 value={metodoEstrategiaDocente}
@@ -877,7 +975,9 @@ export default function PuaMateria() {
             </div>
 
             <div>
-              <Label className="mb-2 block font-semibold">Estrategia de aprendizaje (alumno)</Label>
+              <Label className="mb-2 block font-semibold">
+                Estrategia de aprendizaje (alumno)
+              </Label>
               <textarea
                 className={ta}
                 value={metodoEstrategiaAlumno}
@@ -911,7 +1011,9 @@ export default function PuaMateria() {
               />
             </div>
             <div>
-              <Label className="mb-2 block font-semibold">Complementarias</Label>
+              <Label className="mb-2 block font-semibold">
+                Complementarias
+              </Label>
               <textarea
                 className={ta}
                 value={referenciasComplementarias}
@@ -954,26 +1056,47 @@ export default function PuaMateria() {
           >
             Cancelar
           </Button>
-          
+
           {puaCompleto ? (
             <>
               <Button
                 variant="outline"
-                onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/unidades`)}
+                onClick={() =>
+                  handleNavegacion(`/capturista/materias/${clave}/pua/unidades`)
+                }
                 disabled={loading}
                 className="cursor-pointer border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
               >
                 Ver Unidades →
               </Button>
-              
-              <Button
-                variant="outline"
-                onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/taller`)}
-                disabled={loading}
-                className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white"
-              >
-                Ver Prácticas de Taller →
-              </Button>
+
+              {horasTaller > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    handleNavegacion(`/capturista/materias/${clave}/pua/taller`)
+                  }
+                  disabled={loading}
+                  className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white"
+                >
+                  Ver Prácticas de Taller →
+                </Button>
+              )}
+
+              {horasLaboratorio > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    handleNavegacion(
+                      `/capturista/materias/${clave}/pua/laboratorio`
+                    )
+                  }
+                  disabled={loading}
+                  className="cursor-pointer border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white"
+                >
+                  Ver Prácticas de Laboratorio →
+                </Button>
+              )}
 
               <Button
                 className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"

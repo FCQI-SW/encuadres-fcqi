@@ -24,6 +24,8 @@ type Programa = {
   id: string;
   materia_id: string;
   unidades: number;
+  ht: number;
+  hl: number;
 };
 
 type ErroresCampos = {
@@ -80,7 +82,7 @@ export default function PuaMateriaTaller() {
 
         const { data: programaData, error } = await supabase
           .from("programas")
-          .select("id, materia_id, unidades")
+          .select("id, materia_id, unidades, ht, hl")
           .eq("materia_id", materiaData.id)
           .single();
 
@@ -88,7 +90,19 @@ export default function PuaMateriaTaller() {
           console.error("Error al obtener programa:", error);
           setPrograma(null);
         } else {
-          setPrograma(programaData);
+          const programaObtenido = programaData as Programa;
+
+          // Seguridad: si no tiene taller, no debería estar aquí
+          if ((programaObtenido.ht || 0) <= 0) {
+            if ((programaObtenido.hl || 0) > 0) {
+              router.replace(`/capturista/materias/${clave}/pua/laboratorio`);
+            } else {
+              router.replace(`/capturista/materias`);
+            }
+            return;
+          }
+
+          setPrograma(programaObtenido);
         }
       } catch (err) {
         console.error("Error:", err);
@@ -99,7 +113,7 @@ export default function PuaMateriaTaller() {
     };
 
     fetchPrograma();
-  }, [clave]);
+  }, [clave, router]);
 
   useEffect(() => {
     if (!programa?.id || practicasCargadas) return;
@@ -217,9 +231,7 @@ export default function PuaMateriaTaller() {
   const validarPracticas = (): Record<string, ErroresCampos> => {
     const erroresPorPract: Record<string, ErroresCampos> = {};
 
-    if (!programa) {
-      return erroresPorPract;
-    }
+    if (!programa) return erroresPorPract;
 
     const todasLasPracticas: PracticaTallerType[] = [];
     Object.values(practicasPorUnidad).forEach((practicas) => {
@@ -255,7 +267,9 @@ export default function PuaMateriaTaller() {
     setErroresPorPractica(erroresValidacion);
 
     if (Object.keys(erroresValidacion).length > 0) {
-      toast.error("Por favor completa todos los campos obligatorios antes de guardar.");
+      toast.error(
+        "Por favor completa todos los campos obligatorios antes de guardar."
+      );
       return;
     }
 
@@ -265,7 +279,9 @@ export default function PuaMateriaTaller() {
     );
 
     if (totalPracticas === 0) {
-      toast.error("Debes agregar al menos una práctica de taller antes de continuar.");
+      toast.error(
+        "Debes agregar al menos una práctica de taller antes de continuar."
+      );
       return;
     }
 
@@ -276,9 +292,7 @@ export default function PuaMateriaTaller() {
       cancelText: "Cancelar",
     });
 
-    if (!shouldSave) return;
-
-    if (!programa) return;
+    if (!shouldSave || !programa) return;
 
     const todasLasPracticas: PracticaTallerType[] = [];
     Object.values(practicasPorUnidad).forEach((practicas) => {
@@ -288,13 +302,25 @@ export default function PuaMateriaTaller() {
     const success = await guardarPracticas(todasLasPracticas);
 
     if (success) {
-      await confirm({
-        title: "¡Guardado exitoso!",
-        message: "Las prácticas de taller se han guardado correctamente. El PUA está completado.",
-        confirmText: "Finalizar",
-        cancelText: "",
-      });
-      router.push(`/capturista/materias`);
+      if ((programa.hl || 0) > 0) {
+        await confirm({
+          title: "¡Guardado exitoso!",
+          message:
+            "Las prácticas de taller se han guardado correctamente. Ahora continuarás con las prácticas de laboratorio.",
+          confirmText: "Continuar",
+          cancelText: "",
+        });
+        router.push(`/capturista/materias/${clave}/pua/laboratorio`);
+      } else {
+        await confirm({
+          title: "¡Guardado exitoso!",
+          message:
+            "Las prácticas de taller se han guardado correctamente. El PUA está completado.",
+          confirmText: "Finalizar",
+          cancelText: "",
+        });
+        router.push(`/capturista/materias`);
+      }
     } else {
       toast.error("Error al guardar las prácticas de taller. Intenta de nuevo.");
     }
@@ -356,7 +382,8 @@ export default function PuaMateriaTaller() {
             VI. ESTRUCTURA DE LAS PRÁCTICAS DE TALLER
           </h1>
           <p className="text-muted-foreground mt-2">
-            Agrega prácticas para cada unidad. Es obligatorio agregar al menos una práctica.
+            Agrega prácticas para cada unidad. Es obligatorio agregar al menos
+            una práctica.
           </p>
         </div>
 
