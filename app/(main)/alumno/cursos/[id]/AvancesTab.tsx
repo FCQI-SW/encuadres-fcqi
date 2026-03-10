@@ -20,10 +20,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, ClipboardList, Save, MessageSquare, X } from "lucide-react";
+import { Loader2, ClipboardList, Save } from "lucide-react";
 import { useRegistroAvances, TemaConCheckin } from "@/hooks/useRegistroAvances";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
+import { useRouter } from "next/navigation";
 
 type AvancesTabProps = {
   encuadreId: string;
@@ -33,17 +34,20 @@ type AvancesTabProps = {
 type RespuestaTema = {
   vista: boolean | null;
   justificacion: string;
-  showComment: boolean;
 };
 
 export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
   const { data: session } = useSession();
   const confirm = useConfirm();
   const toast = useToast();
-  const { obtenerDatosCompletos, guardarCheckins, loading } = useRegistroAvances(encuadreId);
+  const router = useRouter();
+  const { obtenerDatosCompletos, guardarCheckins, loading } =
+    useRegistroAvances(encuadreId);
 
   const [temas, setTemas] = useState<TemaConCheckin[]>([]);
-  const [respuestas, setRespuestas] = useState<Record<number, RespuestaTema>>({});
+  const [respuestas, setRespuestas] = useState<Record<number, RespuestaTema>>(
+    {}
+  );
   const [loadingData, setLoadingData] = useState(true);
   const [headerInfo, setHeaderInfo] = useState<{
     asignatura: string;
@@ -71,7 +75,6 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
       respuestasIniciales[tema.id] = {
         vista: tema.tema_visto,
         justificacion: tema.justificacion || "",
-        showComment: tema.justificacion ? true : false,
       };
     });
     setRespuestas(respuestasIniciales);
@@ -82,14 +85,12 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
   const setVista = (temaId: number, valor: boolean) => {
     setRespuestas((prev) => ({
       ...prev,
-      [temaId]: { ...prev[temaId], vista: valor },
-    }));
-  };
-
-  const toggleComment = (temaId: number) => {
-    setRespuestas((prev) => ({
-      ...prev,
-      [temaId]: { ...prev[temaId], showComment: !prev[temaId]?.showComment },
+      [temaId]: {
+        ...prev[temaId],
+        vista: valor,
+        // Limpiar justificación si se marca como "Sí"
+        justificacion: valor === true ? "" : prev[temaId]?.justificacion || "",
+      },
     }));
   };
 
@@ -101,10 +102,14 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
   };
 
   const handleGuardar = async () => {
-    const tieneRespuestas = Object.values(respuestas).some((r) => r.vista !== null);
+    const tieneRespuestas = Object.values(respuestas).some(
+      (r) => r.vista !== null
+    );
 
     if (!tieneRespuestas) {
-      toast.warning("No hay cambios para guardar. Marca al menos un tema como estudiado o no estudiado.");
+      toast.warning(
+        "No hay cambios para guardar. Marca al menos un tema como estudiado o no estudiado."
+      );
       return;
     }
 
@@ -120,8 +125,13 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
     const result = await guardarCheckins(respuestas, grupo);
 
     if (result.success) {
-      toast.success(result.error || "Tu registro de avances se ha guardado correctamente.");
-      await cargarDatos();
+      toast.success(
+        result.error || "Tu registro de avances se ha guardado correctamente."
+      );
+      // Redirigir a Mis Cursos después de guardar
+      setTimeout(() => {
+        router.push("/alumno/cursos");
+      }, 1000);
     } else {
       toast.error(result.error || "No se pudo guardar el registro de avances.");
     }
@@ -163,7 +173,8 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
                 {headerInfo?.asignatura || "Cargando..."}
               </CardTitle>
               <CardDescription className="mt-1">
-                Clave: {headerInfo?.clave} • Grupo: {headerInfo?.grupo} • Periodo: {headerInfo?.periodo}
+                Clave: {headerInfo?.clave} • Grupo: {headerInfo?.grupo} •
+                Periodo: {headerInfo?.periodo}
               </CardDescription>
             </div>
             <div className="text-right text-sm">
@@ -178,8 +189,9 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
       <Card className="bg-blue-50 border-blue-200">
         <CardContent className="pt-4">
           <p className="text-sm text-blue-800">
-            <strong>Instrucciones:</strong> Marca los temas que ya has estudiado. 
-            Si hay algún tema que aún no has podido revisar, puedes agregar una nota en la columna de observaciones.
+            <strong>Instrucciones:</strong> Marca los temas que ya has
+            estudiado. Si marcas "No", puedes agregar una observación explicando
+            por qué.
           </p>
         </CardContent>
       </Card>
@@ -191,7 +203,9 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
             <div className="text-center text-gray-500">
               <ClipboardList className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="font-medium">Sin temas registrados</p>
-              <p className="text-sm">El encuadre aún no tiene temas para registrar avances</p>
+              <p className="text-sm">
+                El encuadre aún no tiene temas para registrar avances
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -212,11 +226,19 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/40">
-                      <TableHead className="font-bold w-[80px]">UNIDAD</TableHead>
+                      <TableHead className="font-bold w-[80px]">
+                        UNIDAD
+                      </TableHead>
                       <TableHead className="font-bold w-[80px]">TEMA</TableHead>
-                      <TableHead className="font-bold min-w-[200px]">NOMBRE DEL TEMA</TableHead>
-                      <TableHead className="font-bold w-[140px]">¿ESTUDIADO?</TableHead>
-                      <TableHead className="font-bold min-w-[200px]">OBSERVACIONES</TableHead>
+                      <TableHead className="font-bold min-w-[200px]">
+                        NOMBRE DEL TEMA
+                      </TableHead>
+                      <TableHead className="font-bold w-[140px]">
+                        ¿ESTUDIADO?
+                      </TableHead>
+                      <TableHead className="font-bold min-w-[200px]">
+                        OBSERVACIONES
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -225,7 +247,8 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
                         {/* Encabezado de unidad */}
                         <TableRow className="bg-[#00723F]/10">
                           <TableCell colSpan={5} className="font-semibold">
-                            Unidad {grupoUnidad.unidad_numero}: {grupoUnidad.unidad_nombre}
+                            Unidad {grupoUnidad.unidad_numero}:{" "}
+                            {grupoUnidad.unidad_nombre}
                           </TableCell>
                         </TableRow>
                         {/* Temas de la unidad */}
@@ -236,7 +259,9 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
                               <TableCell className="text-center text-muted-foreground">
                                 {tema.unidad_numero}
                               </TableCell>
-                              <TableCell className="text-center">{tema.numero}</TableCell>
+                              <TableCell className="text-center">
+                                {tema.numero}
+                              </TableCell>
                               <TableCell>{tema.nombre}</TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-4">
@@ -261,35 +286,16 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
                                 </div>
                               </TableCell>
                               <TableCell>
-                                {!state?.showComment ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="cursor-pointer"
-                                    onClick={() => toggleComment(tema.id)}
-                                  >
-                                    <MessageSquare className="h-4 w-4 mr-1" />
-                                    {state?.justificacion ? "Ver nota" : "Agregar"}
-                                  </Button>
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                    <Input
-                                      placeholder="Escribe una observación..."
-                                      value={state?.justificacion ?? ""}
-                                      onChange={(e) => setJustificacion(tema.id, e.target.value)}
-                                      className="text-sm"
-                                      maxLength={500}
-                                    />
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="cursor-pointer p-1"
-                                      onClick={() => toggleComment(tema.id)}
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                )}
+                                <Input
+                                  placeholder="Escribe una observación..."
+                                  value={state?.justificacion ?? ""}
+                                  onChange={(e) =>
+                                    setJustificacion(tema.id, e.target.value)
+                                  }
+                                  className="text-sm"
+                                  disabled={state?.vista !== false}
+                                  maxLength={500}
+                                />
                               </TableCell>
                             </TableRow>
                           );

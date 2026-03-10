@@ -21,7 +21,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, GraduationCap, Search, BookOpen } from "lucide-react";
+import { Loader2, GraduationCap, Search, BookOpen, X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Curso = {
   id: string;
@@ -41,6 +48,8 @@ export default function CursosAlumnoPage() {
   const [cursos, setCursos] = useState<Curso[]>([]);
   const [filteredCursos, setFilteredCursos] = useState<Curso[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPeriodo, setSelectedPeriodo] = useState<string>("Todos");
+  const [selectedGrupo, setSelectedGrupo] = useState<string>("Todos");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -146,21 +155,49 @@ export default function CursosAlumnoPage() {
     setLoading(false);
   };
 
+  // Obtener valores únicos para los filtros
+  const periodos = Array.from(new Set(cursos.map((c) => c.periodo))).sort();
+  const grupos = Array.from(new Set(cursos.map((c) => c.grupo))).sort();
+
+  // Limpiar filtros
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setSelectedPeriodo("Todos");
+    setSelectedGrupo("Todos");
+  };
+
+  // Verificar si hay filtros activos
+  const hasActiveFilters =
+    searchTerm || selectedPeriodo !== "Todos" || selectedGrupo !== "Todos";
+
   useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredCursos(cursos);
-    } else {
-      const filtered = cursos.filter(
-        (c) =>
-          c.materia_clave.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.materia_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.grupo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.periodo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.docente.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredCursos(filtered);
+    let filtered = [...cursos];
+
+    // Filtro por periodo
+    if (selectedPeriodo !== "Todos") {
+      filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
     }
-  }, [searchTerm, cursos]);
+
+    // Filtro por grupo
+    if (selectedGrupo !== "Todos") {
+      filtered = filtered.filter((c) => c.grupo === selectedGrupo);
+    }
+
+    // Búsqueda por texto
+    if (searchTerm.trim() !== "") {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (c) =>
+          c.materia_clave.toLowerCase().includes(term) ||
+          c.materia_nombre.toLowerCase().includes(term) ||
+          c.grupo.toLowerCase().includes(term) ||
+          c.periodo.toLowerCase().includes(term) ||
+          c.docente.toLowerCase().includes(term)
+      );
+    }
+
+    setFilteredCursos(filtered);
+  }, [searchTerm, selectedPeriodo, selectedGrupo, cursos]);
 
   const handleVerCurso = (encuadreId: string) => {
     router.push(`/alumno/cursos/${encuadreId}`);
@@ -191,17 +228,75 @@ export default function CursosAlumnoPage() {
           </div>
         </div>
 
+        {/* Filtros */}
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Search className="h-5 w-5 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Buscar por clave, materia, grupo, periodo o docente..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1"
-              />
+          <CardContent className="pt-4">
+            <div className="space-y-4">
+              {/* Búsqueda y filtros en la misma fila */}
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Búsqueda */}
+                <div className="flex items-center gap-2">
+                  <Search className="h-5 w-5 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar por clave, materia, grupo, periodo o docente..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-80"
+                  />
+                </div>
+
+                {/* Filtro por periodo */}
+                <Select
+                  value={selectedPeriodo}
+                  onValueChange={setSelectedPeriodo}
+                >
+                  <SelectTrigger className="min-w-[180px]">
+                    <SelectValue placeholder="Periodo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Todos">Todos los periodos</SelectItem>
+                    {periodos.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Filtro por grupo */}
+                <Select value={selectedGrupo} onValueChange={setSelectedGrupo}>
+                  <SelectTrigger className="min-w-[140px]">
+                    <SelectValue placeholder="Grupo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Todos">Todos los grupos</SelectItem>
+                    {grupos.map((g) => (
+                      <SelectItem key={g} value={g}>
+                        {g}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Botón limpiar filtros */}
+                {hasActiveFilters && (
+                  <Button
+                    variant="outline"
+                    size="default"
+                    onClick={handleClearFilters}
+                    className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-400 cursor-pointer font-medium"
+                  >
+                    <X className="h-5 w-5 mr-2" />
+                    Limpiar filtros
+                  </Button>
+                )}
+              </div>
+
+              {/* Contador de resultados */}
+              <div className="text-sm text-muted-foreground">
+                Mostrando {filteredCursos.length} de {cursos.length} cursos
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -212,7 +307,9 @@ export default function CursosAlumnoPage() {
               <div className="text-center py-12">
                 <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                  {searchTerm ? "No se encontraron cursos" : "Sin cursos inscritos"}
+                  {searchTerm
+                    ? "No se encontraron cursos"
+                    : "Sin cursos inscritos"}
                 </h3>
                 <p className="text-gray-500">
                   {searchTerm
@@ -227,7 +324,8 @@ export default function CursosAlumnoPage() {
             <CardHeader>
               <CardTitle>Lista de Cursos</CardTitle>
               <CardDescription>
-                Haz clic en un curso para ver el encuadre y registrar tus avances
+                Haz clic en un curso para ver el encuadre y registrar tus
+                avances
               </CardDescription>
             </CardHeader>
             <CardContent>

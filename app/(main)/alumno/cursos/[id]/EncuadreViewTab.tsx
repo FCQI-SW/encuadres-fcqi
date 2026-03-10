@@ -5,16 +5,12 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, FileText, CheckCircle } from "lucide-react";
 import { useConfirm } from "@/components/global-confirm-modal";
+import { useToast } from "@/components/ui/toast";
 
 type FirmaData = {
   id: string;
@@ -33,15 +29,18 @@ type EncuadreViewTabProps = {
   encuadreId: string;
   materiaNombre: string;
   docente: string;
+  onFirmaCompletada?: () => void;
 };
 
 export default function EncuadreViewTab({
   encuadreId,
   materiaNombre,
   docente,
+  onFirmaCompletada,
 }: EncuadreViewTabProps) {
   const { data: session } = useSession();
   const confirm = useConfirm();
+  const toast = useToast();
 
   const [encuadre, setEncuadre] = useState<any>(null);
   const [criterios, setCriterios] = useState<CriterioCalificacion[]>([]);
@@ -168,20 +167,14 @@ export default function EncuadreViewTab({
 
       if (error) {
         console.error("Error al firmar:", error);
-        await confirm({
-          title: "Error",
-          message: "No se pudo registrar tu firma. Intenta nuevamente.",
-          confirmText: "Entendido",
-          cancelText: "",
-        });
+        toast.error("No se pudo registrar tu firma. Intenta nuevamente.");
       } else {
         setFirma(data);
-        await confirm({
-          title: "¡Firma registrada!",
-          message: "Tu firma de enterado ha sido registrada correctamente.",
-          confirmText: "Aceptar",
-          cancelText: "",
-        });
+        toast.success("Tu firma de enterado ha sido registrada correctamente.");
+        // Notificar al componente padre que la firma fue completada
+        if (onFirmaCompletada) {
+          onFirmaCompletada();
+        }
       }
     } catch (err) {
       console.error("Error:", err);
@@ -233,7 +226,8 @@ export default function EncuadreViewTab({
             Facultad de Ciencias Químicas e Ingeniería
           </p>
           <p className="text-xs sm:text-sm font-medium mt-1">
-            {materiaClave && `${materiaClave} - `}{materiaNombre}
+            {materiaClave && `${materiaClave} - `}
+            {materiaNombre}
           </p>
           <p className="text-xs text-muted-foreground">
             Grupo {encuadre.grupo} • {encuadre.periodo} • Docente: {docente}
@@ -256,7 +250,10 @@ export default function EncuadreViewTab({
           <TableBody>
             {/* EVALUACIÓN DE CURSO */}
             <TableRow>
-              <TableCell colSpan={3} className="text-center font-bold bg-muted/40">
+              <TableCell
+                colSpan={3}
+                className="text-center font-bold bg-muted/40"
+              >
                 EVALUACIÓN DE CURSO
               </TableCell>
             </TableRow>
@@ -280,13 +277,23 @@ export default function EncuadreViewTab({
                 {criterios.map((crit) => (
                   <TableRow key={crit.id}>
                     <TableCell className="align-top">{crit.criterio}</TableCell>
-                    <TableCell className="align-top text-center">{crit.valor}%</TableCell>
-                    <TableCell className="align-top">{crit.descripcion || "—"}</TableCell>
+                    <TableCell className="align-top text-center">
+                      {crit.valor}%
+                    </TableCell>
+                    <TableCell className="align-top">
+                      {crit.descripcion || "—"}
+                    </TableCell>
                   </TableRow>
                 ))}
                 <TableRow>
                   <TableCell className="font-semibold">TOTAL</TableCell>
-                  <TableCell className={`font-semibold text-center ${totalPorcentaje === 100 ? 'text-green-600' : 'text-red-600'}`}>
+                  <TableCell
+                    className={`font-semibold text-center ${
+                      totalPorcentaje === 100
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
                     {totalPorcentaje}%
                   </TableCell>
                   <TableCell></TableCell>
@@ -294,7 +301,10 @@ export default function EncuadreViewTab({
               </>
             ) : (
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground py-4">
+                <TableCell
+                  colSpan={3}
+                  className="text-center text-muted-foreground py-4"
+                >
                   No se han definido criterios de evaluación
                 </TableCell>
               </TableRow>
@@ -302,7 +312,10 @@ export default function EncuadreViewTab({
 
             {/* DERECHO EXAMEN ORDINARIO Y EXTRAORDINARIO */}
             <TableRow>
-              <TableCell colSpan={3} className="text-center font-bold bg-muted/40">
+              <TableCell
+                colSpan={3}
+                className="text-center font-bold bg-muted/40"
+              >
                 DERECHO EXAMEN ORDINARIO Y EXTRAORDINARIO
               </TableCell>
             </TableRow>
@@ -318,7 +331,9 @@ export default function EncuadreViewTab({
                     </div>
                   </div>
                   <div>
-                    <div className="font-semibold">Derecho a Extraordinario</div>
+                    <div className="font-semibold">
+                      Derecho a Extraordinario
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       Se evaluará todo el curso
                       <br />
@@ -341,7 +356,10 @@ export default function EncuadreViewTab({
 
             {/* DESCRIPCIÓN DE PRODUCTO O EVIDENCIA */}
             <TableRow>
-              <TableCell colSpan={3} className="text-center font-bold bg-muted/40">
+              <TableCell
+                colSpan={3}
+                className="text-center font-bold bg-muted/40"
+              >
                 DESCRIPCIÓN DE PRODUCTO O EVIDENCIA DE DESEMPEÑO
               </TableCell>
             </TableRow>
@@ -353,7 +371,10 @@ export default function EncuadreViewTab({
 
             {/* BIBLIOGRAFÍA */}
             <TableRow>
-              <TableCell colSpan={3} className="text-center font-bold bg-muted/40">
+              <TableCell
+                colSpan={3}
+                className="text-center font-bold bg-muted/40"
+              >
                 BIBLIOGRAFÍA, REFERENCIAS Y RECURSOS DE LA RED
               </TableCell>
             </TableRow>
@@ -365,7 +386,10 @@ export default function EncuadreViewTab({
 
             {/* NORMAS DE CONDUCTA */}
             <TableRow>
-              <TableCell colSpan={3} className="text-center font-bold bg-muted/40">
+              <TableCell
+                colSpan={3}
+                className="text-center font-bold bg-muted/40"
+              >
                 NORMAS DE CONDUCTA DENTRO DEL SALÓN DE CLASES
               </TableCell>
             </TableRow>
@@ -384,13 +408,18 @@ export default function EncuadreViewTab({
           <div className="text-center space-y-2 p-4 bg-green-50 border border-green-200 rounded-lg w-full max-w-md">
             <div className="flex items-center justify-center gap-2 text-green-700">
               <CheckCircle className="h-5 w-5" />
-              <span className="font-semibold">Firma de Enterado Registrada</span>
+              <span className="font-semibold">
+                Firma de Enterado Registrada
+              </span>
             </div>
             <p className="text-sm text-gray-600">
               Nombre: <span className="font-medium">{firma.nombre_firma}</span>
             </p>
             <p className="text-sm text-gray-600">
-              Fecha: <span className="font-medium">{formatearFecha(firma.firmado_at)}</span>
+              Fecha:{" "}
+              <span className="font-medium">
+                {formatearFecha(firma.firmado_at)}
+              </span>
             </p>
           </div>
         ) : (

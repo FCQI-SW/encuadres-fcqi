@@ -6,7 +6,13 @@ import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Loader2, BookOpen, Users, ClipboardList } from "lucide-react";
+import {
+  ChevronLeft,
+  Loader2,
+  BookOpen,
+  Users,
+  ClipboardList,
+} from "lucide-react";
 import EncuadreTab from "./EncuadreTab";
 import AlumnosTab from "./AlumnosTab";
 import AvancesTab from "./AvancesTab";
@@ -95,14 +101,16 @@ export default function CursoDetallePage() {
   if (!cursoInfo) {
     return (
       <div className="px-4 py-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">
+        <div className="mx-auto max-w-3xl space-y-4 text-center">
+          <h1 className="text-2xl font-bold text-gray-800">
             Curso no encontrado
           </h1>
           <Button
             variant="outline"
             onClick={() => router.push("/profesor/cursos")}
+            className="cursor-pointer"
           >
+            <ChevronLeft className="mr-2 h-5 w-5" />
             Regresar a Mis Cursos
           </Button>
         </div>
@@ -116,11 +124,11 @@ export default function CursoDetallePage() {
         {/* Botón regresar */}
         <div>
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => router.push("/profesor/cursos")}
-            className="-ml-2 cursor-pointer"
+            className="cursor-pointer"
           >
-            <ChevronLeft className="mr-1 h-4 w-4" />
+            <ChevronLeft className="mr-2 h-5 w-5" />
             Regresar a Mis Cursos
           </Button>
         </div>
@@ -138,15 +146,24 @@ export default function CursoDetallePage() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="encuadre" className="flex items-center gap-2 cursor-pointer">
+            <TabsTrigger
+              value="encuadre"
+              className="flex items-center gap-2 cursor-pointer"
+            >
               <BookOpen className="h-4 w-4" />
               Encuadre
             </TabsTrigger>
-            <TabsTrigger value="avances" className="flex items-center gap-2 cursor-pointer">
+            <TabsTrigger
+              value="avances"
+              className="flex items-center gap-2 cursor-pointer"
+            >
               <ClipboardList className="h-4 w-4" />
               Registro de Avances
             </TabsTrigger>
-            <TabsTrigger value="alumnos" className="flex items-center gap-2 cursor-pointer">
+            <TabsTrigger
+              value="alumnos"
+              className="flex items-center gap-2 cursor-pointer"
+            >
               <Users className="h-4 w-4" />
               Alumnos
             </TabsTrigger>

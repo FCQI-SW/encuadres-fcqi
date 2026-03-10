@@ -12,6 +12,7 @@ import {
   Megaphone,
   BarChart3,
   Eye,
+  Home,
 } from "lucide-react";
 
 import {
@@ -31,19 +32,27 @@ import { LogoutButton } from "./logout-button";
 
 const menuItemsByRole = {
   admin: [
+    { title: "Inicio", url: "/admin", icon: Home },
     { title: "Manejo de usuarios", url: "/admin/usuarios", icon: Users },
     { title: "Revisión de resultados", url: "/admin/resultados", icon: Search },
     { title: "Manejo de materias", url: "/admin/materias", icon: BookOpen },
-    { title: "Fecha de operación", url: "/admin/configurar-fecha", icon: Calendar },
+    {
+      title: "Fecha de operación",
+      url: "/admin/configurar-fecha",
+      icon: Calendar,
+    },
     { title: "Anuncios", url: "/admin/anuncios", icon: Megaphone },
   ],
   capturista: [
+    { title: "Inicio", url: "/capturista", icon: Home },
     { title: "Materias", url: "/capturista/materias", icon: BookOpen },
   ],
   profesor: [
+    { title: "Inicio", url: "/profesor", icon: Home },
     { title: "Mis Cursos", url: "/profesor/cursos", icon: GraduationCap },
   ],
   alumno: [
+    { title: "Inicio", url: "/alumno", icon: Home },
     { title: "Mis Cursos", url: "/alumno/cursos", icon: GraduationCap },
   ],
   lector: [
@@ -61,12 +70,32 @@ export function AppSidebar({ role }: AppSidebarProps) {
   const pathname = usePathname();
 
   const isActive = (url: string) => {
-    // Para el dashboard del lector, solo es activo si es exactamente /lector
-    if (url === "/lector") {
-      return pathname === "/lector";
+    // Caso exacto
+    if (pathname === url) return true;
+    
+    // Si la URL es una subruta (contiene /), verificar que comience exactamente con url + /
+    if (pathname.startsWith(url + "/")) {
+      return true;
     }
-    return pathname === url || pathname.startsWith(url + "/");
+    
+    return false;
   };
+
+  // Obtener la ruta más específica activa para comparar
+  const getMostSpecificActiveRoute = () => {
+    const activeRoutes = items.filter(item => 
+      pathname === item.url || pathname.startsWith(item.url + "/")
+    );
+    
+    if (activeRoutes.length === 0) return null;
+    
+    // Retornar la ruta más larga (más específica)
+    return activeRoutes.reduce((prev, current) => 
+      current.url.length > prev.url.length ? current : prev
+    );
+  };
+
+  const mostSpecificRoute = getMostSpecificActiveRoute();
 
   return (
     <Sidebar className="h-dvh border-r-0">
@@ -104,7 +133,7 @@ export function AppSidebar({ role }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
               {items.map((item) => {
-                const active = isActive(item.url);
+                const active = mostSpecificRoute?.url === item.url;
                 const Icon = item.icon;
 
                 return (

@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
+import { ModalCrearAnuncio } from "@/components/modal-crear-anuncio";
 
 type Anuncio = {
   id: string;
@@ -63,6 +64,10 @@ export default function AnunciosPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEstado, setSelectedEstado] = useState("all");
   const [selectedMetodo, setSelectedMetodo] = useState("all");
+
+  // Modal
+  const [showModal, setShowModal] = useState(false);
+  const [editingAnuncioId, setEditingAnuncioId] = useState<string | null>(null);
 
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -168,7 +173,22 @@ export default function AnunciosPage() {
       toast.error("No se puede editar un anuncio que ya fue enviado.");
       return;
     }
-    router.push(`/admin/anuncios/crear?id=${encodeURIComponent(anuncio.id)}`);
+    setEditingAnuncioId(anuncio.id);
+    setShowModal(true);
+  }
+
+  function handleShowModal() {
+    setEditingAnuncioId(null);
+    setShowModal(true);
+  }
+
+  function handleCloseModal() {
+    setShowModal(false);
+    setEditingAnuncioId(null);
+  }
+
+  function handleModalSuccess() {
+    fetchAnuncios();
   }
 
   const handleClearFilters = () => {
@@ -259,14 +279,14 @@ export default function AnunciosPage() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="space-y-3">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">Anuncios</h1>
+          
           <p className="text-sm text-muted-foreground">
             Gestiona los mensajes y notificaciones
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center justify-between gap-2">
           <Button
             variant="outline"
             onClick={() => router.push("/admin")}
@@ -275,7 +295,7 @@ export default function AnunciosPage() {
             <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
           </Button>
           <Button
-            onClick={() => router.push("/admin/anuncios/crear")}
+            onClick={handleShowModal}
             className="bg-[#00723F] text-white hover:bg-[#005e30] cursor-pointer"
           >
             <Plus className="mr-2 h-4 w-4" /> Crear anuncio
@@ -550,6 +570,14 @@ export default function AnunciosPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal crear/editar anuncio */}
+      <ModalCrearAnuncio
+        isOpen={showModal}
+        onClose={handleCloseModal}
+        anuncioId={editingAnuncioId}
+        onSuccess={handleModalSuccess}
+      />
     </div>
   );
 }

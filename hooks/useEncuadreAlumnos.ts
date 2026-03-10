@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
-import { generarClaveSegura, validarCorreoInstitucional, validarFortalezaClave } from "@/lib/password-generator";
+import {
+  generarClaveSegura,
+  validarCorreoInstitucional,
+  validarFortalezaClave,
+} from "@/lib/password-generator";
 
 export type AlumnoEncuadre = {
   id: string;
@@ -30,7 +34,8 @@ export function useEncuadreAlumnos(encuadreId: string) {
     try {
       const { data, error: errorQuery } = await supabase
         .from("encuadre_alumnos")
-        .select(`
+        .select(
+          `
           id,
           alumno_id,
           estado,
@@ -43,7 +48,8 @@ export function useEncuadreAlumnos(encuadreId: string) {
             correo,
             nombre
           )
-        `)
+        `
+        )
         .eq("encuadre_id", encuadreId)
         .order("invitado_at", { ascending: false });
 
@@ -77,6 +83,68 @@ export function useEncuadreAlumnos(encuadreId: string) {
     }
   };
 
+  const agregarAlumno = async (
+    correo: string,
+    clave?: string | null
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    claveGenerada?: string | null;
+  }> => {
+    if (!session?.user?.id) {
+      return { success: false, error: "No hay sesión activa" };
+    }
+
+    // Validar correo
+    const validacionCorreo = validarCorreoInstitucional(correo);
+    if (!validacionCorreo.valido) {
+      return { success: false, error: validacionCorreo.error };
+    }
+
+    // Si se proporciona clave, validarla
+    if (clave) {
+      const validacionClave = validarFortalezaClave(clave);
+      if (!validacionClave.valida) {
+        return {
+          success: false,
+          error: "La clave no cumple con los requisitos de seguridad",
+        };
+      }
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/alumnos/agregar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          correo: correo.trim().toLowerCase(),
+          encuadreId,
+          profesorId: session.user.id,
+          clave: clave || null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error);
+        setLoading(false);
+        return { success: false, error: data.error };
+      }
+
+      setLoading(false);
+      return { success: true, claveGenerada: data.claveGenerada || null };
+    } catch (err) {
+      console.error("Error:", err);
+      setError("Error de conexión");
+      setLoading(false);
+      return { success: false, error: "Error de conexión con el servidor" };
+    }
+  };
+
   const registrarAlumno = async (
     correo: string,
     clave: string,
@@ -94,10 +162,20 @@ export function useEncuadreAlumnos(encuadreId: string) {
       return { success: false, error: validacionCorreo.error };
     }
 
-    // Validar clave
+    // Validar clave (requerida para usuarios nuevos)
+    if (!clave || clave.trim() === "") {
+      return {
+        success: false,
+        error: "Se requiere una clave para registrar un nuevo usuario",
+      };
+    }
+
     const validacionClave = validarFortalezaClave(clave);
     if (!validacionClave.valida) {
-      return { success: false, error: "La clave no cumple con los requisitos de seguridad" };
+      return {
+        success: false,
+        error: "La clave no cumple con los requisitos de seguridad",
+      };
     }
 
     setLoading(true);
@@ -212,15 +290,20 @@ export function useEncuadreAlumnos(encuadreId: string) {
 
       if (relacion && relacion.reenvios >= 3) {
         setLoading(false);
-        return { success: false, error: "Se alcanzó el límite de 3 reenvíos por día" };
+        return {
+          success: false,
+          error: "Se alcanzó el límite de 3 reenvíos por día",
+        };
       }
 
       // Encolar correo
-      const { error: errorCorreo } = await supabase.from("email_outbox").insert({
-        user_id: alumnoId,
-        email: correo,
-        subject: `Acceso al Sistema ENCUADRES-FCQI - ${materiaNombre}`,
-        body: `
+      const { error: errorCorreo } = await supabase
+        .from("email_outbox")
+        .insert({
+          user_id: alumnoId,
+          email: correo,
+          subject: `Acceso al Sistema ENCUADRES-FCQI - ${materiaNombre}`,
+          body: `
 ¡Bienvenido al Sistema ENCUADRES-FCQI!
 
 Materia: ${materiaNombre}
@@ -235,8 +318,8 @@ La contraseña expira en 7 días. Cámbiala al ingresar.
 ---
 ENCUADRES-FCQI | UABC
         `.trim(),
-        status: "pending",
-      });
+          status: "pending",
+        });
 
       if (errorCorreo) {
         setLoading(false);
@@ -263,7 +346,9 @@ ENCUADRES-FCQI | UABC
     }
   };
 
-  const revocarAcceso = async (alumnoId: string): Promise<{ success: boolean; error?: string }> => {
+  const revocarAcceso = async (
+    alumnoId: string
+  ): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
 
     try {
@@ -286,10 +371,97 @@ ENCUADRES-FCQI | UABC
     }
   };
 
-  const reactivarAcceso = async (alumnoId: string): Promise<{ success: boolean; error?: string }> => {
+  const reactivarAcceso = async (
+    alumnoId: string
+  ): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
 
     try {
+      // 1. Obtener información del encuadre (necesitamos el grupo y programa_id)
+      const { data: encuadre, error: errorEncuadre } = await supabase
+        .from("encuadres")
+        .select("id, programa_id, grupo")
+        .eq("id", encuadreId)
+        .single();
+
+      if (errorEncuadre || !encuadre) {
+        setLoading(false);
+        return {
+          success: false,
+          error: "Error al obtener información del encuadre",
+        };
+      }
+
+      // 2. Obtener todos los temas relacionados con este encuadre
+      const { data: unidades, error: errorUnidades } = await supabase
+        .from("unidades")
+        .select("id")
+        .eq("programa_id", encuadre.programa_id);
+
+      if (errorUnidades) {
+        setLoading(false);
+        return { success: false, error: "Error al obtener unidades" };
+      }
+
+      const unidadIds = (unidades || []).map((u) => u.id);
+
+      if (unidadIds.length === 0) {
+        // No hay unidades, solo actualizar el estado
+        const { error } = await supabase
+          .from("encuadre_alumnos")
+          .update({ estado: "enviada" })
+          .eq("encuadre_id", encuadreId)
+          .eq("alumno_id", alumnoId);
+
+        if (error) {
+          setLoading(false);
+          return { success: false, error: "Error al reactivar acceso" };
+        }
+
+        setLoading(false);
+        return { success: true };
+      }
+
+      const { data: temas, error: errorTemas } = await supabase
+        .from("temas")
+        .select("id")
+        .in("unidad_id", unidadIds);
+
+      if (errorTemas) {
+        setLoading(false);
+        return { success: false, error: "Error al obtener temas" };
+      }
+
+      const temaIds = (temas || []).map((t) => t.id);
+
+      // 3. Eliminar la firma del encuadre
+      const { error: errorFirma } = await supabase
+        .from("encuadre_firmas")
+        .delete()
+        .eq("encuadre_id", encuadreId)
+        .eq("alumno_id", alumnoId);
+
+      if (errorFirma) {
+        console.error("Error al eliminar firma:", errorFirma);
+        // No es crítico, continuamos
+      }
+
+      // 4. Eliminar todos los checkins del alumno para este encuadre
+      if (temaIds.length > 0) {
+        const { error: errorCheckins } = await supabase
+          .from("temas_checkin")
+          .delete()
+          .eq("usuario_id", alumnoId)
+          .eq("grupo", encuadre.grupo)
+          .in("tema_id", temaIds);
+
+        if (errorCheckins) {
+          console.error("Error al eliminar checkins:", errorCheckins);
+          // No es crítico, continuamos
+        }
+      }
+
+      // 5. Actualizar el estado del alumno a "enviada"
       const { error } = await supabase
         .from("encuadre_alumnos")
         .update({ estado: "enviada" })
@@ -304,6 +476,7 @@ ENCUADRES-FCQI | UABC
       setLoading(false);
       return { success: true };
     } catch (err) {
+      console.error("Error en reactivarAcceso:", err);
       setLoading(false);
       return { success: false, error: "Error inesperado" };
     }
@@ -311,6 +484,7 @@ ENCUADRES-FCQI | UABC
 
   return {
     obtenerAlumnos,
+    agregarAlumno,
     registrarAlumno,
     regenerarClave,
     enviarCorreo,

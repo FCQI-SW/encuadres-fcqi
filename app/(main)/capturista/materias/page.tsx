@@ -324,9 +324,7 @@ export default function Materias() {
 
   return (
     <div className="px-4 py-8">
-      <h1 className="mb-6 text-center text-2xl font-bold">
-        Materias - Capturista
-      </h1>
+  
 
       <div className="mx-auto max-w-6xl mb-6 p-4 border rounded-lg bg-muted/30">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

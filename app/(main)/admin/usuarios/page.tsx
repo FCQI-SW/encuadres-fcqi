@@ -81,6 +81,42 @@ export default function UserManagementPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Mapa de normalización para Roles
+  const rolesNormalizados: { [key: string]: string } = {
+    "profesor": "profesor",
+    "profesora": "profesor",
+    "prof": "profesor",
+    "teacher": "profesor",
+    "docente": "profesor",
+    
+    "alumno": "alumno",
+    "alumna": "alumno",
+    "alumnos": "alumno",
+    "student": "alumno",
+    "estudiante": "alumno",
+    
+    "capturista": "capturista",
+    "capturist": "capturista",
+    "captura": "capturista",
+    "data entry": "capturista",
+    
+    "lector": "lector",
+    "lectora": "lector",
+    "reader": "lector",
+    "lectura": "lector",
+    
+    "admin": "admin",
+    "administrador": "admin",
+    "administrator": "admin",
+    "adm": "admin",
+  };
+
+  // Función para normalizar rol
+  const normalizarRol = (rol: string): string => {
+    const rolLower = rol.trim().toLowerCase();
+    return rolesNormalizados[rolLower] || rol;
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -274,29 +310,41 @@ export default function UserManagementPage() {
     }
 
     setSaving(true);
-    const { error } = await supabase.from("usuarios").insert([
-      {
-        correo: newUser.email.trim(),
-        nombre: newUser.name.trim(),
-        contraseña: newUser.password,
-        rol_id: newUser.role_id,
-      },
-    ]);
 
-    if (error) {
-      console.error("Error al crear usuario:", error.message);
-      setErrors([`Error al crear el usuario: ${error.message}`]);
+    try {
+      const response = await fetch("/api/usuarios/crear", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          correo: newUser.email.trim(),
+          nombre: newUser.name.trim(),
+          contraseña: newUser.password,
+          rol_id: newUser.role_id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrors([data.error || "Error al crear el usuario"]);
+        setSaving(false);
+        return;
+      }
+
+      setIsModalOpen(false);
+      setErrors([]);
+      toast.success(`Usuario "${newUser.email}" creado correctamente.`);
       setSaving(false);
-      return;
+
+      // Refrescar lista
+      await fetchData();
+    } catch (error: any) {
+      console.error("Error al crear usuario:", error);
+      setErrors(["Error al crear el usuario. Por favor intenta de nuevo."]);
+      setSaving(false);
     }
-
-    setIsModalOpen(false);
-    setErrors([]);
-    toast.success(`Usuario "${newUser.email}" creado correctamente.`);
-    setSaving(false);
-
-    // Refrescar lista
-    await fetchData();
   };
 
   // Importar desde Excel
@@ -319,14 +367,36 @@ export default function UserManagementPage() {
         return;
       }
 
+      // Crear mapa inverso de roles (nombre normalizado -> id)
+      const rolesNombreToId: Record<string, string> = {};
+      roles.forEach((rol) => {
+        // Normalizar el nombre del rol de la BD para comparación
+        const rolNormalizado = normalizarRol(rol.nombre);
+        rolesNombreToId[rolNormalizado.toLowerCase()] = rol.id;
+      });
+
       const bulkUsers = rows
         .filter((row: any) => row[0] && row[1]) // Solo filas con email y nombre
-        .map((row: any) => ({
-          correo: String(row[0] || "").trim(),
-          nombre: String(row[1] || "").trim(),
-          contraseña: String(row[2] || "password123"),
-          rol_id: String(row[3] || "").trim(),
-        }));
+        .map((row: any) => {
+          const correo = String(row[0] || "").trim();
+          const nombre = String(row[1] || "").trim();
+          const contraseña = String(row[2] || "password123");
+          const rolDelExcel = String(row[3] || "").trim();
+
+          // Normalizar el rol del Excel
+          const rolNormalizado = normalizarRol(rolDelExcel);
+          
+          // Buscar el rol_id por el rol normalizado
+          const rol_id = rolesNombreToId[rolNormalizado.toLowerCase()] || "";
+
+          return {
+            correo,
+            nombre,
+            contraseña,
+            rol_id,
+          };
+        })
+        .filter((u: any) => u.correo && u.nombre && u.rol_id); // Solo usuarios con todos los campos requeridos
 
       if (bulkUsers.length === 0) {
         setErrors(["No se encontraron usuarios válidos en el archivo."]);
@@ -334,22 +404,44 @@ export default function UserManagementPage() {
         return;
       }
 
-      const { error } = await supabase.from("usuarios").insert(bulkUsers);
-      if (error) {
-        console.error("Error al importar Excel:", error);
-        setErrors([`Error al importar usuarios: ${error.message}`]);
+      try {
+        const response = await fetch("/api/usuarios/crear-masivo", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ usuarios: bulkUsers }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setErrors([data.error || "Error al importar usuarios"]);
+          setSaving(false);
+          return;
+        }
+
+        setIsModalOpen(false);
+        setErrors([]);
+
+        if (data.detalles?.errores?.length > 0) {
+          toast.warning(
+            `Se importaron ${data.creados} usuarios. ${data.errores} usuarios tuvieron errores.`
+          );
+        } else {
+          toast.success(
+            `Se importaron ${data.creados} usuarios correctamente.`
+          );
+        }
+
         setSaving(false);
-        return;
+
+        await fetchData();
+      } catch (error: any) {
+        console.error("Error al importar Excel:", error);
+        setErrors(["Error al importar usuarios. Por favor intenta de nuevo."]);
+        setSaving(false);
       }
-
-      setIsModalOpen(false);
-      setErrors([]);
-      toast.success(
-        `Se importaron ${bulkUsers.length} usuarios correctamente.`
-      );
-      setSaving(false);
-
-      await fetchData();
     } catch (err: any) {
       console.error("Error leyendo Excel:", err);
       setErrors(["Error al leer el archivo Excel. Verifica el formato."]);
@@ -377,14 +469,14 @@ export default function UserManagementPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="space-y-3">
         <div>
-          <h1 className="text-2xl font-bold">Manejo de Usuarios</h1>
+          
           <p className="text-muted-foreground">
             Administra los usuarios del sistema
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center justify-between gap-2">
           <Button
             variant="outline"
             onClick={() => router.push("/admin")}

@@ -13,26 +13,41 @@ export async function POST(request: NextRequest) {
     const { correo, clave, encuadreId, profesorId, materiaNombre, grupo, periodo } = body;
 
     // Validaciones
-    if (!correo || !clave || !encuadreId || !profesorId) {
+    if (!correo || !encuadreId || !profesorId) {
       return NextResponse.json(
         { error: "Faltan campos requeridos" },
         { status: 400 }
       );
     }
 
+    // La clave solo es requerida si el usuario no existe
+    // Si el usuario ya existe, no necesitamos clave
+
     const correoLimpio = correo.trim().toLowerCase();
 
     // Verificar si el correo ya existe
-    const { data: usuarioExistente } = await supabaseAdmin
+    const { data: usuarioExistente, error: errorBuscarUsuario } = await supabaseAdmin
       .from("usuarios")
-      .select("id")
+      .select("id, rol_id, roles(nombre)")
       .eq("correo", correoLimpio)
       .single();
 
-    if (usuarioExistente) {
+    // Si el usuario ya existe, rechazar el registro y sugerir usar "Agregar alumno existente"
+    if (usuarioExistente && !errorBuscarUsuario) {
       return NextResponse.json(
-        { error: "Ya existe un usuario registrado con este correo electrónico" },
+        { 
+          error: "Ya existe un usuario con este correo. Usa la opción 'Agregar alumno existente' en su lugar." 
+        },
         { status: 409 }
+      );
+    }
+
+    // Si llegamos aquí, el usuario no existe, así que necesitamos crear uno nuevo
+    // La clave es requerida para usuarios nuevos
+    if (!clave || clave.trim() === "") {
+      return NextResponse.json(
+        { error: "Se requiere una clave para crear un nuevo usuario" },
+        { status: 400 }
       );
     }
 

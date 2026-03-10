@@ -96,7 +96,9 @@ export default function CursosLectorPage() {
         .select("id, materia_id")
         .in("id", programaIds);
 
-      const materiaIds = [...new Set((programas || []).map((p) => p.materia_id))];
+      const materiaIds = [
+        ...new Set((programas || []).map((p) => p.materia_id)),
+      ];
       const { data: materias } = await supabase
         .from("materias")
         .select("id, clave, nombre_materia")
@@ -139,7 +141,9 @@ export default function CursosLectorPage() {
       const programaMap = new Map((programas || []).map((p) => [p.id, p]));
       const materiaMap = new Map((materias || []).map((m) => [m.id, m]));
       const profesorMap = new Map((profesores || []).map((p) => [p.id, p]));
-      const unidadToProgramaMap = new Map((unidades || []).map((u) => [u.id, u.programa_id]));
+      const unidadToProgramaMap = new Map(
+        (unidades || []).map((u) => [u.id, u.programa_id])
+      );
 
       // Temas por programa
       const temasCountByPrograma = new Map<string, number>();
@@ -147,7 +151,10 @@ export default function CursosLectorPage() {
       (temas || []).forEach((t) => {
         const programaId = unidadToProgramaMap.get(t.unidad_id);
         if (programaId) {
-          temasCountByPrograma.set(programaId, (temasCountByPrograma.get(programaId) || 0) + 1);
+          temasCountByPrograma.set(
+            programaId,
+            (temasCountByPrograma.get(programaId) || 0) + 1
+          );
           if (!temaIdsByPrograma.has(programaId)) {
             temaIdsByPrograma.set(programaId, []);
           }
@@ -180,7 +187,8 @@ export default function CursosLectorPage() {
         const materia = programa ? materiaMap.get(programa.materia_id) : null;
         const profesor = profesorMap.get(encuadre.usuario_id);
         const totalTemas = temasCountByPrograma.get(encuadre.programa_id) || 0;
-        const temasDelPrograma = temaIdsByPrograma.get(encuadre.programa_id) || [];
+        const temasDelPrograma =
+          temaIdsByPrograma.get(encuadre.programa_id) || [];
         const totalAlumnos = alumnosPorEncuadre.get(encuadre.id) || 0;
 
         if (encuadre.periodo) periodosSet.add(encuadre.periodo);
@@ -214,9 +222,8 @@ export default function CursosLectorPage() {
           }
         }
 
-        const porcentaje = comparables > 0
-          ? Math.round((coincidencias / comparables) * 100)
-          : 0;
+        const porcentaje =
+          comparables > 0 ? Math.round((coincidencias / comparables) * 100) : 0;
 
         let nivel: "alta" | "moderada" | "baja" | "sin_datos" = "sin_datos";
         if (comparables > 0) {
@@ -287,7 +294,10 @@ export default function CursosLectorPage() {
   // Paginación
   const totalPages = Math.ceil(filteredCursos.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentItems = filteredCursos.slice(startIndex, startIndex + itemsPerPage);
+  const currentItems = filteredCursos.slice(
+    startIndex,
+    startIndex + itemsPerPage
+  );
 
   const getNivelBadge = (nivel: string, porcentaje: number) => {
     switch (nivel) {
@@ -329,20 +339,22 @@ export default function CursosLectorPage() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="space-y-3">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">Cursos</h1>
+        
           <p className="text-sm text-muted-foreground">
             Visualiza el progreso de todos los encuadres
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => router.push("/lector")}
-          className="cursor-pointer"
-        >
-          <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
-        </Button>
+        <div>
+          <Button
+            variant="outline"
+            onClick={() => router.push("/lector")}
+            className="cursor-pointer"
+          >
+            <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -425,8 +437,12 @@ export default function CursosLectorPage() {
                       <TableHead>Grupo</TableHead>
                       <TableHead>Periodo</TableHead>
                       <TableHead className="text-center">Alumnos</TableHead>
-                      <TableHead className="text-center">Avance Prof.</TableHead>
-                      <TableHead className="text-center">Coincidencia</TableHead>
+                      <TableHead className="text-center">
+                        Avance Prof.
+                      </TableHead>
+                      <TableHead className="text-center">
+                        Coincidencia
+                      </TableHead>
                       <TableHead>Acción</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -459,7 +475,9 @@ export default function CursosLectorPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => router.push(`/lector/cursos/${curso.id}`)}
+                            onClick={() =>
+                              router.push(`/lector/cursos/${curso.id}`)
+                            }
                             className="cursor-pointer"
                           >
                             <Eye className="h-4 w-4 mr-1" /> Ver
@@ -487,7 +505,9 @@ export default function CursosLectorPage() {
                     return (
                       <Button
                         key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
+                        variant={
+                          currentPage === pageNum ? "default" : "outline"
+                        }
                         className={
                           currentPage === pageNum
                             ? "bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
