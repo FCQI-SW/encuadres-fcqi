@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Table,
   TableBody,
@@ -34,6 +35,9 @@ import {
   CheckCircle,
   XCircle,
   X,
+  Copy,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
@@ -59,12 +63,14 @@ export type Materia = {
   estado: "Activa" | "Inactiva";
   periodo: string;
   plan_estudios: string;
+  archivada: boolean;
 };
 
 export default function MateriasPage() {
   const router = useRouter();
   const confirm = useConfirm();
   const toast = useToast();
+  const { data: session, status } = useSession();
 
   const [data, setData] = useState<Materia[]>([]);
   const [filteredData, setFilteredData] = useState<Materia[]>([]);
@@ -76,6 +82,8 @@ export default function MateriasPage() {
   const [selectedCategoria, setSelectedCategoria] = useState("all");
   const [selectedRequisito, setSelectedRequisito] = useState("all");
   const [selectedEstado, setSelectedEstado] = useState("all");
+  const [selectedArchivado, setSelectedArchivado] =
+    useState("no-archivadas");
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -91,6 +99,7 @@ export default function MateriasPage() {
     estado: "Activa",
     periodo: "",
     plan_estudios: "",
+    archivada: false,
   });
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -128,7 +137,7 @@ export default function MateriasPage() {
       const { data: materias, error } = await supabase
         .from("materias")
         .select(
-          "clave, nombre_materia, licenciatura, licenciatura_id, categoria, requisito, estado, periodo, plan_estudios"
+          "clave, nombre_materia, licenciatura, licenciatura_id, categoria, requisito, estado, periodo, plan_estudios, archivada"
         )
         .order("nombre_materia", { ascending: true });
 
@@ -147,6 +156,7 @@ export default function MateriasPage() {
         estado: m.estado,
         periodo: m.periodo || "",
         plan_estudios: m.plan_estudios || "",
+        archivada: m.archivada ?? false,
       }));
 
       setData(normalizadas);
@@ -169,6 +179,7 @@ export default function MateriasPage() {
     setSelectedCategoria("all");
     setSelectedRequisito("all");
     setSelectedEstado("all");
+    setSelectedArchivado("no-archivadas");
   };
 
   const hasActiveFilters =
@@ -176,10 +187,17 @@ export default function MateriasPage() {
     selectedLic !== "all" ||
     selectedCategoria !== "all" ||
     selectedRequisito !== "all" ||
-    selectedEstado !== "all";
+    selectedEstado !== "all" ||
+    selectedArchivado !== "no-archivadas";
 
   useEffect(() => {
     let temp = [...data];
+
+    if (selectedArchivado === "no-archivadas") {
+      temp = temp.filter((item) => !item.archivada);
+    } else if (selectedArchivado === "archivadas") {
+      temp = temp.filter((item) => item.archivada);
+    }
 
     if (selectedLic !== "all") {
       temp = temp.filter((item) => item.licenciatura_id === selectedLic);
@@ -217,6 +235,7 @@ export default function MateriasPage() {
     selectedCategoria,
     selectedRequisito,
     selectedEstado,
+    selectedArchivado,
     searchTerm,
   ]);
 
@@ -275,6 +294,11 @@ export default function MateriasPage() {
     const materiaActual = data.find((d) => d.clave === clave);
     if (!materiaActual) return;
 
+    if (materiaActual.archivada) {
+      toast.error("No puedes cambiar el estado de una materia archivada.");
+      return;
+    }
+
     const nuevoEstado =
       materiaActual.estado === "Activa" ? "Inactiva" : "Activa";
 
@@ -296,6 +320,69 @@ export default function MateriasPage() {
     );
 
     toast.success(`Estado de materia "${clave}" actualizado a ${nuevoEstado}.`);
+  }
+
+  async function toggleArchivado(clave: string) {
+    const materiaActual = data.find((d) => d.clave === clave);
+    if (!materiaActual) return;
+
+    if (status === "loading") {
+      toast.error("Espera un momento mientras se valida tu sesión.");
+      return;
+    }
+
+    if (!session?.user?.id) {
+      toast.error("No se pudo validar tu sesión.");
+      return;
+    }
+
+    const nuevoArchivado = !materiaActual.archivada;
+
+    const confirmed = await confirm({
+      title: nuevoArchivado ? "Archivar materia" : "Desarchivar materia",
+      message: nuevoArchivado
+        ? `La materia "${clave}" dejará de mostrarse en el catálogo operativo por defecto.`
+        : `La materia "${clave}" volverá a estar disponible en el catálogo operativo.`,
+      confirmText: nuevoArchivado ? "Sí, archivar" : "Sí, desarchivar",
+      cancelText: "Cancelar",
+    });
+
+    if (!confirmed) return;
+
+    const payload = nuevoArchivado
+      ? {
+          archivada: true,
+          archivada_at: new Date().toISOString(),
+          archivada_por: session.user.id,
+        }
+      : {
+          archivada: false,
+          archivada_at: null,
+          archivada_por: null,
+        };
+
+    const { error } = await supabase
+      .from("materias")
+      .update(payload)
+      .eq("clave", clave);
+
+    if (error) {
+      console.error("Error al archivar materia:", error);
+      toast.error("No se pudo actualizar el estado de archivo.");
+      return;
+    }
+
+    setData((prev) =>
+      prev.map((item) =>
+        item.clave === clave ? { ...item, archivada: nuevoArchivado } : item
+      )
+    );
+
+    toast.success(
+      nuevoArchivado
+        ? `Materia "${clave}" archivada correctamente.`
+        : `Materia "${clave}" desarchivada correctamente.`
+    );
   }
 
   async function handleDelete(clave: string) {
@@ -324,6 +411,11 @@ export default function MateriasPage() {
   }
 
   const handleEdit = (materia: Materia) => {
+    if (materia.archivada) {
+      toast.error("No puedes editar una materia archivada.");
+      return;
+    }
+
     setEditMateria(materia);
     setEditErrors([]);
     setShowEditForm(true);
@@ -627,6 +719,7 @@ export default function MateriasPage() {
       estado: newMateria.estado,
       periodo: newMateria.periodo.trim(),
       plan_estudios: newMateria.plan_estudios.trim(),
+      archivada: false,
     };
 
     const { error } = await supabase.from("materias").insert([payload]);
@@ -746,6 +839,7 @@ export default function MateriasPage() {
             estado: normalizarEstado(String(row[7] || "")) as
               | "Activa"
               | "Inactiva",
+            archivada: false,
           };
         })
         .filter(Boolean) as Materia[];
@@ -816,6 +910,7 @@ export default function MateriasPage() {
       estado: "Activa",
       periodo: "",
       plan_estudios: "",
+      archivada: false,
     });
     setErrors([]);
     setShowForm(true);
@@ -826,16 +921,18 @@ export default function MateriasPage() {
     setErrors([]);
   };
 
-  const stats = useMemo(
-    () => ({
-      total: data.length,
-      activas: data.filter((m) => m.estado === "Activa").length,
-      inactivas: data.filter((m) => m.estado === "Inactiva").length,
-      obligatorias: data.filter((m) => m.requisito === "obligatoria").length,
-      optativas: data.filter((m) => m.requisito === "optativa").length,
-    }),
-    [data]
-  );
+  const stats = useMemo(() => {
+    const noArchivadas = data.filter((m) => !m.archivada);
+    return {
+      total: noArchivadas.length,
+      activas: noArchivadas.filter((m) => m.estado === "Activa").length,
+      inactivas: noArchivadas.filter((m) => m.estado === "Inactiva").length,
+      obligatorias: noArchivadas.filter((m) => m.requisito === "obligatoria")
+        .length,
+      optativas: noArchivadas.filter((m) => m.requisito === "optativa").length,
+      archivadas: data.filter((m) => m.archivada).length,
+    };
+  }, [data]);
 
   if (loading) {
     return (
@@ -854,7 +951,7 @@ export default function MateriasPage() {
           </p>
         </div>
 
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <Button
             variant="outline"
             onClick={() => router.push("/admin")}
@@ -863,21 +960,32 @@ export default function MateriasPage() {
             <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
           </Button>
 
-          <Button
-            onClick={handleShowForm}
-            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
-          >
-            <Plus className="mr-2 h-4 w-4" /> Agregar materia
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => router.push("/admin/herramientas/clonar-periodo")}
+              className="cursor-pointer border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              Clonar periodo
+            </Button>
+
+            <Button
+              onClick={handleShowForm}
+              className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
+            >
+              <Plus className="mr-2 h-4 w-4" /> Agregar materia
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="text-sm text-muted-foreground">Total visibles</p>
                 <p className="text-2xl font-bold">{stats.total}</p>
               </div>
               <BookOpen className="h-8 w-8 text-gray-400" />
@@ -930,6 +1038,20 @@ export default function MateriasPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Archivadas</p>
+                <p className="text-2xl font-bold text-amber-600">
+                  {stats.archivadas}
+                </p>
+              </div>
+              <Archive className="h-8 w-8 text-amber-500" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -945,6 +1067,17 @@ export default function MateriasPage() {
                   className="w-80"
                 />
               </div>
+
+              <Select value={selectedArchivado} onValueChange={setSelectedArchivado}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Archivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no-archivadas">No archivadas</SelectItem>
+                  <SelectItem value="archivadas">Archivadas</SelectItem>
+                  <SelectItem value="todas">Todas</SelectItem>
+                </SelectContent>
+              </Select>
 
               <Select value={selectedLic} onValueChange={setSelectedLic}>
                 <SelectTrigger className="w-56">
@@ -1087,24 +1220,33 @@ export default function MateriasPage() {
                       <TableCell>{materia.plan_estudios || "-"}</TableCell>
 
                       <TableCell className="w-32 min-w-[120px]">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
-                              materia.estado === "Activa"
-                                ? "bg-green-500"
-                                : "bg-red-500"
-                            }`}
-                          />
-                          <span
-                            className={`whitespace-nowrap ${
-                              materia.estado === "Activa"
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }`}
-                          >
-                            {materia.estado}
-                          </span>
-                        </div>
+                        {materia.archivada ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-amber-500" />
+                            <span className="whitespace-nowrap text-amber-700">
+                              Archivada
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                                materia.estado === "Activa"
+                                  ? "bg-green-500"
+                                  : "bg-red-500"
+                              }`}
+                            />
+                            <span
+                              className={`whitespace-nowrap ${
+                                materia.estado === "Activa"
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {materia.estado}
+                            </span>
+                          </div>
+                        )}
                       </TableCell>
 
                       <TableCell>
@@ -1113,8 +1255,13 @@ export default function MateriasPage() {
                             variant="ghost"
                             size="icon"
                             className="text-blue-600 hover:text-blue-800 cursor-pointer"
-                            title="Editar"
+                            title={
+                              materia.archivada
+                                ? "No disponible en materias archivadas"
+                                : "Editar"
+                            }
                             onClick={() => handleEdit(materia)}
+                            disabled={materia.archivada}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -1138,16 +1285,39 @@ export default function MateriasPage() {
                                 : "text-gray-600 hover:text-gray-800"
                             }`}
                             title={
-                              materia.estado === "Activa"
+                              materia.archivada
+                                ? "No disponible en materias archivadas"
+                                : materia.estado === "Activa"
                                 ? "Desactivar"
                                 : "Activar"
                             }
                             onClick={() => toggleEstado(materia.clave)}
+                            disabled={materia.archivada}
                           >
                             {materia.estado === "Activa" ? (
                               <ToggleRight className="w-4 h-4" />
                             ) : (
                               <ToggleLeft className="w-4 h-4" />
+                            )}
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`cursor-pointer ${
+                              materia.archivada
+                                ? "text-amber-700 hover:text-amber-800"
+                                : "text-amber-600 hover:text-amber-700"
+                            }`}
+                            title={
+                              materia.archivada ? "Desarchivar" : "Archivar"
+                            }
+                            onClick={() => toggleArchivado(materia.clave)}
+                          >
+                            {materia.archivada ? (
+                              <ArchiveRestore className="w-4 h-4" />
+                            ) : (
+                              <Archive className="w-4 h-4" />
                             )}
                           </Button>
                         </div>
