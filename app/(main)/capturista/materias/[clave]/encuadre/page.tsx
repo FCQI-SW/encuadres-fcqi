@@ -53,6 +53,12 @@ type CriterioCalificacion = {
   descripcion: string;
 };
 
+type AsignacionProfesorGrupo = {
+  profesorId: string;
+  grupo: string;
+  encuadreId?: string;
+};
+
 export default function EncuadreMateria() {
   const router = useRouter();
   const params = useParams<{ clave: string }>();
@@ -65,9 +71,10 @@ export default function EncuadreMateria() {
   const [materia, setMateria] = useState<Materia | null>(null);
   const [programaId, setProgramaId] = useState<string>("");
   const [profesores, setProfesores] = useState<Profesor[]>([]);
-  const [profesorId, setProfesorId] = useState("");
+  const [asignaciones, setAsignaciones] = useState<AsignacionProfesorGrupo[]>([
+    { profesorId: "", grupo: "" },
+  ]);
   const [periodo, setPeriodo] = useState("");
-  const [grupo, setGrupo] = useState("");
   const [descripcionEvaluacion, setDescripcionEvaluacion] = useState("");
   const [derechoOrdinario, setDerechoOrdinario] = useState("");
   const [derechoExtraordinario, setDerechoExtraordinario] = useState("");
@@ -97,6 +104,7 @@ export default function EncuadreMateria() {
 
   useEffect(() => {
     let isMounted = true;
+
     (async () => {
       setLoadingData(true);
 
@@ -149,20 +157,25 @@ export default function EncuadreMateria() {
 
       setLoadingData(false);
     })();
+
     return () => {
       isMounted = false;
     };
   }, [clave]);
 
-  // Cargar encuadre existente
   useEffect(() => {
     if (!programaId) return;
 
     (async () => {
       const encuadre = await cargarEncuadre();
+
       if (encuadre) {
-        setProfesorId(encuadre.usuario_id || "");
-        setGrupo(encuadre.grupo || "");
+        setAsignaciones(
+          encuadre.asignaciones && encuadre.asignaciones.length > 0
+            ? encuadre.asignaciones
+            : [{ profesorId: "", grupo: "" }]
+        );
+
         setDescripcionEvaluacion(encuadre.descripcion_evaluacion || "");
         setDerechoOrdinario(encuadre.derecho_ordinario || "");
         setDerechoExtraordinario(encuadre.derecho_extraordinario || "");
@@ -188,7 +201,11 @@ export default function EncuadreMateria() {
   }, [programaId]);
 
   const handleBack = async () => {
-    if (profesorId || grupo) {
+    const hayCambios = asignaciones.some(
+      (a) => a.profesorId.trim() || a.grupo.trim()
+    );
+
+    if (hayCambios) {
       const shouldLeave = await confirm({
         title: "¿Salir sin guardar?",
         message:
@@ -201,6 +218,26 @@ export default function EncuadreMateria() {
     }
 
     router.push("/capturista/materias");
+  };
+
+  const agregarAsignacion = () => {
+    setAsignaciones((prev) => [...prev, { profesorId: "", grupo: "" }]);
+  };
+
+  const eliminarAsignacion = (index: number) => {
+    setAsignaciones((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const actualizarAsignacion = (
+    index: number,
+    field: keyof AsignacionProfesorGrupo,
+    value: string
+  ) => {
+    setAsignaciones((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
   };
 
   const handleGuardar = async () => {
@@ -227,16 +264,6 @@ export default function EncuadreMateria() {
       return;
     }
 
-    if (!profesorId) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor selecciona un profesor.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
     if (!periodo.trim()) {
       await confirm({
         title: "Periodo no configurado",
@@ -248,10 +275,47 @@ export default function EncuadreMateria() {
       return;
     }
 
-    if (!grupo.trim()) {
+    const asignacionesLimpias = asignaciones.map((a) => ({
+      ...a,
+      profesorId: a.profesorId.trim(),
+      grupo: a.grupo.trim(),
+    }));
+
+    if (asignacionesLimpias.length === 0) {
       await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa el grupo.",
+        title: "Sin asignaciones",
+        message: "Debes agregar al menos un profesor con su grupo.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    const filaIncompleta = asignacionesLimpias.find(
+      (a) => !a.profesorId || !a.grupo
+    );
+
+    if (filaIncompleta) {
+      await confirm({
+        title: "Asignación incompleta",
+        message:
+          "Todas las asignaciones deben tener profesor y grupo completos.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    const keys = asignacionesLimpias.map(
+      (a) => `${a.profesorId}::${a.grupo.toUpperCase()}`
+    );
+    const keysSet = new Set(keys);
+
+    if (keys.length !== keysSet.size) {
+      await confirm({
+        title: "Asignaciones duplicadas",
+        message:
+          "No puedes repetir la misma combinación de profesor y grupo.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -278,6 +342,7 @@ export default function EncuadreMateria() {
         (sum, c) => sum + c.valor,
         0
       );
+
       if (totalPorcentaje !== 100) {
         await confirm({
           title: "Porcentajes incorrectos",
@@ -350,10 +415,10 @@ export default function EncuadreMateria() {
     );
 
     const success = await guardarEncuadre({
-      programaId: programaId,
-      usuarioId: profesorId,
+      programaId,
+      editorId: session.user.id,
+      asignaciones: asignacionesLimpias,
       periodo,
-      grupo,
       descripcionEvaluacion,
       derechoOrdinario,
       derechoExtraordinario,
@@ -466,71 +531,115 @@ export default function EncuadreMateria() {
           </p>
         </div>
 
-        {/* Datos básicos */}
         <Card>
           <CardHeader>
             <CardTitle>Datos del curso</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-            <div className="sm:col-span-3">
-              <Label className="mb-2 block">Clave</Label>
-              <Input value={materia.clave} disabled />
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+              <div className="sm:col-span-3">
+                <Label className="mb-2 block">Clave</Label>
+                <Input value={materia.clave} disabled />
+              </div>
+
+              <div className="sm:col-span-6">
+                <Label className="mb-2 block">Nombre del Curso</Label>
+                <Input value={materia.nombre} disabled />
+              </div>
+
+              <div className="sm:col-span-3">
+                <Label className="mb-2 block">
+                  Periodo <span className="text-red-500">*</span>
+                </Label>
+                <Input value={periodo} disabled className="bg-gray-100" />
+              </div>
             </div>
 
-            <div className="sm:col-span-9">
-              <Label className="mb-2 block">Nombre del Curso</Label>
-              <Input value={materia.nombre} disabled />
-            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">
+                  Profesores y grupos
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={agregarAsignacion}
+                  className="cursor-pointer"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Agregar profesor y grupo
+                </Button>
+              </div>
 
-            <div className="sm:col-span-6">
-              <Label className="mb-2 block">
-                Profesor <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={profesorId}
-                onValueChange={setProfesorId}
-                disabled={loadingData || profesores.length === 0}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder={
-                      loadingData ? "Cargando..." : "Seleccione un profesor"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {profesores.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
+              {asignaciones.map((asignacion, index) => (
+                <div
+                  key={index}
+                  className="grid grid-cols-1 gap-4 rounded-lg border p-4 md:grid-cols-12"
+                >
+                  <div className="md:col-span-7">
+                    <Label className="mb-2 block">
+                      Profesor <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={asignacion.profesorId}
+                      onValueChange={(value) =>
+                        actualizarAsignacion(index, "profesorId", value)
+                      }
+                      disabled={loadingData || profesores.length === 0}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue
+                          placeholder={
+                            loadingData
+                              ? "Cargando..."
+                              : "Seleccione un profesor"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {profesores.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-          <div className="sm:col-span-3">
-  <Label className="mb-2 block">
-    Periodo <span className="text-red-500">*</span>
-  </Label>
-  <Input value={periodo} disabled className="bg-gray-100" />
-</div>
+                  <div className="md:col-span-3">
+                    <Label className="mb-2 block">
+                      Grupo <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      value={asignacion.grupo}
+                      onChange={(e) =>
+                        actualizarAsignacion(index, "grupo", e.target.value)
+                      }
+                      placeholder="301"
+                    />
+                  </div>
 
-            <div className="sm:col-span-3">
-              <Label className="mb-2 block">
-                Grupo <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                value={grupo}
-                onChange={(e) => setGrupo(e.target.value)}
-                placeholder="301"
-              />
+                  <div className="md:col-span-2 flex items-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => eliminarAsignacion(index)}
+                      disabled={asignaciones.length === 1}
+                      className="w-full cursor-pointer text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Quitar
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* Evaluación de Curso */}
         <Card>
           <CardHeader>
             <CardTitle>Evaluación de Curso</CardTitle>
@@ -668,7 +777,6 @@ export default function EncuadreMateria() {
           </CardContent>
         </Card>
 
-        {/* Derecho Examen Ordinario y Extraordinario */}
         <Card>
           <CardHeader>
             <CardTitle>Derecho Examen Ordinario y Extraordinario</CardTitle>
@@ -698,7 +806,6 @@ export default function EncuadreMateria() {
           </CardContent>
         </Card>
 
-        {/* Descripción de Producto */}
         <Card>
           <CardHeader>
             <CardTitle>
@@ -719,7 +826,6 @@ export default function EncuadreMateria() {
           </CardContent>
         </Card>
 
-        {/* Bibliografía */}
         <Card>
           <CardHeader>
             <CardTitle>Bibliografía, Referencias y Recurso de la Red</CardTitle>
@@ -734,7 +840,6 @@ export default function EncuadreMateria() {
           </CardContent>
         </Card>
 
-        {/* Normas de Conducta */}
         <Card>
           <CardHeader>
             <CardTitle>Normas de Conducta dentro del Salón de Clases</CardTitle>

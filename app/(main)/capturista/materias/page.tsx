@@ -22,7 +22,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertCircle, Loader2, Search, FileText, ClipboardList } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Search,
+  FileText,
+  ClipboardList,
+} from "lucide-react";
 import { Label } from "@/components/ui/label";
 
 type MateriaEstado = {
@@ -37,20 +44,36 @@ type MateriaEstado = {
   edicionEncuadre?: Date;
 };
 
-type FiltroProgreso = 
-  | "todas" 
+type FiltroProgreso =
+  | "todas"
   | "ambos-completos"
   | "ambos-pendientes"
-  | "encuadre-pendiente" 
+  | "encuadre-pendiente"
   | "pua-pendiente";
+
+type CriterioDB = {
+  encuadre_id: string;
+  criterio: string | null;
+  valor: number | null;
+};
+
+type EncuadreDB = {
+  id: string;
+  usuario_id: string | null;
+  grupo: string | null;
+  periodo: string | null;
+  ultimo_editor_id: string | null;
+  ultima_edicion: string | null;
+};
 
 export default function Materias() {
   const [materias, setMaterias] = useState<MateriaEstado[]>([]);
   const [materiasFiltradas, setMateriasFiltradas] = useState<MateriaEstado[]>([]);
-  
+
   const [busqueda, setBusqueda] = useState("");
-  const [filtroProgreso, setFiltroProgreso] = useState<FiltroProgreso>("todas");
-  
+  const [filtroProgreso, setFiltroProgreso] =
+    useState<FiltroProgreso>("todas");
+
   const [loading, setLoading] = useState(true);
 
   const fetchMaterias = async () => {
@@ -92,67 +115,129 @@ export default function Materias() {
         let edicionEncuadre: Date | undefined;
 
         if (programa) {
-          // Información del editor PUA
+          // =========================
+          // Última edición de PUA
+          // =========================
           if (programa.ultimo_editor_id) {
             const { data: editorData } = await supabase
               .from("usuarios")
               .select("nombre")
               .eq("id", programa.ultimo_editor_id)
               .single();
-            
+
             editorPua = editorData?.nombre;
-            edicionPua = programa.ultima_edicion ? new Date(programa.ultima_edicion) : undefined;
+            edicionPua = programa.ultima_edicion
+              ? new Date(programa.ultima_edicion)
+              : undefined;
           }
 
-          // Verificar encuadre
-          const { data: encuadre } = await supabase
+          // =========================
+          // Verificar TODOS los encuadres del programa
+          // =========================
+          const { data: encuadres, error: encuadresError } = await supabase
             .from("encuadres")
             .select(`
               id,
-              usuario_id, 
-              grupo, 
+              usuario_id,
+              grupo,
               periodo,
               ultimo_editor_id,
               ultima_edicion
             `)
-            .eq("programa_id", programa.id)
-            .single();
+            .eq("programa_id", programa.id);
 
-          // Verificar criterios de evaluación
-          let criteriosCompletos = false;
-          if (encuadre?.id) {
-            const { data: criterios } = await supabase
+          if (encuadresError) {
+            console.error(
+              `Error al obtener encuadres de ${materia.clave}:`,
+              encuadresError
+            );
+          }
+
+          const encuadresLista = (encuadres || []) as EncuadreDB[];
+
+          if (encuadresLista.length > 0) {
+            const encuadreIds = encuadresLista.map((e) => e.id);
+
+            const { data: criteriosData, error: criteriosError } = await supabase
               .from("criterios_evaluacion")
-              .select("criterio, valor")
-              .eq("encuadre_id", encuadre.id);
+              .select("encuadre_id, criterio, valor")
+              .in("encuadre_id", encuadreIds);
 
-            if (criterios && criterios.length > 0) {
-              const criteriosConNombre = criterios.filter((c) => c.criterio?.trim());
-              const totalPorcentaje = criteriosConNombre.reduce((sum, c) => sum + (c.valor || 0), 0);
-              criteriosCompletos = criteriosConNombre.length > 0 && totalPorcentaje === 100;
+            if (criteriosError) {
+              console.error(
+                `Error al obtener criterios de ${materia.clave}:`,
+                criteriosError
+              );
+            }
+
+            const criterios = (criteriosData || []) as CriterioDB[];
+
+            const criteriosPorEncuadre = new Map<string, CriterioDB[]>();
+
+            for (const criterio of criterios) {
+              if (!criteriosPorEncuadre.has(criterio.encuadre_id)) {
+                criteriosPorEncuadre.set(criterio.encuadre_id, []);
+              }
+              criteriosPorEncuadre.get(criterio.encuadre_id)!.push(criterio);
+            }
+
+            encuadreCompleto = encuadresLista.every((encuadre) => {
+              const criteriosDelEncuadre =
+                criteriosPorEncuadre.get(encuadre.id) || [];
+
+              const criteriosConNombre = criteriosDelEncuadre.filter((c) =>
+                c.criterio?.trim()
+              );
+
+              const totalPorcentaje = criteriosConNombre.reduce(
+                (sum, c) => sum + (c.valor || 0),
+                0
+              );
+
+              const criteriosCompletos =
+                criteriosConNombre.length > 0 && totalPorcentaje === 100;
+
+              return !!(
+                encuadre.usuario_id &&
+                encuadre.grupo?.trim() &&
+                encuadre.periodo?.trim() &&
+                criteriosCompletos
+              );
+            });
+
+            // =========================
+            // Última edición de Encuadre
+            // toma el más reciente entre todos
+            // =========================
+            const encuadreMasReciente = [...encuadresLista]
+              .filter((e) => e.ultima_edicion)
+              .sort((a, b) => {
+                const fechaA = a.ultima_edicion
+                  ? new Date(a.ultima_edicion).getTime()
+                  : 0;
+                const fechaB = b.ultima_edicion
+                  ? new Date(b.ultima_edicion).getTime()
+                  : 0;
+                return fechaB - fechaA;
+              })[0];
+
+            if (encuadreMasReciente?.ultimo_editor_id) {
+              const { data: editorData } = await supabase
+                .from("usuarios")
+                .select("nombre")
+                .eq("id", encuadreMasReciente.ultimo_editor_id)
+                .single();
+
+              editorEncuadre = editorData?.nombre;
+              edicionEncuadre = encuadreMasReciente.ultima_edicion
+                ? new Date(encuadreMasReciente.ultima_edicion)
+                : undefined;
             }
           }
 
-          encuadreCompleto = !!(
-            encuadre?.usuario_id &&
-            encuadre?.grupo &&
-            encuadre?.periodo &&
-            criteriosCompletos
-          );
-
-          // Información del editor Encuadre
-          if (encuadre?.ultimo_editor_id) {
-            const { data: editorData } = await supabase
-              .from("usuarios")
-              .select("nombre")
-              .eq("id", encuadre.ultimo_editor_id)
-              .single();
-            
-            editorEncuadre = editorData?.nombre;
-            edicionEncuadre = encuadre.ultima_edicion ? new Date(encuadre.ultima_edicion) : undefined;
-          }
-
-          // Verificar PUA completo (incluyendo prácticas de taller)
+          // =========================
+          // Verificar PUA completo
+          // =========================
           const numUnidades = programa.unidades || 0;
           const camposBasicosCompletos = !!(
             programa.proposito &&
@@ -162,7 +247,6 @@ export default function Materias() {
           );
 
           if (camposBasicosCompletos) {
-            // Verificar unidades completas
             const { data: unidades } = await supabase
               .from("unidades")
               .select("numero, nombre, competencia, contenido, duracion")
@@ -176,10 +260,11 @@ export default function Materias() {
                 u.duracion > 0
             );
 
-            const todasUnidadesCompletas = unidadesCompletas.length === numUnidades;
+            const todasUnidadesCompletas =
+              unidadesCompletas.length === numUnidades;
 
-            // Verificar prácticas de taller completas
             let practicasTallerCompletas = false;
+
             const { data: practicasTaller } = await supabase
               .from("practicas_taller")
               .select("competencia, descripcion, duracion")
@@ -192,13 +277,14 @@ export default function Materias() {
                   p.descripcion?.trim() &&
                   p.duracion > 0
               );
-              practicasTallerCompletas = practicasValidas.length === practicasTaller.length;
+
+              practicasTallerCompletas =
+                practicasValidas.length === practicasTaller.length;
             } else {
-              // Si no hay prácticas, considerar como completo
+              // Si no hay prácticas, sigue como pendiente
               practicasTallerCompletas = false;
             }
 
-            // PUA está completo solo si todo está completo
             puaCompleto = todasUnidadesCompletas && practicasTallerCompletas;
           } else {
             puaCompleto = false;
@@ -242,10 +328,14 @@ export default function Materias() {
 
     switch (filtroProgreso) {
       case "ambos-completos":
-        filtradas = filtradas.filter((m) => m.encuadreCompleto && m.puaCompleto);
+        filtradas = filtradas.filter(
+          (m) => m.encuadreCompleto && m.puaCompleto
+        );
         break;
       case "ambos-pendientes":
-        filtradas = filtradas.filter((m) => !m.encuadreCompleto && !m.puaCompleto);
+        filtradas = filtradas.filter(
+          (m) => !m.encuadreCompleto && !m.puaCompleto
+        );
         break;
       case "encuadre-pendiente":
         filtradas = filtradas.filter((m) => !m.encuadreCompleto);
@@ -263,27 +353,24 @@ export default function Materias() {
     setFiltroProgreso("todas");
   };
 
-  // Función para formatear fecha
   const formatearFecha = (fecha: Date) => {
     const opciones: Intl.DateTimeFormatOptions = {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     };
-    return fecha.toLocaleDateString('es-MX', opciones);
+    return fecha.toLocaleDateString("es-MX", opciones);
   };
 
-  // Función para determinar qué mostrar
   const obtenerInfoEdicion = (m: MateriaEstado) => {
     const editoPua = !!m.editorPua;
     const editoEncuadre = !!m.editorEncuadre;
 
     if (editoPua && editoEncuadre) {
-      // Ambos editados - mostrar ambos
       return {
-        tipo: "ambos",
+        tipo: "ambos" as const,
         pua: {
           editor: m.editorPua!,
           fecha: m.edicionPua!,
@@ -291,23 +378,23 @@ export default function Materias() {
         encuadre: {
           editor: m.editorEncuadre!,
           fecha: m.edicionEncuadre!,
-        }
+        },
       };
     } else if (editoPua) {
       return {
-        tipo: "pua",
+        tipo: "pua" as const,
         pua: {
           editor: m.editorPua!,
           fecha: m.edicionPua!,
-        }
+        },
       };
     } else if (editoEncuadre) {
       return {
-        tipo: "encuadre",
+        tipo: "encuadre" as const,
         encuadre: {
           editor: m.editorEncuadre!,
           fecha: m.edicionEncuadre!,
-        }
+        },
       };
     }
 
@@ -324,8 +411,6 @@ export default function Materias() {
 
   return (
     <div className="px-4 py-8">
-  
-
       <div className="mx-auto max-w-6xl mb-6 p-4 border rounded-lg bg-muted/30">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-2">
@@ -348,17 +433,30 @@ export default function Materias() {
             <Label className="mb-2 block text-sm font-medium">
               Filtrar por progreso
             </Label>
-            <Select value={filtroProgreso} onValueChange={(value) => setFiltroProgreso(value as FiltroProgreso)}>
+            <Select
+              value={filtroProgreso}
+              onValueChange={(value) =>
+                setFiltroProgreso(value as FiltroProgreso)
+              }
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
                   <SelectItem value="todas">Todas las materias</SelectItem>
-                  <SelectItem value="ambos-completos">✅ Ambos completos</SelectItem>
-                  <SelectItem value="ambos-pendientes">⚠️ Ambos pendientes</SelectItem>
-                  <SelectItem value="encuadre-pendiente">Encuadre pendiente</SelectItem>
-                  <SelectItem value="pua-pendiente">PUA pendiente</SelectItem>
+                  <SelectItem value="ambos-completos">
+                    ✅ Ambos completos
+                  </SelectItem>
+                  <SelectItem value="ambos-pendientes">
+                    ⚠️ Ambos pendientes
+                  </SelectItem>
+                  <SelectItem value="encuadre-pendiente">
+                    Encuadre pendiente
+                  </SelectItem>
+                  <SelectItem value="pua-pendiente">
+                    PUA pendiente
+                  </SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
@@ -367,7 +465,8 @@ export default function Materias() {
 
         <div className="flex items-center justify-between mt-4 pt-4 border-t">
           <span className="text-sm text-muted-foreground">
-            Mostrando <span className="font-semibold">{materiasFiltradas.length}</span> de{" "}
+            Mostrando{" "}
+            <span className="font-semibold">{materiasFiltradas.length}</span> de{" "}
             <span className="font-semibold">{materias.length}</span> materias
           </span>
           {(busqueda || filtroProgreso !== "todas") && (
@@ -389,7 +488,9 @@ export default function Materias() {
             <TableRow>
               <TableHead className="w-[30%]">Nombre del curso</TableHead>
               <TableHead className="w-[15%] text-center">Clave</TableHead>
-              <TableHead className="w-[20%] text-center">Última edición</TableHead>
+              <TableHead className="w-[20%] text-center">
+                Última edición
+              </TableHead>
               <TableHead className="w-[35%] text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -407,7 +508,7 @@ export default function Materias() {
             ) : (
               materiasFiltradas.map((m) => {
                 const infoEdicion = obtenerInfoEdicion(m);
-                
+
                 return (
                   <TableRow key={m.id} className="hover:bg-muted/50">
                     <TableCell className="font-medium">
@@ -422,45 +523,66 @@ export default function Materias() {
                       <div className="flex flex-col items-center gap-2">
                         {infoEdicion ? (
                           <>
-                            {infoEdicion.tipo === "ambos" && infoEdicion.pua && infoEdicion.encuadre ? (
+                            {infoEdicion.tipo === "ambos" &&
+                            infoEdicion.pua &&
+                            infoEdicion.encuadre ? (
                               <>
-                                {/* PUA */}
                                 <div className="flex items-center gap-2 text-xs">
                                   <FileText className="h-3 w-3 text-[#00723F]" />
                                   <div className="flex flex-col items-start">
-                                    <span className="font-medium text-[#00723F]">PUA: {infoEdicion.pua.editor}</span>
-                                    <span className="text-muted-foreground">{formatearFecha(infoEdicion.pua.fecha)}</span>
+                                    <span className="font-medium text-[#00723F]">
+                                      PUA: {infoEdicion.pua.editor}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                      {formatearFecha(infoEdicion.pua.fecha)}
+                                    </span>
                                   </div>
                                 </div>
-                                {/* Encuadre */}
+
                                 <div className="flex items-center gap-2 text-xs">
                                   <ClipboardList className="h-3 w-3 text-blue-600" />
                                   <div className="flex flex-col items-start">
-                                    <span className="font-medium text-blue-600">Encuadre: {infoEdicion.encuadre.editor}</span>
-                                    <span className="text-muted-foreground">{formatearFecha(infoEdicion.encuadre.fecha)}</span>
+                                    <span className="font-medium text-blue-600">
+                                      Encuadre: {infoEdicion.encuadre.editor}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                      {formatearFecha(infoEdicion.encuadre.fecha)}
+                                    </span>
                                   </div>
                                 </div>
                               </>
-                            ) : infoEdicion.tipo === "pua" && infoEdicion.pua ? (
+                            ) : infoEdicion.tipo === "pua" &&
+                              infoEdicion.pua ? (
                               <div className="flex items-center gap-2 text-xs">
                                 <FileText className="h-3 w-3 text-[#00723F]" />
                                 <div className="flex flex-col items-start">
-                                  <span className="font-medium text-[#00723F]">PUA: {infoEdicion.pua.editor}</span>
-                                  <span className="text-muted-foreground">{formatearFecha(infoEdicion.pua.fecha)}</span>
+                                  <span className="font-medium text-[#00723F]">
+                                    PUA: {infoEdicion.pua.editor}
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {formatearFecha(infoEdicion.pua.fecha)}
+                                  </span>
                                 </div>
                               </div>
-                            ) : infoEdicion.tipo === "encuadre" && infoEdicion.encuadre ? (
+                            ) : infoEdicion.tipo === "encuadre" &&
+                              infoEdicion.encuadre ? (
                               <div className="flex items-center gap-2 text-xs">
                                 <ClipboardList className="h-3 w-3 text-blue-600" />
                                 <div className="flex flex-col items-start">
-                                  <span className="font-medium text-blue-600">Encuadre: {infoEdicion.encuadre.editor}</span>
-                                  <span className="text-muted-foreground">{formatearFecha(infoEdicion.encuadre.fecha)}</span>
+                                  <span className="font-medium text-blue-600">
+                                    Encuadre: {infoEdicion.encuadre.editor}
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {formatearFecha(infoEdicion.encuadre.fecha)}
+                                  </span>
                                 </div>
                               </div>
                             ) : null}
                           </>
                         ) : (
-                          <span className="text-xs text-muted-foreground">Sin ediciones</span>
+                          <span className="text-xs text-muted-foreground">
+                            Sin ediciones
+                          </span>
                         )}
                       </div>
                     </TableCell>
