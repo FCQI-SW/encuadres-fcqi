@@ -12,6 +12,7 @@ import {
   Loader2,
   AlertCircle,
   CalendarIcon,
+  ShieldCheck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -61,13 +62,11 @@ export default function ConfigurarFechaPage() {
   const [saving, setSaving] = useState(false);
   const [configId, setConfigId] = useState<string | null>(null);
 
-  // Fechas como strings (YYYY-MM-DD)
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
   const [startTime, setStartTime] = useState("08:00");
   const [endTime, setEndTime] = useState("23:59");
 
-  // Cargar configuración existente
   useEffect(() => {
     fetchConfiguracion();
   }, []);
@@ -90,7 +89,6 @@ export default function ConfigurarFechaPage() {
         setStartTime(data.hora_inicio || "08:00");
         setEndTime(data.hora_fin || "23:59");
       } else {
-        // Establecer fecha actual por defecto
         const today = format(new Date(), "yyyy-MM-dd");
         setFechaInicio(today);
         setFechaFin(today);
@@ -104,7 +102,6 @@ export default function ConfigurarFechaPage() {
     setLoading(false);
   }
 
-  // Validar fechas
   const validateDates = (): string[] => {
     const errors: string[] = [];
 
@@ -176,7 +173,6 @@ export default function ConfigurarFechaPage() {
     setSaving(false);
   }
 
-  // Calcular días seleccionados
   const calcularDias = (): number => {
     if (!fechaInicio || !fechaFin) return 0;
     try {
@@ -200,15 +196,14 @@ export default function ConfigurarFechaPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
       <div className="space-y-3">
         <div>
-          
           <p className="text-sm text-muted-foreground">
-            Establece el periodo de operación del sistema
+            Establece el periodo general de operación del sistema
           </p>
         </div>
-        <div>
+
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="outline"
             onClick={() => router.push("/admin")}
@@ -216,11 +211,19 @@ export default function ConfigurarFechaPage() {
           >
             <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
           </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => router.push("/admin/herramientas/permisos-especiales")}
+            className="cursor-pointer"
+          >
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Permisos especiales
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Selector de fechas */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -228,7 +231,7 @@ export default function ConfigurarFechaPage() {
               Rango de Fechas
             </CardTitle>
             <CardDescription>
-              Selecciona el periodo de operación
+              Selecciona el periodo general de operación
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -244,7 +247,6 @@ export default function ConfigurarFechaPage() {
                     onChange={(e) => {
                       const nuevaFechaInicio = e.target.value;
                       setFechaInicio(nuevaFechaInicio);
-                      // Si la fecha de fin es anterior a la nueva fecha de inicio, ajustarla
                       if (
                         fechaFin &&
                         nuevaFechaInicio &&
@@ -270,7 +272,6 @@ export default function ConfigurarFechaPage() {
                       if (input) {
                         input.showPicker?.();
                         if (!input.showPicker) {
-                          // Fallback para navegadores que no soportan showPicker
                           input.click();
                         }
                       }
@@ -292,6 +293,7 @@ export default function ConfigurarFechaPage() {
                   </p>
                 )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="fecha-fin">Fecha de fin</Label>
                 <div className="relative">
@@ -302,7 +304,6 @@ export default function ConfigurarFechaPage() {
                     min={fechaInicio || undefined}
                     onChange={(e) => {
                       const nuevaFechaFin = e.target.value;
-                      // Validar que la fecha de fin no sea anterior a la fecha de inicio
                       if (
                         fechaInicio &&
                         nuevaFechaFin &&
@@ -337,7 +338,6 @@ export default function ConfigurarFechaPage() {
                       if (input) {
                         input.showPicker?.();
                         if (!input.showPicker) {
-                          // Fallback para navegadores que no soportan showPicker
                           input.click();
                         }
                       }
@@ -363,7 +363,6 @@ export default function ConfigurarFechaPage() {
               </div>
             </div>
 
-            {/* Indicador visual del rango */}
             {fechaInicio && fechaFin && (
               <div className="p-4 bg-[#00723F]/10 rounded-lg">
                 <div className="flex items-center justify-center gap-2 text-[#00723F]">
@@ -382,9 +381,7 @@ export default function ConfigurarFechaPage() {
           </CardContent>
         </Card>
 
-        {/* Horarios y resumen */}
         <div className="space-y-6">
-          {/* Horarios */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -392,7 +389,7 @@ export default function ConfigurarFechaPage() {
                 Horarios
               </CardTitle>
               <CardDescription>
-                Define el horario de operación diario
+                Define el horario general de operación diario
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -419,7 +416,6 @@ export default function ConfigurarFechaPage() {
                         if (input) {
                           input.showPicker?.();
                           if (!input.showPicker) {
-                            // Fallback para navegadores que no soportan showPicker
                             input.click();
                           }
                         }
@@ -441,6 +437,7 @@ export default function ConfigurarFechaPage() {
                     </p>
                   )}
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="end-time">Hora de cierre</Label>
                   <div className="relative">
@@ -463,7 +460,6 @@ export default function ConfigurarFechaPage() {
                         if (input) {
                           input.showPicker?.();
                           if (!input.showPicker) {
-                            // Fallback para navegadores que no soportan showPicker
                             input.click();
                           }
                         }
@@ -489,7 +485,6 @@ export default function ConfigurarFechaPage() {
             </CardContent>
           </Card>
 
-          {/* Resumen */}
           <Card>
             <CardHeader>
               <CardTitle>Resumen de Configuración</CardTitle>
@@ -520,7 +515,6 @@ export default function ConfigurarFechaPage() {
             </CardContent>
           </Card>
 
-          {/* Botón guardar */}
           <Button
             onClick={handleSave}
             disabled={saving || !fechaInicio || !fechaFin}
@@ -541,7 +535,6 @@ export default function ConfigurarFechaPage() {
         </div>
       </div>
 
-      {/* Info adicional */}
       <Card className="bg-blue-50 border-blue-200">
         <CardContent className="pt-4">
           <div className="flex items-start gap-3">
@@ -550,16 +543,15 @@ export default function ConfigurarFechaPage() {
               <p className="font-medium mb-1">Información importante</p>
               <ul className="list-disc list-inside space-y-1 text-blue-700">
                 <li>
-                  El periodo de operación define cuándo los usuarios pueden
-                  realizar acciones en el sistema.
+                  Este periodo define la ventana general de operación del sistema.
                 </li>
                 <li>
-                  Los profesores y alumnos solo podrán registrar avances durante
-                  este periodo.
+                  Fuera de este rango, profesores y alumnos siguen pudiendo entrar al sistema,
+                  pero las acciones operativas deben controlarse por permisos especiales.
                 </li>
                 <li>
-                  Los horarios aplican para todos los días dentro del rango
-                  seleccionado.
+                  Si necesitas habilitar un encuadre puntual fuera de fecha, usa la pantalla
+                  de permisos especiales.
                 </li>
               </ul>
             </div>

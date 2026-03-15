@@ -38,6 +38,8 @@ import {
   Copy,
   Archive,
   ArchiveRestore,
+  FileText,
+  ClipboardList,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
@@ -54,6 +56,7 @@ export type Licenciatura = {
 };
 
 export type Materia = {
+  id?: string;
   clave: string;
   nombre_materia: string;
   licenciatura: string;
@@ -64,6 +67,22 @@ export type Materia = {
   periodo: string;
   plan_estudios: string;
   archivada: boolean;
+  editorPua?: string;
+  edicionPua?: Date;
+  editorEncuadre?: string;
+  edicionEncuadre?: Date;
+};
+
+type ProgramaDB = {
+  id: string;
+  ultimo_editor_id: string | null;
+  ultima_edicion: string | null;
+};
+
+type EncuadreDB = {
+  id: string;
+  ultimo_editor_id: string | null;
+  ultima_edicion: string | null;
 };
 
 export default function MateriasPage() {
@@ -115,6 +134,54 @@ export default function MateriasPage() {
 
   const normalizeText = (value: string) => value.trim().toLowerCase();
 
+  const formatearFecha = (fecha: Date) => {
+    const opciones: Intl.DateTimeFormatOptions = {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    };
+    return fecha.toLocaleDateString("es-MX", opciones);
+  };
+
+  const obtenerInfoEdicion = (m: Materia) => {
+    const editoPua = !!m.editorPua;
+    const editoEncuadre = !!m.editorEncuadre;
+
+    if (editoPua && editoEncuadre) {
+      return {
+        tipo: "ambos" as const,
+        pua: {
+          editor: m.editorPua!,
+          fecha: m.edicionPua!,
+        },
+        encuadre: {
+          editor: m.editorEncuadre!,
+          fecha: m.edicionEncuadre!,
+        },
+      };
+    } else if (editoPua) {
+      return {
+        tipo: "pua" as const,
+        pua: {
+          editor: m.editorPua!,
+          fecha: m.edicionPua!,
+        },
+      };
+    } else if (editoEncuadre) {
+      return {
+        tipo: "encuadre" as const,
+        encuadre: {
+          editor: m.editorEncuadre!,
+          fecha: m.edicionEncuadre!,
+        },
+      };
+    }
+
+    return null;
+  };
+
   const fetchLicenciaturas = async () => {
     const { data: licData, error } = await supabase
       .from("licenciaturas")
@@ -133,37 +200,111 @@ export default function MateriasPage() {
 
   const fetchMaterias = async () => {
     setLoading(true);
+
     try {
       const { data: materias, error } = await supabase
         .from("materias")
         .select(
-          "clave, nombre_materia, licenciatura, licenciatura_id, categoria, requisito, estado, periodo, plan_estudios, archivada"
+          "id, clave, nombre_materia, licenciatura, licenciatura_id, categoria, requisito, estado, periodo, plan_estudios, archivada"
         )
         .order("nombre_materia", { ascending: true });
 
       if (error) {
         console.error("Error al obtener materias:", error);
+        toast.error("No se pudieron cargar las materias.");
+        setLoading(false);
         return;
       }
 
-      const normalizadas: Materia[] = ((materias || []) as any[]).map((m) => ({
-        clave: m.clave,
-        nombre_materia: m.nombre_materia,
-        licenciatura: m.licenciatura || "",
-        licenciatura_id: m.licenciatura_id || "",
-        categoria: m.categoria,
-        requisito: m.requisito,
-        estado: m.estado,
-        periodo: m.periodo || "",
-        plan_estudios: m.plan_estudios || "",
-        archivada: m.archivada ?? false,
-      }));
+      const normalizadas = await Promise.all(
+        ((materias || []) as any[]).map(async (m) => {
+          let editorPua: string | undefined;
+          let edicionPua: Date | undefined;
+          let editorEncuadre: string | undefined;
+          let edicionEncuadre: Date | undefined;
+
+          const { data: programa } = await supabase
+            .from("programas")
+            .select("id, ultimo_editor_id, ultima_edicion")
+            .eq("materia_id", m.id)
+            .maybeSingle();
+
+          const programaData = programa as ProgramaDB | null;
+
+          if (programaData?.ultimo_editor_id) {
+            const { data: editorPrograma } = await supabase
+              .from("usuarios")
+              .select("nombre")
+              .eq("id", programaData.ultimo_editor_id)
+              .maybeSingle();
+
+            editorPua = editorPrograma?.nombre;
+            edicionPua = programaData.ultima_edicion
+              ? new Date(programaData.ultima_edicion)
+              : undefined;
+          }
+
+          if (programaData?.id) {
+            const { data: encuadres } = await supabase
+              .from("encuadres")
+              .select("id, ultimo_editor_id, ultima_edicion")
+              .eq("programa_id", programaData.id);
+
+            const encuadresLista = (encuadres || []) as EncuadreDB[];
+
+            const encuadreMasReciente = [...encuadresLista]
+              .filter((e) => e.ultima_edicion)
+              .sort((a, b) => {
+                const fechaA = a.ultima_edicion
+                  ? new Date(a.ultima_edicion).getTime()
+                  : 0;
+                const fechaB = b.ultima_edicion
+                  ? new Date(b.ultima_edicion).getTime()
+                  : 0;
+                return fechaB - fechaA;
+              })[0];
+
+            if (encuadreMasReciente?.ultimo_editor_id) {
+              const { data: editorEncuadreData } = await supabase
+                .from("usuarios")
+                .select("nombre")
+                .eq("id", encuadreMasReciente.ultimo_editor_id)
+                .maybeSingle();
+
+              editorEncuadre = editorEncuadreData?.nombre;
+              edicionEncuadre = encuadreMasReciente.ultima_edicion
+                ? new Date(encuadreMasReciente.ultima_edicion)
+                : undefined;
+            }
+          }
+
+          return {
+            id: m.id,
+            clave: m.clave,
+            nombre_materia: m.nombre_materia,
+            licenciatura: m.licenciatura || "",
+            licenciatura_id: m.licenciatura_id || "",
+            categoria: m.categoria,
+            requisito: m.requisito,
+            estado: m.estado,
+            periodo: m.periodo || "",
+            plan_estudios: m.plan_estudios || "",
+            archivada: m.archivada ?? false,
+            editorPua,
+            edicionPua,
+            editorEncuadre,
+            edicionEncuadre,
+          } as Materia;
+        })
+      );
 
       setData(normalizadas);
       setFilteredData(normalizadas);
     } catch (err) {
       console.error("Error:", err);
+      toast.error("Ocurrió un error al cargar las materias.");
     }
+
     setLoading(false);
   };
 
@@ -1173,157 +1314,234 @@ export default function MateriasPage() {
                     <TableHead>Requisito</TableHead>
                     <TableHead>Periodo</TableHead>
                     <TableHead>Plan</TableHead>
+                    <TableHead className="min-w-[220px]">Última edición</TableHead>
                     <TableHead className="w-32 min-w-[120px]">Estado</TableHead>
                     <TableHead>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                  {currentItems.map((materia) => (
-                    <TableRow key={materia.clave}>
-                      <TableCell className="font-medium max-w-[120px]">
-                        <span className="block truncate" title={materia.clave}>
-                          {materia.clave}
-                        </span>
-                      </TableCell>
+                  {currentItems.map((materia) => {
+                    const infoEdicion = obtenerInfoEdicion(materia);
 
-                      <TableCell className="max-w-[260px]">
-                        <span
-                          className="block truncate"
-                          title={materia.nombre_materia}
-                        >
-                          {materia.nombre_materia}
-                        </span>
-                      </TableCell>
+                    return (
+                      <TableRow key={materia.clave}>
+                        <TableCell className="font-medium max-w-[120px]">
+                          <span className="block truncate" title={materia.clave}>
+                            {materia.clave}
+                          </span>
+                        </TableCell>
 
-                      <TableCell>{materia.licenciatura || "-"}</TableCell>
+                        <TableCell className="max-w-[260px]">
+                          <span
+                            className="block truncate"
+                            title={materia.nombre_materia}
+                          >
+                            {materia.nombre_materia}
+                          </span>
+                        </TableCell>
 
-                      <TableCell>
-                        <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
-                          {materia.categoria}
-                        </span>
-                      </TableCell>
+                        <TableCell>{materia.licenciatura || "-"}</TableCell>
 
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 text-xs rounded-full ${
-                            materia.requisito === "obligatoria"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-purple-100 text-purple-700"
-                          }`}
-                        >
-                          {materia.requisito}
-                        </span>
-                      </TableCell>
+                        <TableCell>
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
+                            {materia.categoria}
+                          </span>
+                        </TableCell>
 
-                      <TableCell>{materia.periodo || "-"}</TableCell>
-                      <TableCell>{materia.plan_estudios || "-"}</TableCell>
+                        <TableCell>
+                          <span
+                            className={`px-2 py-1 text-xs rounded-full ${
+                              materia.requisito === "obligatoria"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-purple-100 text-purple-700"
+                            }`}
+                          >
+                            {materia.requisito}
+                          </span>
+                        </TableCell>
 
-                      <TableCell className="w-32 min-w-[120px]">
-                        {materia.archivada ? (
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-amber-500" />
-                            <span className="whitespace-nowrap text-amber-700">
-                              Archivada
-                            </span>
+                        <TableCell>{materia.periodo || "-"}</TableCell>
+                        <TableCell>{materia.plan_estudios || "-"}</TableCell>
+
+                        <TableCell>
+                          <div className="flex flex-col gap-2">
+                            {infoEdicion ? (
+                              <>
+                                {infoEdicion.tipo === "ambos" &&
+                                infoEdicion.pua &&
+                                infoEdicion.encuadre ? (
+                                  <>
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <FileText className="h-3 w-3 text-[#00723F]" />
+                                      <div className="flex flex-col items-start">
+                                        <span className="font-medium text-[#00723F]">
+                                          PUA: {infoEdicion.pua.editor}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                          {formatearFecha(infoEdicion.pua.fecha)}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <ClipboardList className="h-3 w-3 text-blue-600" />
+                                      <div className="flex flex-col items-start">
+                                        <span className="font-medium text-blue-600">
+                                          Encuadre: {infoEdicion.encuadre.editor}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                          {formatearFecha(
+                                            infoEdicion.encuadre.fecha
+                                          )}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </>
+                                ) : infoEdicion.tipo === "pua" &&
+                                  infoEdicion.pua ? (
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <FileText className="h-3 w-3 text-[#00723F]" />
+                                    <div className="flex flex-col items-start">
+                                      <span className="font-medium text-[#00723F]">
+                                        PUA: {infoEdicion.pua.editor}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        {formatearFecha(infoEdicion.pua.fecha)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : infoEdicion.tipo === "encuadre" &&
+                                  infoEdicion.encuadre ? (
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <ClipboardList className="h-3 w-3 text-blue-600" />
+                                    <div className="flex flex-col items-start">
+                                      <span className="font-medium text-blue-600">
+                                        Encuadre: {infoEdicion.encuadre.editor}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        {formatearFecha(
+                                          infoEdicion.encuadre.fecha
+                                        )}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                Sin ediciones
+                              </span>
+                            )}
                           </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
-                                materia.estado === "Activa"
-                                  ? "bg-green-500"
-                                  : "bg-red-500"
-                              }`}
-                            />
-                            <span
-                              className={`whitespace-nowrap ${
-                                materia.estado === "Activa"
-                                  ? "text-green-600"
-                                  : "text-red-600"
-                              }`}
+                        </TableCell>
+
+                        <TableCell className="w-32 min-w-[120px]">
+                          {materia.archivada ? (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-amber-500" />
+                              <span className="whitespace-nowrap text-amber-700">
+                                Archivada
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                                  materia.estado === "Activa"
+                                    ? "bg-green-500"
+                                    : "bg-red-500"
+                                }`}
+                              />
+                              <span
+                                className={`whitespace-nowrap ${
+                                  materia.estado === "Activa"
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {materia.estado}
+                              </span>
+                            </div>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-blue-600 hover:text-blue-800 cursor-pointer"
+                              title={
+                                materia.archivada
+                                  ? "No disponible en materias archivadas"
+                                  : "Editar"
+                              }
+                              onClick={() => handleEdit(materia)}
+                              disabled={materia.archivada}
                             >
-                              {materia.estado}
-                            </span>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-600 hover:text-red-800 cursor-pointer"
+                              title="Eliminar"
+                              onClick={() => handleDelete(materia.clave)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`cursor-pointer ${
+                                materia.estado === "Activa"
+                                  ? "text-green-600 hover:text-green-800"
+                                  : "text-gray-600 hover:text-gray-800"
+                              }`}
+                              title={
+                                materia.archivada
+                                  ? "No disponible en materias archivadas"
+                                  : materia.estado === "Activa"
+                                  ? "Desactivar"
+                                  : "Activar"
+                              }
+                              onClick={() => toggleEstado(materia.clave)}
+                              disabled={materia.archivada}
+                            >
+                              {materia.estado === "Activa" ? (
+                                <ToggleRight className="w-4 h-4" />
+                              ) : (
+                                <ToggleLeft className="w-4 h-4" />
+                              )}
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`cursor-pointer ${
+                                materia.archivada
+                                  ? "text-amber-700 hover:text-amber-800"
+                                  : "text-amber-600 hover:text-amber-700"
+                              }`}
+                              title={
+                                materia.archivada ? "Desarchivar" : "Archivar"
+                              }
+                              onClick={() => toggleArchivado(materia.clave)}
+                            >
+                              {materia.archivada ? (
+                                <ArchiveRestore className="w-4 h-4" />
+                              ) : (
+                                <Archive className="w-4 h-4" />
+                              )}
+                            </Button>
                           </div>
-                        )}
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-blue-600 hover:text-blue-800 cursor-pointer"
-                            title={
-                              materia.archivada
-                                ? "No disponible en materias archivadas"
-                                : "Editar"
-                            }
-                            onClick={() => handleEdit(materia)}
-                            disabled={materia.archivada}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-red-600 hover:text-red-800 cursor-pointer"
-                            title="Eliminar"
-                            onClick={() => handleDelete(materia.clave)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`cursor-pointer ${
-                              materia.estado === "Activa"
-                                ? "text-green-600 hover:text-green-800"
-                                : "text-gray-600 hover:text-gray-800"
-                            }`}
-                            title={
-                              materia.archivada
-                                ? "No disponible en materias archivadas"
-                                : materia.estado === "Activa"
-                                ? "Desactivar"
-                                : "Activar"
-                            }
-                            onClick={() => toggleEstado(materia.clave)}
-                            disabled={materia.archivada}
-                          >
-                            {materia.estado === "Activa" ? (
-                              <ToggleRight className="w-4 h-4" />
-                            ) : (
-                              <ToggleLeft className="w-4 h-4" />
-                            )}
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`cursor-pointer ${
-                              materia.archivada
-                                ? "text-amber-700 hover:text-amber-800"
-                                : "text-amber-600 hover:text-amber-700"
-                            }`}
-                            title={
-                              materia.archivada ? "Desarchivar" : "Archivar"
-                            }
-                            onClick={() => toggleArchivado(materia.clave)}
-                          >
-                            {materia.archivada ? (
-                              <ArchiveRestore className="w-4 h-4" />
-                            ) : (
-                              <Archive className="w-4 h-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
 

@@ -431,7 +431,7 @@ export default function EncuadreViewTab({
               className="w-72"
             />
             <p className="text-sm font-semibold text-center">
-              Estoy de acuerdo con los criterios de evaluación establecidos
+              El grupo manifiesta su conformidad con los criterios de evaluación establecidos.
             </p>
             <Button
               type="button"

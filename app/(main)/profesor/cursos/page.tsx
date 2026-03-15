@@ -51,6 +51,7 @@ import {
   X,
   CheckCircle,
   XCircle,
+  Archive,
 } from "lucide-react";
 
 type Curso = {
@@ -63,6 +64,7 @@ type Curso = {
   total_alumnos: number;
   firmas_completadas: number;
   avances_completados: number;
+  archivado: boolean;
 };
 
 type AlumnoDetalle = {
@@ -73,6 +75,8 @@ type AlumnoDetalle = {
   fecha: string | null;
 };
 
+type VistaCursos = "actuales" | "archivados" | "todos";
+
 export default function CursosProfesorPage() {
   const router = useRouter();
   const { data: session } = useSession();
@@ -82,6 +86,8 @@ export default function CursosProfesorPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPeriodo, setSelectedPeriodo] = useState<string>("Todos");
   const [selectedGrupo, setSelectedGrupo] = useState<string>("Todos");
+  const [selectedVista, setSelectedVista] = useState<VistaCursos>("actuales");
+  const [periodoActual, setPeriodoActual] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   // Estados para el modal de detalles
@@ -90,6 +96,34 @@ export default function CursosProfesorPage() {
   const [modalCurso, setModalCurso] = useState<Curso | null>(null);
   const [alumnosDetalle, setAlumnosDetalle] = useState<AlumnoDetalle[]>([]);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
+
+  const parsePeriodo = (periodo: string) => {
+    const match = periodo?.match(/^(\d{4})-(\d+)$/);
+    if (!match) return null;
+
+    return {
+      anio: Number(match[1]),
+      ciclo: Number(match[2]),
+    };
+  };
+
+  const comparePeriodos = (a: string, b: string) => {
+    const pa = parsePeriodo(a);
+    const pb = parsePeriodo(b);
+
+    if (pa && pb) {
+      if (pa.anio !== pb.anio) return pa.anio - pb.anio;
+      return pa.ciclo - pb.ciclo;
+    }
+
+    return a.localeCompare(b, "es", { numeric: true, sensitivity: "base" });
+  };
+
+  const obtenerPeriodoMasReciente = (periodos: string[]) => {
+    const unicos = Array.from(new Set(periodos.filter(Boolean)));
+    if (unicos.length === 0) return "";
+    return unicos.sort((a, b) => comparePeriodos(b, a))[0];
+  };
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -119,9 +153,15 @@ export default function CursosProfesorPage() {
       if (encuadres.length === 0) {
         setCursos([]);
         setFilteredCursos([]);
+        setPeriodoActual("");
         setLoading(false);
         return;
       }
+
+      const periodoActualCalculado = obtenerPeriodoMasReciente(
+        encuadres.map((e) => e.periodo || "")
+      );
+      setPeriodoActual(periodoActualCalculado);
 
       const programaIds = encuadres.map((e) => e.programa_id);
       const { data: programas } = await supabase
@@ -150,7 +190,7 @@ export default function CursosProfesorPage() {
         .select("encuadre_id, alumno_id")
         .in("encuadre_id", encuadreIds);
 
-      // Obtener avances (alumnos que han registrado al menos un check-in)
+      // Obtener avances
       const { data: avancesData } = await supabase
         .from("temas_checkin")
         .select("encuadre_id, usuario_id")
@@ -186,6 +226,10 @@ export default function CursosProfesorPage() {
         const programa = programaMap.get(e.programa_id);
         const materia = programa ? materiaMap.get(programa.materia_id) : null;
 
+        const esArchivado = periodoActualCalculado
+          ? comparePeriodos(e.periodo || "", periodoActualCalculado) < 0
+          : false;
+
         return {
           id: e.programa_id,
           encuadre_id: e.id,
@@ -196,6 +240,7 @@ export default function CursosProfesorPage() {
           total_alumnos: alumnosCountMap.get(e.id) || 0,
           firmas_completadas: firmasCountMap.get(e.id) || 0,
           avances_completados: avancesMap.get(e.id)?.size || 0,
+          archivado: esArchivado,
         };
       });
 
@@ -208,13 +253,11 @@ export default function CursosProfesorPage() {
     setLoading(false);
   };
 
-  // Cargar detalles de firmas o avances
   const cargarDetalle = async (curso: Curso, tipo: "firmas" | "avances") => {
     setLoadingDetalle(true);
     setAlumnosDetalle([]);
 
     try {
-      // Obtener todos los alumnos del encuadre
       const { data: alumnosEncuadre } = await supabase
         .from("encuadre_alumnos")
         .select(
@@ -237,7 +280,6 @@ export default function CursosProfesorPage() {
       }
 
       if (tipo === "firmas") {
-        // Obtener firmas de este encuadre
         const { data: firmas } = await supabase
           .from("encuadre_firmas")
           .select("alumno_id, firmado_at")
@@ -255,7 +297,6 @@ export default function CursosProfesorPage() {
           fecha: firmasMap.get(ae.alumno_id) || null,
         }));
 
-        // Ordenar: primero los que NO han firmado
         detalle.sort((a, b) => {
           if (a.completado === b.completado) return 0;
           return a.completado ? 1 : -1;
@@ -263,13 +304,11 @@ export default function CursosProfesorPage() {
 
         setAlumnosDetalle(detalle);
       } else {
-        // Obtener avances de este encuadre
         const { data: avances } = await supabase
           .from("temas_checkin")
           .select("usuario_id, created_at")
           .eq("encuadre_id", curso.encuadre_id);
 
-        // Agrupar por usuario y obtener la fecha más reciente
         const avancesMap = new Map<string, string>();
         (avances || []).forEach((a: any) => {
           const existente = avancesMap.get(a.usuario_id);
@@ -286,7 +325,6 @@ export default function CursosProfesorPage() {
           fecha: avancesMap.get(ae.alumno_id) || null,
         }));
 
-        // Ordenar: primero los que NO han registrado avances
         detalle.sort((a, b) => {
           if (a.completado === b.completado) return 0;
           return a.completado ? 1 : -1;
@@ -327,6 +365,13 @@ export default function CursosProfesorPage() {
   useEffect(() => {
     let filtered = [...cursos];
 
+    // Vista: actuales / archivados / todos
+    if (selectedVista === "actuales") {
+      filtered = filtered.filter((c) => !c.archivado);
+    } else if (selectedVista === "archivados") {
+      filtered = filtered.filter((c) => c.archivado);
+    }
+
     // Filtro por periodo
     if (selectedPeriodo !== "Todos") {
       filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
@@ -350,25 +395,30 @@ export default function CursosProfesorPage() {
     }
 
     setFilteredCursos(filtered);
-  }, [searchTerm, selectedPeriodo, selectedGrupo, cursos]);
+  }, [searchTerm, selectedPeriodo, selectedGrupo, selectedVista, cursos]);
 
-  const periodos = Array.from(new Set(cursos.map((c) => c.periodo)));
-  const grupos = Array.from(new Set(cursos.map((c) => c.grupo)));
+  const periodos = Array.from(new Set(cursos.map((c) => c.periodo))).sort((a, b) =>
+    comparePeriodos(b, a)
+  );
+  const grupos = Array.from(new Set(cursos.map((c) => c.grupo))).sort();
 
   const handleClearFilters = () => {
     setSearchTerm("");
     setSelectedPeriodo("Todos");
     setSelectedGrupo("Todos");
+    setSelectedVista("actuales");
   };
 
   const hasActiveFilters =
-    searchTerm || selectedPeriodo !== "Todos" || selectedGrupo !== "Todos";
+    searchTerm ||
+    selectedPeriodo !== "Todos" ||
+    selectedGrupo !== "Todos" ||
+    selectedVista !== "actuales";
 
   const handleVerCurso = (encuadreId: string) => {
     router.push(`/profesor/cursos/${encuadreId}`);
   };
 
-  // Función para obtener el color del badge según el porcentaje
   const getStatusColor = (completados: number, total: number) => {
     if (total === 0) return "bg-gray-100 text-gray-500";
     const porcentaje = (completados / total) * 100;
@@ -392,26 +442,29 @@ export default function CursosProfesorPage() {
     <TooltipProvider>
       <div className="px-4 py-8">
         <div className="mx-auto max-w-7xl space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <p className="text-gray-600 mt-1">
                 Administra tus cursos, alumnos y avances
               </p>
+              {periodoActual && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Periodo actual detectado:{" "}
+                  <span className="font-medium">{periodoActual}</span>
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <GraduationCap className="h-5 w-5" />
-              <span className="font-semibold">{cursos.length}</span>
-              <span>cursos asignados</span>
+              <span className="font-semibold">{filteredCursos.length}</span>
+              <span>cursos visibles</span>
             </div>
           </div>
 
-          {/* Filtros */}
           <Card>
             <CardContent className="pt-4">
               <div className="space-y-4">
-                {/* Búsqueda y filtros en la misma fila */}
                 <div className="flex flex-wrap items-center gap-4">
-                  {/* Búsqueda */}
                   <div className="flex items-center gap-2">
                     <Search className="h-5 w-5 text-gray-400" />
                     <Input
@@ -423,7 +476,22 @@ export default function CursosProfesorPage() {
                     />
                   </div>
 
-                  {/* Filtro por periodo */}
+                  <Select
+                    value={selectedVista}
+                    onValueChange={(value) =>
+                      setSelectedVista(value as VistaCursos)
+                    }
+                  >
+                    <SelectTrigger className="min-w-[180px]">
+                      <SelectValue placeholder="Vista" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="actuales">Cursos actuales</SelectItem>
+                      <SelectItem value="archivados">Cursos archivados</SelectItem>
+                      <SelectItem value="todos">Todos los cursos</SelectItem>
+                    </SelectContent>
+                  </Select>
+
                   <Select
                     value={selectedPeriodo}
                     onValueChange={setSelectedPeriodo}
@@ -441,7 +509,6 @@ export default function CursosProfesorPage() {
                     </SelectContent>
                   </Select>
 
-                  {/* Filtro por grupo */}
                   <Select
                     value={selectedGrupo}
                     onValueChange={setSelectedGrupo}
@@ -459,7 +526,6 @@ export default function CursosProfesorPage() {
                     </SelectContent>
                   </Select>
 
-                  {/* Botón limpiar filtros */}
                   {hasActiveFilters && (
                     <Button
                       variant="outline"
@@ -473,7 +539,6 @@ export default function CursosProfesorPage() {
                   )}
                 </div>
 
-                {/* Contador de resultados */}
                 <div className="text-sm text-muted-foreground">
                   Mostrando {filteredCursos.length} de {cursos.length} cursos
                 </div>
@@ -487,14 +552,10 @@ export default function CursosProfesorPage() {
                 <div className="text-center py-12">
                   <GraduationCap className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                    {searchTerm
-                      ? "No se encontraron cursos"
-                      : "Sin cursos asignados"}
+                    No se encontraron cursos
                   </h3>
                   <p className="text-gray-500">
-                    {searchTerm
-                      ? "Intenta con otros términos de búsqueda"
-                      : "Aún no tienes cursos asignados"}
+                    Intenta con otros filtros o revisa el periodo seleccionado
                   </p>
                 </div>
               </CardContent>
@@ -504,8 +565,7 @@ export default function CursosProfesorPage() {
               <CardHeader>
                 <CardTitle>Lista de Cursos</CardTitle>
                 <CardDescription>
-                  Haz clic en un curso para gestionar encuadre, alumnos y
-                  avances
+                  Los cursos de periodos anteriores se muestran como archivados
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -527,13 +587,25 @@ export default function CursosProfesorPage() {
                       {filteredCursos.map((curso) => (
                         <TableRow
                           key={curso.encuadre_id}
-                          className="hover:bg-gray-50 cursor-pointer"
+                          className={`cursor-pointer hover:bg-gray-50 ${
+                            curso.archivado ? "bg-amber-50/40" : ""
+                          }`}
                           onClick={() => handleVerCurso(curso.encuadre_id)}
                         >
                           <TableCell className="font-medium">
                             {curso.materia_clave}
                           </TableCell>
-                          <TableCell>{curso.materia_nombre}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span>{curso.materia_nombre}</span>
+                              {curso.archivado && (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                  <Archive className="h-3 w-3" />
+                                  Archivado
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>{curso.periodo}</TableCell>
                           <TableCell>{curso.grupo}</TableCell>
                           <TableCell className="text-center">
@@ -623,7 +695,6 @@ export default function CursosProfesorPage() {
         </div>
       </div>
 
-      {/* Modal de detalles de firmas/avances */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -642,7 +713,6 @@ export default function CursosProfesorPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Resumen */}
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
@@ -673,7 +743,6 @@ export default function CursosProfesorPage() {
             </div>
           </div>
 
-          {/* Tabla de alumnos */}
           {loadingDetalle ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-[#00723F]" />

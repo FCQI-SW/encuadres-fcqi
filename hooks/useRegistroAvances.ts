@@ -1,8 +1,7 @@
-// hooks/useRegistroAvances.ts
-
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
+import { resolverPermisoOperacion } from "@/lib/permisoOperacion";
 
 export type Tema = {
   id: number;
@@ -46,7 +45,6 @@ export function useRegistroAvances(encuadreId: string) {
     setError(null);
 
     try {
-      // 1. Obtener encuadre
       const { data: encuadre, error: errorEncuadre } = await supabase
         .from("encuadres")
         .select("id, programa_id, grupo, periodo, seccion, usuario_id")
@@ -59,7 +57,6 @@ export function useRegistroAvances(encuadreId: string) {
         return { header: null, temas: [] };
       }
 
-      // 2. Obtener programa y materia
       const { data: programa } = await supabase
         .from("programas")
         .select("id, materia_id, competencia")
@@ -72,14 +69,12 @@ export function useRegistroAvances(encuadreId: string) {
         .eq("id", programa?.materia_id)
         .single();
 
-      // 3. Obtener nombre del docente
       const { data: docente } = await supabase
         .from("usuarios")
         .select("nombre")
         .eq("id", encuadre.usuario_id)
         .single();
 
-      // 4. Obtener unidades del programa
       const { data: unidades, error: errorUnidades } = await supabase
         .from("unidades")
         .select("id, numero, nombre, competencia")
@@ -88,7 +83,7 @@ export function useRegistroAvances(encuadreId: string) {
 
       if (errorUnidades || !unidades || unidades.length === 0) {
         setLoading(false);
-        return { 
+        return {
           header: {
             asignatura: materia?.nombre_materia || "Sin información",
             clave: materia?.clave || "N/A",
@@ -97,12 +92,11 @@ export function useRegistroAvances(encuadreId: string) {
             docente: docente?.nombre || "Sin asignar",
             competencia: programa?.competencia || "",
             periodo: encuadre.periodo,
-          }, 
-          temas: [] 
+          },
+          temas: [],
         };
       }
 
-      // 5. Obtener temas de todas las unidades
       const unidadIds = unidades.map((u: any) => u.id);
       const { data: temas, error: errorTemas } = await supabase
         .from("temas")
@@ -112,7 +106,7 @@ export function useRegistroAvances(encuadreId: string) {
 
       if (errorTemas || !temas || temas.length === 0) {
         setLoading(false);
-        return { 
+        return {
           header: {
             asignatura: materia?.nombre_materia || "Sin información",
             clave: materia?.clave || "N/A",
@@ -121,12 +115,11 @@ export function useRegistroAvances(encuadreId: string) {
             docente: docente?.nombre || "Sin asignar",
             competencia: programa?.competencia || "",
             periodo: encuadre.periodo,
-          }, 
-          temas: [] 
+          },
+          temas: [],
         };
       }
 
-      // 6. Obtener checkins existentes del usuario para este grupo
       const temaIds = temas.map((t: any) => t.id);
       const { data: checkins } = await supabase
         .from("temas_checkin")
@@ -135,8 +128,11 @@ export function useRegistroAvances(encuadreId: string) {
         .eq("grupo", encuadre.grupo)
         .in("tema_id", temaIds);
 
-      // Crear mapa de checkins
-      const checkinMap = new Map<number, { id: number; tema_visto: boolean; justificacion: string }>();
+      const checkinMap = new Map<
+        number,
+        { id: number; tema_visto: boolean; justificacion: string }
+      >();
+
       (checkins || []).forEach((c: any) => {
         checkinMap.set(c.tema_id, {
           id: c.id,
@@ -145,13 +141,11 @@ export function useRegistroAvances(encuadreId: string) {
         });
       });
 
-      // Crear mapa de unidades
       const unidadMap = new Map<number, { numero: number; nombre: string }>();
       unidades.forEach((u: any) => {
         unidadMap.set(u.id, { numero: u.numero, nombre: u.nombre });
       });
 
-      // Combinar temas con checkins y datos de unidad
       const temasConCheckin: TemaConCheckin[] = temas.map((t: any) => {
         const checkin = checkinMap.get(t.id);
         const unidad = unidadMap.get(t.unidad_id);
@@ -168,7 +162,6 @@ export function useRegistroAvances(encuadreId: string) {
         };
       });
 
-      // Ordenar por unidad y luego por número de tema
       temasConCheckin.sort((a, b) => {
         if (a.unidad_numero !== b.unidad_numero) {
           return a.unidad_numero - b.unidad_numero;
@@ -200,23 +193,45 @@ export function useRegistroAvances(encuadreId: string) {
     respuestas: Record<number, { vista: boolean | null; justificacion: string }>,
     grupo: string
   ): Promise<{ success: boolean; error?: string }> => {
-    // Validación: sesión activa
     if (!session?.user?.id) {
-      return { success: false, error: "No hay sesión activa. Por favor, inicia sesión nuevamente." };
+      return {
+        success: false,
+        error: "No hay sesión activa. Por favor, inicia sesión nuevamente.",
+      };
     }
 
-    // Validación: grupo válido
     if (!grupo || grupo.trim() === "") {
       return { success: false, error: "El grupo no es válido." };
     }
 
-    // Validación: hay respuestas
+    const permisoOperacion = await resolverPermisoOperacion({
+      encuadreId,
+      userId: session.user.id,
+      rol: "profesor",
+    });
+
+    if (
+      !permisoOperacion.puede_registrar_avances ||
+      permisoOperacion.solo_lectura
+    ) {
+      return {
+        success: false,
+        error:
+          permisoOperacion.motivo ||
+          "No tienes permiso para registrar avances en este momento.",
+      };
+    }
+
     const respuestasValidas = Object.entries(respuestas).filter(
       ([_, data]) => data.vista !== null
     );
 
     if (respuestasValidas.length === 0) {
-      return { success: false, error: "No hay cambios para guardar. Marca al menos un tema como visto o no visto." };
+      return {
+        success: false,
+        error:
+          "No hay cambios para guardar. Marca al menos un tema como visto o no visto.",
+      };
     }
 
     setLoading(true);
@@ -229,25 +244,17 @@ export function useRegistroAvances(encuadreId: string) {
 
       for (const [temaIdStr, data] of Object.entries(respuestas)) {
         const temaId = parseInt(temaIdStr);
-        
-        // Saltar si no se marcó nada
+
         if (data.vista === null) continue;
 
-        // Validación: justificación requerida si no se vio el tema
-        if (data.vista === false && (!data.justificacion || data.justificacion.trim() === "")) {
-          // Podríamos requerir justificación, pero por ahora lo dejamos opcional
-        }
-
-        // Validación: longitud máxima de justificación
         if (data.justificacion && data.justificacion.length > 500) {
-          return { 
-            success: false, 
-            error: `La justificación del tema ${temaId} excede el límite de 500 caracteres.` 
+          return {
+            success: false,
+            error: `La justificación del tema ${temaId} excede el límite de 500 caracteres.`,
           };
         }
 
         try {
-          // Verificar si ya existe un checkin
           const { data: existente, error: errorBuscar } = await supabase
             .from("temas_checkin")
             .select("id")
@@ -261,7 +268,6 @@ export function useRegistroAvances(encuadreId: string) {
           }
 
           if (existente) {
-            // Actualizar
             const { error: errorUpdate } = await supabase
               .from("temas_checkin")
               .update({
@@ -278,19 +284,22 @@ export function useRegistroAvances(encuadreId: string) {
               temasGuardados++;
             }
           } else {
-            // Insertar
             const { error: errorInsert } = await supabase
               .from("temas_checkin")
               .insert({
                 tema_id: temaId,
                 usuario_id: userId,
                 grupo: grupo,
+                encuadre_id: encuadreId,
                 tema_visto: data.vista,
                 justificacion: data.justificacion || "",
               });
 
             if (errorInsert) {
-              console.error("Error al insertar checkin:", JSON.stringify(errorInsert, null, 2));
+              console.error(
+                "Error al insertar checkin:",
+                JSON.stringify(errorInsert, null, 2)
+              );
               erroresEncontrados++;
             } else {
               temasGuardados++;
@@ -305,16 +314,17 @@ export function useRegistroAvances(encuadreId: string) {
       setLoading(false);
 
       if (erroresEncontrados > 0 && temasGuardados === 0) {
-        return { 
-          success: false, 
-          error: "No se pudo guardar ningún registro. Verifica los permisos de acceso." 
+        return {
+          success: false,
+          error:
+            "No se pudo guardar ningún registro. Verifica los permisos de acceso.",
         };
       }
 
       if (erroresEncontrados > 0) {
-        return { 
-          success: true, 
-          error: `Se guardaron ${temasGuardados} registros, pero hubo ${erroresEncontrados} errores.` 
+        return {
+          success: true,
+          error: `Se guardaron ${temasGuardados} registros, pero hubo ${erroresEncontrados} errores.`,
         };
       }
 
@@ -322,7 +332,10 @@ export function useRegistroAvances(encuadreId: string) {
     } catch (err) {
       console.error("Error en guardarCheckins:", err);
       setLoading(false);
-      return { success: false, error: "Error inesperado al guardar los avances. Intenta nuevamente." };
+      return {
+        success: false,
+        error: "Error inesperado al guardar los avances. Intenta nuevamente.",
+      };
     }
   };
 

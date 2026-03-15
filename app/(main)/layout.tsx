@@ -77,9 +77,13 @@ export default function Layout({ children }: { children: ReactNode }) {
         </header>
 
         <main className="flex-1 p-4">
-          <VerificarPeriodo rolActual={role} rolesExentos={["admin"]}>
-            {children}
-          </VerificarPeriodo>
+<VerificarPeriodo
+  rolActual={role}
+  rolesExentos={["admin", "capturista"]}
+  userId={session.user.id}
+>
+  {children}
+</VerificarPeriodo>
         </main>
       </SidebarInset>
     </SidebarProvider>
