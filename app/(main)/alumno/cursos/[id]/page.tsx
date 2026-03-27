@@ -14,11 +14,16 @@ import {
   AlertCircle,
   ShieldCheck,
   Lock,
+  BookOpen,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import EncuadreViewTab from "./EncuadreViewTab";
 import AvancesTab from "./AvancesTab";
-import { usePermisoOperacion, type PermisoOperacion } from "@/hooks/usePermisoOperacion";
+import PlanDeClasesTab from "./PlanDeClasesTab";
+import {
+  usePermisoOperacion,
+  type PermisoOperacion,
+} from "@/hooks/usePermisoOperacion";
 
 type CursoInfo = {
   encuadreId: string;
@@ -253,13 +258,21 @@ export default function CursoAlumnoPage() {
           onValueChange={handleTabChange}
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-3 max-w-2xl">
             <TabsTrigger
               value="encuadre"
               className="flex items-center gap-2 cursor-pointer"
             >
               <FileText className="h-4 w-4" />
               Encuadre
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="plan-clases"
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <BookOpen className="h-4 w-4" />
+              Plan de clases
             </TabsTrigger>
 
             <TabsTrigger
@@ -318,6 +331,10 @@ export default function CursoAlumnoPage() {
                 }
               }}
             />
+          </TabsContent>
+
+          <TabsContent value="plan-clases" className="mt-6">
+            <PlanDeClasesTab encuadreId={encuadreId} />
           </TabsContent>
 
           <TabsContent value="avances" className="mt-6">

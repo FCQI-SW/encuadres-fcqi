@@ -78,13 +78,14 @@ export async function resolverPermisoOperacion({
     }
 
     if (rol === "alumno") {
-      const { data: relacionAlumno, error: errorRelacionAlumno } = await supabase
-        .from("encuadre_alumnos")
-        .select("id, estado")
-        .eq("encuadre_id", encuadreId)
-        .eq("alumno_id", userId)
-        .neq("estado", "revocada")
-        .limit(1);
+      const { data: relacionAlumno, error: errorRelacionAlumno } =
+        await supabase
+          .from("encuadre_alumnos")
+          .select("id, estado")
+          .eq("encuadre_id", encuadreId)
+          .eq("alumno_id", userId)
+          .neq("estado", "revocada")
+          .limit(1);
 
       if (errorRelacionAlumno) {
         console.error(
@@ -135,18 +136,19 @@ export async function resolverPermisoOperacion({
     // 4. Validar permiso especial por usuario + encuadre + rol
     const ahoraIso = new Date().toISOString();
 
-    const { data: permisosEspeciales, error: errorPermisoEspecial } = await supabase
-      .from("permisos_operacion_encuadre")
-      .select("id, motivo")
-      .eq("usuario_id", userId)
-      .eq("encuadre_id", encuadreId)
-      .eq("rol", rol)
-      .eq("activo", true)
-      .lte("acceso_desde", ahoraIso)
-      .gte("acceso_hasta", ahoraIso)
-      .limit(1);
+    const { data: permisosEspeciales, error: errorPermisoEspecial } =
+      await supabase
+        .from("permisos_operacion_encuadre")
+        .select("id, motivo")
+        .eq("usuario_id", userId)
+        .eq("encuadre_id", encuadreId)
+        .eq("rol_objetivo", rol)  // ← columna correcta
+        .eq("activo", true)
+        .lte("acceso_desde", ahoraIso)
+        .gte("acceso_hasta", ahoraIso)
+        .limit(1);
 
-    if (errorPermisoEspecial) {
+    if (errorPermisoEspecial && Object.keys(errorPermisoEspecial).length > 0) {
       console.error("Error validando permiso especial:", errorPermisoEspecial);
     }
 
@@ -169,11 +171,12 @@ export async function resolverPermisoOperacion({
       puede_editar_encuadre: rol === "profesor" ? puedeOperar : false,
       puede_gestionar_alumnos: rol === "profesor" ? puedeOperar : false,
       puede_firmar: rol === "alumno" ? puedeOperar : false,
-      puede_registrar_avances: rol === "profesor" ? puedeOperar : false,
+      puede_registrar_avances: puedeOperar, // ← ambos roles pueden registrar avances
 
       motivo: puedeOperar
         ? !dentroVentanaGlobal && tienePermisoEspecial
-          ? motivoEspecial || "Permiso especial activo fuera del periodo general."
+          ? motivoEspecial ||
+            "Permiso especial activo fuera del periodo general."
           : ""
         : motivoBloqueo,
     };

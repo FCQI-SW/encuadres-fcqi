@@ -53,6 +53,7 @@ import {
   XCircle,
   Archive,
 } from "lucide-react";
+import PrintEncuadreButton from "@/components/Printencuadrebutton";
 
 type Curso = {
   id: string;
@@ -90,7 +91,6 @@ export default function CursosProfesorPage() {
   const [periodoActual, setPeriodoActual] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
-  // Estados para el modal de detalles
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTipo, setModalTipo] = useState<"firmas" | "avances">("firmas");
   const [modalCurso, setModalCurso] = useState<Curso | null>(null);
@@ -100,22 +100,16 @@ export default function CursosProfesorPage() {
   const parsePeriodo = (periodo: string) => {
     const match = periodo?.match(/^(\d{4})-(\d+)$/);
     if (!match) return null;
-
-    return {
-      anio: Number(match[1]),
-      ciclo: Number(match[2]),
-    };
+    return { anio: Number(match[1]), ciclo: Number(match[2]) };
   };
 
   const comparePeriodos = (a: string, b: string) => {
     const pa = parsePeriodo(a);
     const pb = parsePeriodo(b);
-
     if (pa && pb) {
       if (pa.anio !== pb.anio) return pa.anio - pb.anio;
       return pa.ciclo - pb.ciclo;
     }
-
     return a.localeCompare(b, "es", { numeric: true, sensitivity: "base" });
   };
 
@@ -134,7 +128,6 @@ export default function CursosProfesorPage() {
 
   const cargarCursos = async () => {
     if (!session?.user?.id) return;
-
     setLoading(true);
 
     try {
@@ -177,20 +170,17 @@ export default function CursosProfesorPage() {
 
       const encuadreIds = encuadres.map((e) => e.id);
 
-      // Obtener alumnos inscritos
       const { data: alumnosData } = await supabase
         .from("encuadre_alumnos")
         .select("encuadre_id, alumno_id")
         .in("encuadre_id", encuadreIds)
         .neq("estado", "revocada");
 
-      // Obtener firmas
       const { data: firmasData } = await supabase
         .from("encuadre_firmas")
         .select("encuadre_id, alumno_id")
         .in("encuadre_id", encuadreIds);
 
-      // Obtener avances
       const { data: avancesData } = await supabase
         .from("temas_checkin")
         .select("encuadre_id, usuario_id")
@@ -199,33 +189,25 @@ export default function CursosProfesorPage() {
       const programaMap = new Map((programas || []).map((p: any) => [p.id, p]));
       const materiaMap = new Map((materias || []).map((m: any) => [m.id, m]));
 
-      // Contar alumnos por encuadre
       const alumnosCountMap = new Map<string, number>();
       (alumnosData || []).forEach((a: any) => {
-        const count = alumnosCountMap.get(a.encuadre_id) || 0;
-        alumnosCountMap.set(a.encuadre_id, count + 1);
+        alumnosCountMap.set(a.encuadre_id, (alumnosCountMap.get(a.encuadre_id) || 0) + 1);
       });
 
-      // Contar firmas por encuadre
       const firmasCountMap = new Map<string, number>();
       (firmasData || []).forEach((f: any) => {
-        const count = firmasCountMap.get(f.encuadre_id) || 0;
-        firmasCountMap.set(f.encuadre_id, count + 1);
+        firmasCountMap.set(f.encuadre_id, (firmasCountMap.get(f.encuadre_id) || 0) + 1);
       });
 
-      // Contar alumnos únicos que han registrado avances por encuadre
       const avancesMap = new Map<string, Set<string>>();
       (avancesData || []).forEach((a: any) => {
-        if (!avancesMap.has(a.encuadre_id)) {
-          avancesMap.set(a.encuadre_id, new Set());
-        }
+        if (!avancesMap.has(a.encuadre_id)) avancesMap.set(a.encuadre_id, new Set());
         avancesMap.get(a.encuadre_id)?.add(a.usuario_id);
       });
 
       const cursosFormateados: Curso[] = encuadres.map((e: any) => {
         const programa = programaMap.get(e.programa_id);
         const materia = programa ? materiaMap.get(programa.materia_id) : null;
-
         const esArchivado = periodoActualCalculado
           ? comparePeriodos(e.periodo || "", periodoActualCalculado) < 0
           : false;
@@ -260,16 +242,7 @@ export default function CursosProfesorPage() {
     try {
       const { data: alumnosEncuadre } = await supabase
         .from("encuadre_alumnos")
-        .select(
-          `
-          alumno_id,
-          usuarios!encuadre_alumnos_alumno_id_fkey (
-            id,
-            correo,
-            nombre
-          )
-        `
-        )
+        .select(`alumno_id, usuarios!encuadre_alumnos_alumno_id_fkey (id, correo, nombre)`)
         .eq("encuadre_id", curso.encuadre_id)
         .neq("estado", "revocada");
 
@@ -285,9 +258,7 @@ export default function CursosProfesorPage() {
           .select("alumno_id, firmado_at")
           .eq("encuadre_id", curso.encuadre_id);
 
-        const firmasMap = new Map(
-          (firmas || []).map((f: any) => [f.alumno_id, f.firmado_at])
-        );
+        const firmasMap = new Map((firmas || []).map((f: any) => [f.alumno_id, f.firmado_at]));
 
         const detalle: AlumnoDetalle[] = alumnosEncuadre.map((ae: any) => ({
           id: ae.alumno_id,
@@ -297,11 +268,7 @@ export default function CursosProfesorPage() {
           fecha: firmasMap.get(ae.alumno_id) || null,
         }));
 
-        detalle.sort((a, b) => {
-          if (a.completado === b.completado) return 0;
-          return a.completado ? 1 : -1;
-        });
-
+        detalle.sort((a, b) => (a.completado === b.completado ? 0 : a.completado ? 1 : -1));
         setAlumnosDetalle(detalle);
       } else {
         const { data: avances } = await supabase
@@ -325,11 +292,7 @@ export default function CursosProfesorPage() {
           fecha: avancesMap.get(ae.alumno_id) || null,
         }));
 
-        detalle.sort((a, b) => {
-          if (a.completado === b.completado) return 0;
-          return a.completado ? 1 : -1;
-        });
-
+        detalle.sort((a, b) => (a.completado === b.completado ? 0 : a.completado ? 1 : -1));
         setAlumnosDetalle(detalle);
       }
     } catch (err) {
@@ -339,11 +302,7 @@ export default function CursosProfesorPage() {
     setLoadingDetalle(false);
   };
 
-  const handleOpenModal = (
-    curso: Curso,
-    tipo: "firmas" | "avances",
-    e: React.MouseEvent
-  ) => {
+  const handleOpenModal = (curso: Curso, tipo: "firmas" | "avances", e: React.MouseEvent) => {
     e.stopPropagation();
     setModalCurso(curso);
     setModalTipo(tipo);
@@ -365,24 +324,20 @@ export default function CursosProfesorPage() {
   useEffect(() => {
     let filtered = [...cursos];
 
-    // Vista: actuales / archivados / todos
     if (selectedVista === "actuales") {
       filtered = filtered.filter((c) => !c.archivado);
     } else if (selectedVista === "archivados") {
       filtered = filtered.filter((c) => c.archivado);
     }
 
-    // Filtro por periodo
     if (selectedPeriodo !== "Todos") {
       filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
     }
 
-    // Filtro por grupo
     if (selectedGrupo !== "Todos") {
       filtered = filtered.filter((c) => c.grupo === selectedGrupo);
     }
 
-    // Búsqueda por texto
     if (searchTerm.trim() !== "") {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -478,9 +433,7 @@ export default function CursosProfesorPage() {
 
                   <Select
                     value={selectedVista}
-                    onValueChange={(value) =>
-                      setSelectedVista(value as VistaCursos)
-                    }
+                    onValueChange={(value) => setSelectedVista(value as VistaCursos)}
                   >
                     <SelectTrigger className="min-w-[180px]">
                       <SelectValue placeholder="Vista" />
@@ -492,36 +445,26 @@ export default function CursosProfesorPage() {
                     </SelectContent>
                   </Select>
 
-                  <Select
-                    value={selectedPeriodo}
-                    onValueChange={setSelectedPeriodo}
-                  >
+                  <Select value={selectedPeriodo} onValueChange={setSelectedPeriodo}>
                     <SelectTrigger className="min-w-[180px]">
                       <SelectValue placeholder="Periodo" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Todos">Todos los periodos</SelectItem>
                       {periodos.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
 
-                  <Select
-                    value={selectedGrupo}
-                    onValueChange={setSelectedGrupo}
-                  >
+                  <Select value={selectedGrupo} onValueChange={setSelectedGrupo}>
                     <SelectTrigger className="min-w-[140px]">
                       <SelectValue placeholder="Grupo" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Todos">Todos los grupos</SelectItem>
                       {grupos.map((g) => (
-                        <SelectItem key={g} value={g}>
-                          {g}
-                        </SelectItem>
+                        <SelectItem key={g} value={g}>{g}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -618,26 +561,20 @@ export default function CursosProfesorPage() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
-                                  onClick={(e) =>
-                                    handleOpenModal(curso, "firmas", e)
-                                  }
+                                  onClick={(e) => handleOpenModal(curso, "firmas", e)}
                                   className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(
                                     curso.firmas_completadas,
                                     curso.total_alumnos
                                   )}`}
                                 >
                                   <FileSignature className="h-3 w-3" />
-                                  <span>
-                                    {curso.firmas_completadas}/
-                                    {curso.total_alumnos}
-                                  </span>
+                                  <span>{curso.firmas_completadas}/{curso.total_alumnos}</span>
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p>
-                                  {curso.firmas_completadas} de{" "}
-                                  {curso.total_alumnos} alumnos han firmado el
-                                  encuadre. Clic para ver detalles.
+                                  {curso.firmas_completadas} de {curso.total_alumnos} alumnos
+                                  han firmado el encuadre. Clic para ver detalles.
                                 </p>
                               </TooltipContent>
                             </Tooltip>
@@ -646,43 +583,43 @@ export default function CursosProfesorPage() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
-                                  onClick={(e) =>
-                                    handleOpenModal(curso, "avances", e)
-                                  }
+                                  onClick={(e) => handleOpenModal(curso, "avances", e)}
                                   className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(
                                     curso.avances_completados,
                                     curso.total_alumnos
                                   )}`}
                                 >
                                   <ClipboardCheck className="h-3 w-3" />
-                                  <span>
-                                    {curso.avances_completados}/
-                                    {curso.total_alumnos}
-                                  </span>
+                                  <span>{curso.avances_completados}/{curso.total_alumnos}</span>
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p>
-                                  {curso.avances_completados} de{" "}
-                                  {curso.total_alumnos} alumnos han registrado
-                                  avances. Clic para ver detalles.
+                                  {curso.avances_completados} de {curso.total_alumnos} alumnos
+                                  han registrado avances. Clic para ver detalles.
                                 </p>
                               </TooltipContent>
                             </Tooltip>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleVerCurso(curso.encuadre_id);
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <GraduationCap className="h-4 w-4 mr-2" />
-                              Gestionar
-                            </Button>
+                            {/* ── Acciones por fila ── */}
+                            <div className="flex items-center justify-end gap-2">
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <PrintEncuadreButton encuadreId={curso.encuadre_id} />
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleVerCurso(curso.encuadre_id);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <GraduationCap className="h-4 w-4 mr-2" />
+                                Gestionar
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -704,9 +641,7 @@ export default function CursosProfesorPage() {
               ) : (
                 <ClipboardCheck className="h-5 w-5 text-[#00723F]" />
               )}
-              {modalTipo === "firmas"
-                ? "Firmas del Encuadre"
-                : "Registro de Avances"}
+              {modalTipo === "firmas" ? "Firmas del Encuadre" : "Registro de Avances"}
             </DialogTitle>
             <DialogDescription>
               {modalCurso?.materia_nombre} - Grupo {modalCurso?.grupo}
@@ -731,8 +666,7 @@ export default function CursosProfesorPage() {
             </div>
             <div
               className={`px-3 py-1 rounded-full text-sm font-medium ${
-                completados === alumnosDetalle.length &&
-                alumnosDetalle.length > 0
+                completados === alumnosDetalle.length && alumnosDetalle.length > 0
                   ? "bg-green-100 text-green-800"
                   : alumnosDetalle.length === 0
                   ? "bg-gray-100 text-gray-600"
@@ -760,9 +694,7 @@ export default function CursosProfesorPage() {
                     <TableHead className="w-[50px]">Estado</TableHead>
                     <TableHead>Alumno</TableHead>
                     <TableHead>
-                      {modalTipo === "firmas"
-                        ? "Fecha de firma"
-                        : "Último registro"}
+                      {modalTipo === "firmas" ? "Fecha de firma" : "Último registro"}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -778,13 +710,9 @@ export default function CursosProfesorPage() {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">
-                            {alumno.nombre || alumno.correo}
-                          </p>
+                          <p className="font-medium">{alumno.nombre || alumno.correo}</p>
                           {alumno.nombre && (
-                            <p className="text-sm text-muted-foreground">
-                              {alumno.correo}
-                            </p>
+                            <p className="text-sm text-muted-foreground">{alumno.correo}</p>
                           )}
                         </div>
                       </TableCell>
@@ -792,9 +720,7 @@ export default function CursosProfesorPage() {
                         {alumno.completado ? (
                           formatearFecha(alumno.fecha)
                         ) : (
-                          <span className="text-red-500 font-medium">
-                            Pendiente
-                          </span>
+                          <span className="text-red-500 font-medium">Pendiente</span>
                         )}
                       </TableCell>
                     </TableRow>

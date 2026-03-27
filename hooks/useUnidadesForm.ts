@@ -1,4 +1,3 @@
-// hooks/useUnidadesForm.ts
 "use client";
 
 import { useState, useCallback } from "react";
@@ -11,14 +10,25 @@ type UnidadData = {
   competencia: string;
   contenido: string;
   duracion: number;
+  semana_inicio?: number | null;
+  semana_fin?: number | null;
 };
 
-// Función para extraer temas del contenido
-function extraerTemasDeContenido(contenido: string, numeroUnidad: number): { numero: string; nombre: string }[] {
+type TemaExtraido = {
+  numero: string;
+  nombre: string;
+};
+
+type UnidadInsertada = {
+  id: string | number;
+  numero: number;
+};
+
+function extraerTemasDeContenido(contenido: string): TemaExtraido[] {
   if (!contenido || !contenido.trim()) return [];
 
   const lineas = contenido.split("\n").filter((l) => l.trim());
-  const temas: { numero: string; nombre: string }[] = [];
+  const temas: TemaExtraido[] = [];
 
   lineas.forEach((linea) => {
     const match = linea.trim().match(/^(\d+(?:\.\d+)+)\s+(.+)$/);
@@ -28,8 +38,6 @@ function extraerTemasDeContenido(contenido: string, numeroUnidad: number): { num
     const texto = match[2];
     const niveles = numeracion.split(".").filter((n) => n).length;
 
-    // Solo guardamos temas de primer nivel (1.1, 1.2, etc.) y subtemas (1.1.1, 1.1.2)
-    // Los incisos (1.1.1.1) no los guardamos como temas separados
     if (niveles === 2 || niveles === 3) {
       temas.push({
         numero: numeracion,
@@ -46,130 +54,151 @@ export function useUnidadesForm(programaId: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const guardarUnidades = useCallback(async (unidades: UnidadData[]) => {
-    if (!programaId) {
-      setError("No hay programa ID");
-      return false;
-    }
-
-    if (!session?.user?.id) {
-      setError("No hay usuario autenticado");
-      return false;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const userId = session.user.id;
-
-      // 1. Obtener IDs de unidades existentes para eliminar sus temas
-      const { data: unidadesExistentes } = await supabase
-        .from("unidades")
-        .select("id")
-        .eq("programa_id", programaId);
-
-      // 2. Eliminar temas de las unidades existentes
-      if (unidadesExistentes && unidadesExistentes.length > 0) {
-        const unidadIds = unidadesExistentes.map((u) => u.id);
-        await supabase
-          .from("temas")
-          .delete()
-          .in("unidad_id", unidadIds);
+  const guardarUnidades = useCallback(
+    async (unidades: UnidadData[]) => {
+      if (!programaId) {
+        setError("No hay programa ID");
+        return false;
       }
 
-      // 3. Eliminar unidades existentes
-      await supabase
-        .from("unidades")
-        .delete()
-        .eq("programa_id", programaId);
+      if (!session?.user?.id) {
+        setError("No hay usuario autenticado");
+        return false;
+      }
 
-      // 4. Insertar nuevas unidades
-      const unidadesParaGuardar = unidades.map((u) => ({
-        programa_id: programaId,
-        numero: u.numero,
-        nombre: u.nombre,
-        competencia: u.competencia,
-        contenido: u.contenido,
-        duracion: u.duracion,
-      }));
+      setLoading(true);
+      setError(null);
 
-      const { data: unidadesInsertadas, error: insertError } = await supabase
-        .from("unidades")
-        .insert(unidadesParaGuardar)
-        .select("id, numero");
+      try {
+        const userId = session.user.id;
 
-      if (insertError) throw insertError;
+        const { data: unidadesExistentes, error: unidadesExistentesError } =
+          await supabase
+            .from("unidades")
+            .select("id")
+            .eq("programa_id", programaId);
 
-      // 5. Extraer y guardar temas de cada unidad
-      if (unidadesInsertadas) {
-        const temasParaGuardar: { unidad_id: number; numero: string; nombre: string }[] = [];
+        if (unidadesExistentesError) throw unidadesExistentesError;
 
-        unidadesInsertadas.forEach((unidadInsertada) => {
-          const unidadOriginal = unidades.find((u) => u.numero === unidadInsertada.numero);
-          if (unidadOriginal?.contenido) {
-            // Extraer temas del contenido
-            const temasExtraidos = extraerTemasDeContenido(
-              unidadOriginal.contenido,
-              unidadOriginal.numero
-            );
+        if (unidadesExistentes && unidadesExistentes.length > 0) {
+          const unidadIds = unidadesExistentes.map((u: any) => u.id);
 
-            temasExtraidos.forEach((tema) => {
-              temasParaGuardar.push({
-                unidad_id: unidadInsertada.id,
-                numero: tema.numero,
-                nombre: tema.nombre,
-              });
-            });
-          }
-        });
-
-        if (temasParaGuardar.length > 0) {
-          const { error: temasError } = await supabase
+          const { error: deleteTemasError } = await supabase
             .from("temas")
-            .insert(temasParaGuardar);
+            .delete()
+            .in("unidad_id", unidadIds);
 
-          if (temasError) {
-            console.error("Error al guardar temas:", temasError);
+          if (deleteTemasError) throw deleteTemasError;
+        }
+
+        const { error: deleteUnidadesError } = await supabase
+          .from("unidades")
+          .delete()
+          .eq("programa_id", programaId);
+
+        if (deleteUnidadesError) throw deleteUnidadesError;
+
+        const unidadesParaGuardar = unidades.map((u) => ({
+          programa_id: programaId,
+          numero: u.numero,
+          nombre: u.nombre,
+          competencia: u.competencia,
+          contenido: u.contenido,
+          duracion: u.duracion,
+          semana_inicio: u.semana_inicio ?? null,
+          semana_fin: u.semana_fin ?? null,
+        }));
+
+        const { data: unidadesInsertadas, error: insertError } = await supabase
+          .from("unidades")
+          .insert(unidadesParaGuardar)
+          .select("id, numero");
+
+        if (insertError) throw insertError;
+
+        if (unidadesInsertadas) {
+          const temasParaGuardar: {
+            unidad_id: string | number;
+            numero: string;
+            nombre: string;
+          }[] = [];
+
+          (unidadesInsertadas as UnidadInsertada[]).forEach(
+            (unidadInsertada) => {
+              const unidadOriginal = unidades.find(
+                (u) => u.numero === unidadInsertada.numero
+              );
+
+              if (unidadOriginal?.contenido) {
+                const temasExtraidos = extraerTemasDeContenido(
+                  unidadOriginal.contenido
+                );
+
+                temasExtraidos.forEach((tema) => {
+                  temasParaGuardar.push({
+                    unidad_id: unidadInsertada.id,
+                    numero: tema.numero,
+                    nombre: tema.nombre,
+                  });
+                });
+              }
+            }
+          );
+
+          if (temasParaGuardar.length > 0) {
+            const { error: temasError } = await supabase
+              .from("temas")
+              .insert(temasParaGuardar);
+
+            if (temasError) {
+              console.error("Error al guardar temas:", temasError);
+            }
           }
         }
+
+        const { error: auditoriaError } = await supabase
+          .from("programas")
+          .update({
+            ultimo_editor_id: userId,
+            ultima_edicion: new Date().toISOString(),
+          })
+          .eq("id", programaId);
+
+        if (auditoriaError) throw auditoriaError;
+
+        return true;
+      } catch (err: any) {
+        console.error("Error al guardar unidades:", err);
+        setError(err.message || "Error al guardar");
+        return false;
+      } finally {
+        setLoading(false);
       }
-
-      // 6. Actualizar auditoría en el PUA
-      await supabase
-        .from("programas")
-        .update({
-          ultimo_editor_id: userId,
-          ultima_edicion: new Date().toISOString(),
-        })
-        .eq("id", programaId);
-
-      return true;
-    } catch (err: any) {
-      console.error("Error al guardar unidades:", err);
-      setError(err.message || "Error al guardar");
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, [programaId, session?.user?.id]);
+    },
+    [programaId, session?.user?.id]
+  );
 
   const cargarUnidades = useCallback(async () => {
     if (!programaId) return [];
 
     setLoading(true);
+    setError(null);
+
     try {
       const { data, error } = await supabase
         .from("unidades")
-        .select("*")
+        .select(
+          "numero, nombre, competencia, contenido, duracion, semana_inicio, semana_fin"
+        )
         .eq("programa_id", programaId)
         .order("numero", { ascending: true });
 
       if (error) throw error;
 
-      return data || [];
+      return (data || []) as UnidadData[];
     } catch (err: any) {
       console.error("Error al cargar unidades:", err);
+      setError(err.message || "Error al cargar unidades");
       return [];
     } finally {
       setLoading(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -24,14 +24,52 @@ type Programa = {
   hl: number;
 };
 
+type TemaUnidad = {
+  numero: string;
+  nombre: string;
+};
+
 type UnidadData = {
   numero: number;
   nombre: string;
   competencia: string;
   contenido: string;
   duracion: number;
-  temas?: { numero: string; nombre: string }[];
+  semana_inicio?: number | null;
+  semana_fin?: number | null;
+  temas?: TemaUnidad[];
 };
+
+function crearUnidadVacia(numero: number): UnidadData {
+  return {
+    numero,
+    nombre: "",
+    competencia: "",
+    contenido: "",
+    duracion: 0,
+    semana_inicio: null,
+    semana_fin: null,
+    temas: [],
+  };
+}
+
+function normalizarUnidad(unidad?: Partial<UnidadData> | null): UnidadData {
+  return {
+    numero: Number(unidad?.numero ?? 0),
+    nombre: unidad?.nombre ?? "",
+    competencia: unidad?.competencia ?? "",
+    contenido: unidad?.contenido ?? "",
+    duracion: Number(unidad?.duracion ?? 0),
+    semana_inicio:
+      unidad?.semana_inicio === undefined ? null : unidad.semana_inicio,
+    semana_fin: unidad?.semana_fin === undefined ? null : unidad.semana_fin,
+    temas: unidad?.temas ?? [],
+  };
+}
+
+function esNumeroValido(value: unknown) {
+  return typeof value === "number" && !Number.isNaN(value);
+}
 
 export default function PuaMateriaUnidades() {
   const router = useRouter();
@@ -42,15 +80,12 @@ export default function PuaMateriaUnidades() {
   const [programa, setPrograma] = useState<Programa | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Datos que se van editando en esta pantalla
   const [unidadesData, setUnidadesData] = useState<Record<number, UnidadData>>(
     {}
   );
 
-  // Unidades cargadas desde BD
   const [unidadesCargadas, setUnidadesCargadas] = useState<UnidadData[]>([]);
 
-  // Estado de colapsado por unidad
   const [collapsedState, setCollapsedState] = useState<Record<number, boolean>>(
     {}
   );
@@ -105,12 +140,22 @@ export default function PuaMateriaUnidades() {
 
     (async () => {
       const unidades = await cargarUnidades();
-      setUnidadesCargadas(unidades);
+
+      const unidadesNormalizadas = (unidades || []).map((u: any) =>
+        normalizarUnidad(u)
+      );
+
+      setUnidadesCargadas(unidadesNormalizadas);
 
       const collapsedInicial: Record<number, boolean> = {};
-      unidades.forEach((u) => {
+      unidadesNormalizadas.forEach((u) => {
         const tieneAlgo =
-          !!u.nombre || !!u.competencia || !!u.contenido || !!u.duracion;
+          !!u.nombre ||
+          !!u.competencia ||
+          !!u.contenido ||
+          !!u.duracion ||
+          !!u.semana_inicio ||
+          !!u.semana_fin;
         collapsedInicial[u.numero] = tieneAlgo;
       });
       setCollapsedState(collapsedInicial);
@@ -121,26 +166,42 @@ export default function PuaMateriaUnidades() {
     router.push(`/capturista/materias/${clave}/pua`);
   };
 
-  const handleUnidadChange = (data: UnidadData) => {
+  // ── useCallback para evitar el loop infinito con Unidad.useEffect ──
+  const handleUnidadChange = useCallback((data: UnidadData) => {
+    const unidadNormalizada = normalizarUnidad(data);
     setUnidadesData((prev) => ({
       ...prev,
-      [data.numero]: data,
+      [unidadNormalizada.numero]: unidadNormalizada,
     }));
-  };
+  }, []);
 
-  const toggleCollapse = (numero: number) => {
+  const toggleCollapse = useCallback((numero: number) => {
     setCollapsedState((prev) => ({
       ...prev,
       [numero]: !prev[numero],
     }));
-  };
+  }, []);
+  // ──────────────────────────────────────────────────────────────────
+
+  const unidadesFinales = useMemo(() => {
+    if (!programa) return [];
+
+    return Array.from({ length: programa.unidades }, (_, i) => i + 1).map(
+      (num) => {
+        const editada = unidadesData[num];
+        const cargada = unidadesCargadas.find((u) => u.numero === num);
+
+        if (editada) return normalizarUnidad(editada);
+        if (cargada) return normalizarUnidad(cargada);
+        return crearUnidadVacia(num);
+      }
+    );
+  }, [programa, unidadesData, unidadesCargadas]);
 
   const handleContinuar = async () => {
     if (!programa) return;
 
-    const unidadesArray = Object.values(unidadesData);
-
-    if (unidadesArray.length < programa.unidades) {
+    if (unidadesFinales.length < programa.unidades) {
       await confirm({
         title: "Unidades incompletas",
         message: `Debes completar todas las ${programa.unidades} unidades antes de continuar.`,
@@ -150,7 +211,7 @@ export default function PuaMateriaUnidades() {
       return;
     }
 
-    for (const unidad of unidadesArray) {
+    for (const unidad of unidadesFinales) {
       if (!unidad.nombre.trim()) {
         await confirm({
           title: "Campo requerido",
@@ -181,10 +242,46 @@ export default function PuaMateriaUnidades() {
         return;
       }
 
-      if (unidad.duracion <= 0) {
+      if (!esNumeroValido(unidad.duracion) || unidad.duracion <= 0) {
         await confirm({
           title: "Duración inválida",
           message: `La Unidad ${unidad.numero} debe tener una duración mayor a 0 horas.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      if (
+        !esNumeroValido(unidad.semana_inicio) ||
+        (unidad.semana_inicio ?? 0) <= 0
+      ) {
+        await confirm({
+          title: "Semana inicial inválida",
+          message: `La Unidad ${unidad.numero} debe tener una semana de inicio válida.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      if (
+        !esNumeroValido(unidad.semana_fin) ||
+        (unidad.semana_fin ?? 0) <= 0
+      ) {
+        await confirm({
+          title: "Semana final inválida",
+          message: `La Unidad ${unidad.numero} debe tener una semana final válida.`,
+          confirmText: "Entendido",
+          cancelText: "",
+        });
+        return;
+      }
+
+      if ((unidad.semana_fin ?? 0) < (unidad.semana_inicio ?? 0)) {
+        await confirm({
+          title: "Rango de semanas inválido",
+          message: `La Unidad ${unidad.numero} no puede tener una semana final menor que la semana inicial.`,
           confirmText: "Entendido",
           cancelText: "",
         });
@@ -201,7 +298,7 @@ export default function PuaMateriaUnidades() {
 
     if (!shouldSave) return;
 
-    const success = await guardarUnidades(unidadesArray);
+    const success = await guardarUnidades(unidadesFinales);
 
     if (success) {
       if ((programa.ht || 0) > 0) {
@@ -295,13 +392,21 @@ export default function PuaMateriaUnidades() {
 
         <div className="text-center py-4">
           <h1 className="text-2xl font-bold">V. DESARROLLO POR UNIDADES</h1>
+          <p className="text-sm text-muted-foreground mt-2">
+            Captura el contenido de cada unidad, sus horas y el rango de semanas
+            para integrarlo al plan de clases del encuadre.
+          </p>
         </div>
 
         <div className="space-y-8">
           {nUnidades.map((num) => {
-            const unidadCargada = unidadesCargadas.find(
-              (u) => u.numero === num
-            );
+            const unidadCargada = unidadesCargadas.find((u) => u.numero === num);
+            const unidadEditada = unidadesData[num];
+            const unidadActual = unidadEditada
+              ? normalizarUnidad(unidadEditada)
+              : unidadCargada
+              ? normalizarUnidad(unidadCargada)
+              : crearUnidadVacia(num);
 
             const isCollapsed = collapsedState[num] ?? false;
 
@@ -309,7 +414,7 @@ export default function PuaMateriaUnidades() {
               <Unidad
                 key={num}
                 nUnidad={num}
-                value={unidadCargada}
+                value={unidadActual}
                 onChange={handleUnidadChange}
                 collapsed={isCollapsed}
                 onToggleCollapse={() => toggleCollapse(num)}

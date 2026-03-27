@@ -101,8 +101,7 @@ export default function MateriasPage() {
   const [selectedCategoria, setSelectedCategoria] = useState("all");
   const [selectedRequisito, setSelectedRequisito] = useState("all");
   const [selectedEstado, setSelectedEstado] = useState("all");
-  const [selectedArchivado, setSelectedArchivado] =
-    useState("no-archivadas");
+  const [selectedArchivado, setSelectedArchivado] = useState("no-archivadas");
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -152,30 +151,18 @@ export default function MateriasPage() {
     if (editoPua && editoEncuadre) {
       return {
         tipo: "ambos" as const,
-        pua: {
-          editor: m.editorPua!,
-          fecha: m.edicionPua!,
-        },
-        encuadre: {
-          editor: m.editorEncuadre!,
-          fecha: m.edicionEncuadre!,
-        },
+        pua: { editor: m.editorPua!, fecha: m.edicionPua! },
+        encuadre: { editor: m.editorEncuadre!, fecha: m.edicionEncuadre! },
       };
     } else if (editoPua) {
       return {
         tipo: "pua" as const,
-        pua: {
-          editor: m.editorPua!,
-          fecha: m.edicionPua!,
-        },
+        pua: { editor: m.editorPua!, fecha: m.edicionPua! },
       };
     } else if (editoEncuadre) {
       return {
         tipo: "encuadre" as const,
-        encuadre: {
-          editor: m.editorEncuadre!,
-          fecha: m.edicionEncuadre!,
-        },
+        encuadre: { editor: m.editorEncuadre!, fecha: m.edicionEncuadre! },
       };
     }
 
@@ -635,7 +622,9 @@ export default function MateriasPage() {
     return `Error al guardar: ${errorMessage}`;
   }
 
-  async function crearLicenciatura(nombre: string): Promise<Licenciatura | null> {
+  async function crearLicenciatura(
+    nombre: string
+  ): Promise<Licenciatura | null> {
     const nombreLimpio = nombre.trim();
 
     if (!nombreLimpio) {
@@ -654,10 +643,7 @@ export default function MateriasPage() {
 
     const { data: nuevaLicenciatura, error } = await supabase
       .from("licenciaturas")
-      .insert({
-        nombre: nombreLimpio,
-        activa: true,
-      })
+      .insert({ nombre: nombreLimpio, activa: true })
       .select("id, nombre, activa")
       .single();
 
@@ -773,7 +759,9 @@ export default function MateriasPage() {
 
     if ((count || 0) > 0) {
       toast.error(
-        `No se puede quitar "${lic.nombre}" porque ya está asignada a ${(count || 0)} materia(s).`
+        `No se puede quitar "${lic.nombre}" porque ya está asignada a ${
+          count || 0
+        } materia(s).`
       );
       return false;
     }
@@ -863,7 +851,12 @@ export default function MateriasPage() {
       archivada: false,
     };
 
-    const { error } = await supabase.from("materias").insert([payload]);
+    // ── INSERT materia y obtener id en una sola operación ────────
+    const { data: materiaCreada, error } = await supabase
+      .from("materias")
+      .insert([payload])
+      .select("id")
+      .single();
 
     if (error) {
       console.error("Error al agregar materia:", error.message);
@@ -871,6 +864,21 @@ export default function MateriasPage() {
       setSaving(false);
       return;
     }
+
+    // ── AUTO-CREAR PROGRAMA ──────────────────────────────────────
+    if (materiaCreada?.id) {
+      const { error: errorPrograma } = await supabase
+        .from("programas")
+        .insert({ materia_id: materiaCreada.id, unidades: 0 });
+
+      if (errorPrograma) {
+        console.error("Error al crear programa:", errorPrograma);
+        toast.error(
+          "Materia creada, pero no se pudo crear su programa. Avisa al administrador."
+        );
+      }
+    }
+    // ─────────────────────────────────────────────────────────────
 
     setShowForm(false);
     setErrors([]);
@@ -1003,7 +1011,11 @@ export default function MateriasPage() {
         return;
       }
 
-      const { error } = await supabase.from("materias").insert(bulkMaterias);
+      // ── INSERT masivo y obtener ids en una sola operación ────────
+      const { data: materiasCreadas, error } = await supabase
+        .from("materias")
+        .insert(bulkMaterias)
+        .select("id");
 
       if (error) {
         console.error("Error al importar materias:", error);
@@ -1011,6 +1023,26 @@ export default function MateriasPage() {
         setSaving(false);
         return;
       }
+
+      // ── AUTO-CREAR PROGRAMAS PARA IMPORTACIÓN MASIVA ────────────
+      if (materiasCreadas && materiasCreadas.length > 0) {
+        const programasPayload = (materiasCreadas as any[]).map((m) => ({
+          materia_id: m.id,
+          unidades: 0,
+        }));
+
+        const { error: errorProgramas } = await supabase
+          .from("programas")
+          .insert(programasPayload);
+
+        if (errorProgramas) {
+          console.error("Error al crear programas en bulk:", errorProgramas);
+          toast.error(
+            "Materias importadas, pero algunos programas no se crearon correctamente."
+          );
+        }
+      }
+      // ─────────────────────────────────────────────────────────────
 
       setShowForm(false);
       setErrors([]);
@@ -1104,7 +1136,9 @@ export default function MateriasPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
-              onClick={() => router.push("/admin/herramientas/clonar-periodo")}
+              onClick={() =>
+                router.push("/admin/herramientas/clonar-periodo")
+              }
               className="cursor-pointer border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
             >
               <Copy className="mr-2 h-4 w-4" />
@@ -1209,7 +1243,10 @@ export default function MateriasPage() {
                 />
               </div>
 
-              <Select value={selectedArchivado} onValueChange={setSelectedArchivado}>
+              <Select
+                value={selectedArchivado}
+                onValueChange={setSelectedArchivado}
+              >
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Archivo" />
                 </SelectTrigger>
@@ -1263,7 +1300,10 @@ export default function MateriasPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedEstado} onValueChange={setSelectedEstado}>
+              <Select
+                value={selectedEstado}
+                onValueChange={setSelectedEstado}
+              >
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
@@ -1314,8 +1354,12 @@ export default function MateriasPage() {
                     <TableHead>Requisito</TableHead>
                     <TableHead>Periodo</TableHead>
                     <TableHead>Plan</TableHead>
-                    <TableHead className="min-w-[220px]">Última edición</TableHead>
-                    <TableHead className="w-32 min-w-[120px]">Estado</TableHead>
+                    <TableHead className="min-w-[220px]">
+                      Última edición
+                    </TableHead>
+                    <TableHead className="w-32 min-w-[120px]">
+                      Estado
+                    </TableHead>
                     <TableHead>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1327,7 +1371,10 @@ export default function MateriasPage() {
                     return (
                       <TableRow key={materia.clave}>
                         <TableCell className="font-medium max-w-[120px]">
-                          <span className="block truncate" title={materia.clave}>
+                          <span
+                            className="block truncate"
+                            title={materia.clave}
+                          >
                             {materia.clave}
                           </span>
                         </TableCell>
@@ -1379,16 +1426,18 @@ export default function MateriasPage() {
                                           PUA: {infoEdicion.pua.editor}
                                         </span>
                                         <span className="text-muted-foreground">
-                                          {formatearFecha(infoEdicion.pua.fecha)}
+                                          {formatearFecha(
+                                            infoEdicion.pua.fecha
+                                          )}
                                         </span>
                                       </div>
                                     </div>
-
                                     <div className="flex items-center gap-2 text-xs">
                                       <ClipboardList className="h-3 w-3 text-blue-600" />
                                       <div className="flex flex-col items-start">
                                         <span className="font-medium text-blue-600">
-                                          Encuadre: {infoEdicion.encuadre.editor}
+                                          Encuadre:{" "}
+                                          {infoEdicion.encuadre.editor}
                                         </span>
                                         <span className="text-muted-foreground">
                                           {formatearFecha(
@@ -1576,7 +1625,9 @@ export default function MateriasPage() {
                     );
                   })}
 
-                  {totalPages > 5 && <span className="px-2 py-2">...</span>}
+                  {totalPages > 5 && (
+                    <span className="px-2 py-2">...</span>
+                  )}
 
                   <Button
                     variant="outline"

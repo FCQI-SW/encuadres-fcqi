@@ -70,7 +70,7 @@ export function VerificarPeriodo({
           .from("permisos_operacion_encuadre")
           .select("id")
           .eq("usuario_id", userId)
-          .eq("rol", rolActual)
+          .eq("rol_objetivo", rolActual)
           .eq("activo", true)
           .lte("acceso_desde", ahoraIso)
           .gte("acceso_hasta", ahoraIso)

@@ -133,7 +133,7 @@ export default function EncuadreMateria() {
 
         setPeriodo(m.periodo || "");
 
-        const { data: programaData } = await supabase
+        const { data: programaData, error: programaError } = await supabase
           .from("programas")
           .select("id")
           .eq("materia_id", m.id)
@@ -141,6 +141,14 @@ export default function EncuadreMateria() {
 
         if (programaData) {
           setProgramaId(programaData.id);
+        } else {
+          // Sin programa => el botón guardar no funcionará
+          console.warn(
+            "[EncuadreMateria] No se encontró programa para materia_id:",
+            m.id,
+            "Error Supabase:",
+            programaError
+          );
         }
       } else {
         setMateria(null);
@@ -241,7 +249,28 @@ export default function EncuadreMateria() {
   };
 
   const handleGuardar = async () => {
-    if (!materia || !programaId) return;
+    // ── DIAGNÓSTICO ──────────────────────────────────────────────
+    console.log("[handleGuardar] Estado actual:", {
+      materia,
+      programaId,
+      sessionStatus: status,
+      userId: session?.user?.id,
+      periodo,
+      asignaciones,
+    });
+    // ─────────────────────────────────────────────────────────────
+
+    if (!materia) {
+      toast.error("No se encontró la materia. Recarga la página.");
+      return;
+    }
+
+    if (!programaId) {
+      toast.error(
+        "Esta materia no tiene un programa registrado. Contacta al administrador para que lo cree antes de guardar el encuadre."
+      );
+      return;
+    }
 
     if (status === "loading") {
       await confirm({
@@ -314,8 +343,7 @@ export default function EncuadreMateria() {
     if (keys.length !== keysSet.size) {
       await confirm({
         title: "Asignaciones duplicadas",
-        message:
-          "No puedes repetir la misma combinación de profesor y grupo.",
+        message: "No puedes repetir la misma combinación de profesor y grupo.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -326,50 +354,48 @@ export default function EncuadreMateria() {
       (c) => c.criterio.trim() !== ""
     );
 
-    if (criteriosConValor.length > 0) {
-      const criterioSinValor = criteriosConValor.find((c) => c.valor <= 0);
-      if (criterioSinValor) {
-        await confirm({
-          title: "Porcentaje inválido",
-          message: `El criterio "${criterioSinValor.criterio}" debe tener un porcentaje mayor a 0.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
-        return;
-      }
-
-      const totalPorcentaje = criteriosConValor.reduce(
-        (sum, c) => sum + c.valor,
-        0
-      );
-
-      if (totalPorcentaje !== 100) {
-        await confirm({
-          title: "Porcentajes incorrectos",
-          message: `Los porcentajes deben sumar exactamente 100%. Actualmente suman ${totalPorcentaje}%.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
-        return;
-      }
-
-      const criterioExcesivo = criteriosConValor.find((c) => c.valor > 100);
-      if (criterioExcesivo) {
-        await confirm({
-          title: "Porcentaje inválido",
-          message: `El criterio "${criterioExcesivo.criterio}" tiene un porcentaje mayor a 100%.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
-        return;
-      }
-    }
-
     if (criteriosConValor.length === 0) {
       await confirm({
         title: "Sin criterios de calificación",
         message:
           "Debes agregar al menos un criterio de evaluación con su porcentaje.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    const criterioSinValor = criteriosConValor.find((c) => c.valor <= 0);
+    if (criterioSinValor) {
+      await confirm({
+        title: "Porcentaje inválido",
+        message: `El criterio "${criterioSinValor.criterio}" debe tener un porcentaje mayor a 0.`,
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    const criterioExcesivo = criteriosConValor.find((c) => c.valor > 100);
+    if (criterioExcesivo) {
+      await confirm({
+        title: "Porcentaje inválido",
+        message: `El criterio "${criterioExcesivo.criterio}" tiene un porcentaje mayor a 100%.`,
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
+
+    const totalPorcentajeActual = criteriosConValor.reduce(
+      (sum, c) => sum + c.valor,
+      0
+    );
+
+    if (totalPorcentajeActual !== 100) {
+      await confirm({
+        title: "Porcentajes incorrectos",
+        message: `Los porcentajes deben sumar exactamente 100%. Actualmente suman ${totalPorcentajeActual}%.`,
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -414,6 +440,13 @@ export default function EncuadreMateria() {
       (c) => c.criterio.trim() !== ""
     );
 
+    console.log("[handleGuardar] Llamando guardarEncuadre con:", {
+      programaId,
+      editorId: session.user.id,
+      asignaciones: asignacionesLimpias,
+      criterios: criteriosAGuardar,
+    });
+
     const success = await guardarEncuadre({
       programaId,
       editorId: session.user.id,
@@ -428,6 +461,8 @@ export default function EncuadreMateria() {
       profesorPuedeModificarCriterios: profesorPuedeModificar,
       criterios: criteriosAGuardar,
     });
+
+    console.log("[handleGuardar] Resultado de guardarEncuadre:", success);
 
     if (success) {
       toast.success("El encuadre se ha guardado correctamente.");
@@ -529,6 +564,13 @@ export default function EncuadreMateria() {
           <p className="text-sm text-muted-foreground mt-1">
             Completa la información del encuadre del curso.
           </p>
+          {/* Aviso visible si no hay programa registrado */}
+          {!programaId && !loadingData && (
+            <p className="mt-2 text-sm font-medium text-red-600">
+              ⚠️ Esta materia no tiene un programa registrado. No podrás guardar
+              hasta que el administrador lo cree.
+            </p>
+          )}
         </div>
 
         <Card>
@@ -870,7 +912,7 @@ export default function EncuadreMateria() {
           <Button
             className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
             onClick={handleGuardar}
-            disabled={loading}
+            disabled={loading || !programaId}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {loading ? "Guardando..." : "Guardar"}

@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import PrintEncuadreButton from "@/components/Printencuadrebutton";
 
 type Curso = {
   id: string;
@@ -61,11 +62,9 @@ export default function CursosAlumnoPage() {
 
   const cargarCursos = async () => {
     if (!session?.user?.id) return;
-
     setLoading(true);
 
     try {
-      // Obtener los encuadres donde el alumno está inscrito
       const { data: inscripciones, error: errorInscripciones } = await supabase
         .from("encuadre_alumnos")
         .select("encuadre_id")
@@ -81,7 +80,6 @@ export default function CursosAlumnoPage() {
 
       const encuadreIds = inscripciones.map((i) => i.encuadre_id);
 
-      // Obtener los encuadres
       const { data: encuadres, error: errorEncuadres } = await supabase
         .from("encuadres")
         .select("id, programa_id, grupo, periodo, usuario_id")
@@ -94,28 +92,24 @@ export default function CursosAlumnoPage() {
         return;
       }
 
-      // Obtener programas
       const programaIds = encuadres.map((e) => e.programa_id);
       const { data: programas } = await supabase
         .from("programas")
         .select("id, materia_id")
         .in("id", programaIds);
 
-      // Obtener materias
       const materiaIds = (programas || []).map((p: any) => p.materia_id);
       const { data: materias } = await supabase
         .from("materias")
         .select("id, clave, nombre_materia")
         .in("id", materiaIds);
 
-      // Obtener docentes
       const docenteIds = encuadres.map((e) => e.usuario_id);
       const { data: docentes } = await supabase
         .from("usuarios")
         .select("id, nombre")
         .in("id", docenteIds);
 
-      // Obtener firmas del alumno
       const { data: firmas } = await supabase
         .from("encuadre_firmas")
         .select("encuadre_id")
@@ -123,8 +117,6 @@ export default function CursosAlumnoPage() {
         .in("encuadre_id", encuadreIds);
 
       const firmasSet = new Set((firmas || []).map((f: any) => f.encuadre_id));
-
-      // Crear mapas
       const programaMap = new Map((programas || []).map((p: any) => [p.id, p]));
       const materiaMap = new Map((materias || []).map((m: any) => [m.id, m]));
       const docenteMap = new Map((docentes || []).map((d: any) => [d.id, d]));
@@ -155,35 +147,29 @@ export default function CursosAlumnoPage() {
     setLoading(false);
   };
 
-  // Obtener valores únicos para los filtros
   const periodos = Array.from(new Set(cursos.map((c) => c.periodo))).sort();
   const grupos = Array.from(new Set(cursos.map((c) => c.grupo))).sort();
 
-  // Limpiar filtros
   const handleClearFilters = () => {
     setSearchTerm("");
     setSelectedPeriodo("Todos");
     setSelectedGrupo("Todos");
   };
 
-  // Verificar si hay filtros activos
   const hasActiveFilters =
     searchTerm || selectedPeriodo !== "Todos" || selectedGrupo !== "Todos";
 
   useEffect(() => {
     let filtered = [...cursos];
 
-    // Filtro por periodo
     if (selectedPeriodo !== "Todos") {
       filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
     }
 
-    // Filtro por grupo
     if (selectedGrupo !== "Todos") {
       filtered = filtered.filter((c) => c.grupo === selectedGrupo);
     }
 
-    // Búsqueda por texto
     if (searchTerm.trim() !== "") {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -228,13 +214,10 @@ export default function CursosAlumnoPage() {
           </div>
         </div>
 
-        {/* Filtros */}
         <Card>
           <CardContent className="pt-4">
             <div className="space-y-4">
-              {/* Búsqueda y filtros en la misma fila */}
               <div className="flex flex-wrap items-center gap-4">
-                {/* Búsqueda */}
                 <div className="flex items-center gap-2">
                   <Search className="h-5 w-5 text-gray-400" />
                   <Input
@@ -246,25 +229,18 @@ export default function CursosAlumnoPage() {
                   />
                 </div>
 
-                {/* Filtro por periodo */}
-                <Select
-                  value={selectedPeriodo}
-                  onValueChange={setSelectedPeriodo}
-                >
+                <Select value={selectedPeriodo} onValueChange={setSelectedPeriodo}>
                   <SelectTrigger className="min-w-[180px]">
                     <SelectValue placeholder="Periodo" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todos">Todos los periodos</SelectItem>
                     {periodos.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
-                      </SelectItem>
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
 
-                {/* Filtro por grupo */}
                 <Select value={selectedGrupo} onValueChange={setSelectedGrupo}>
                   <SelectTrigger className="min-w-[140px]">
                     <SelectValue placeholder="Grupo" />
@@ -272,14 +248,11 @@ export default function CursosAlumnoPage() {
                   <SelectContent>
                     <SelectItem value="Todos">Todos los grupos</SelectItem>
                     {grupos.map((g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
 
-                {/* Botón limpiar filtros */}
                 {hasActiveFilters && (
                   <Button
                     variant="outline"
@@ -293,7 +266,6 @@ export default function CursosAlumnoPage() {
                 )}
               </div>
 
-              {/* Contador de resultados */}
               <div className="text-sm text-muted-foreground">
                 Mostrando {filteredCursos.length} de {cursos.length} cursos
               </div>
@@ -307,9 +279,7 @@ export default function CursosAlumnoPage() {
               <div className="text-center py-12">
                 <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                  {searchTerm
-                    ? "No se encontraron cursos"
-                    : "Sin cursos inscritos"}
+                  {searchTerm ? "No se encontraron cursos" : "Sin cursos inscritos"}
                 </h3>
                 <p className="text-gray-500">
                   {searchTerm
@@ -324,8 +294,7 @@ export default function CursosAlumnoPage() {
             <CardHeader>
               <CardTitle>Lista de Cursos</CardTitle>
               <CardDescription>
-                Haz clic en un curso para ver el encuadre y registrar tus
-                avances
+                Haz clic en un curso para ver el encuadre y registrar tus avances
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -368,18 +337,27 @@ export default function CursosAlumnoPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleVerCurso(curso.encuadre_id);
-                            }}
-                            className="cursor-pointer"
-                          >
-                            <GraduationCap className="h-4 w-4 mr-2" />
-                            Ver curso
-                          </Button>
+                          {/* ── Acciones por fila ── */}
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Solo mostrar imprimir si ya firmó */}
+                            {curso.firmado && (
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <PrintEncuadreButton encuadreId={curso.encuadre_id} />
+                              </div>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleVerCurso(curso.encuadre_id);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <GraduationCap className="h-4 w-4 mr-2" />
+                              Ver curso
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
