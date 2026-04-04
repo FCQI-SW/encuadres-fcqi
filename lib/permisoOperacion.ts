@@ -56,7 +56,6 @@ export async function resolverPermisoOperacion({
       .single();
 
     if (errorEncuadre || !encuadre) {
-      console.error("Error obteniendo encuadre:", errorEncuadre);
       return {
         ...permisoDefault,
         puede_ver: false,
@@ -88,10 +87,7 @@ export async function resolverPermisoOperacion({
           .limit(1);
 
       if (errorRelacionAlumno) {
-        console.error(
-          "Error validando relación alumno-encuadre:",
-          errorRelacionAlumno
-        );
+        console.error("Error validando relación alumno-encuadre:", errorRelacionAlumno);
       }
 
       if ((relacionAlumno?.length ?? 0) === 0) {
@@ -126,23 +122,39 @@ export async function resolverPermisoOperacion({
 
       const dentroFechas =
         fechaHoy >= config.fecha_inicio && fechaHoy <= config.fecha_fin;
-
       const dentroHorario =
         horaActual >= config.hora_inicio && horaActual <= config.hora_fin;
 
       dentroVentanaGlobal = dentroFechas && dentroHorario;
     }
 
-    // 4. Validar permiso especial por usuario + encuadre + rol
+    // 4. Si está dentro de la ventana global → permisos completos según rol
+    if (dentroVentanaGlobal) {
+      return {
+        puede_ver: true,
+        dentro_ventana_global: true,
+        tiene_permiso_especial: false,
+        solo_lectura: false,
+        puede_editar_encuadre: rol === "profesor",
+        puede_gestionar_alumnos: rol === "profesor",
+        puede_firmar: rol === "alumno",
+        puede_registrar_avances: true,
+        motivo: "",
+      };
+    }
+
+    // 5. Fuera de ventana global → buscar permiso especial con sus flags específicos
     const ahoraIso = new Date().toISOString();
 
     const { data: permisosEspeciales, error: errorPermisoEspecial } =
       await supabase
         .from("permisos_operacion_encuadre")
-        .select("id, motivo")
+        .select(
+          "id, motivo, solo_lectura, puede_editar_encuadre, puede_gestionar_alumnos, puede_firmar, puede_registrar_avances"
+        )
         .eq("usuario_id", userId)
         .eq("encuadre_id", encuadreId)
-        .eq("rol_objetivo", rol)  // ← columna correcta
+        .eq("rol_objetivo", rol)
         .eq("activo", true)
         .lte("acceso_desde", ahoraIso)
         .gte("acceso_hasta", ahoraIso)
@@ -153,10 +165,28 @@ export async function resolverPermisoOperacion({
     }
 
     const tienePermisoEspecial = (permisosEspeciales?.length ?? 0) > 0;
-    const motivoEspecial = permisosEspeciales?.[0]?.motivo?.trim?.() || "";
+    const permisoEspecial = permisosEspeciales?.[0];
 
-    const puedeOperar = dentroVentanaGlobal || tienePermisoEspecial;
+    // 6. Si hay permiso especial → respetar exactamente sus flags
+    if (tienePermisoEspecial && permisoEspecial) {
+      const esSoloLectura = permisoEspecial.solo_lectura ?? false;
 
+      return {
+        puede_ver: true,
+        dentro_ventana_global: false,
+        tiene_permiso_especial: true,
+        solo_lectura: esSoloLectura,
+        // Si solo_lectura está marcado, ninguna acción está disponible
+        // Si no, se usan los flags específicos del permiso
+        puede_editar_encuadre: !esSoloLectura && (permisoEspecial.puede_editar_encuadre ?? false),
+        puede_gestionar_alumnos: !esSoloLectura && (permisoEspecial.puede_gestionar_alumnos ?? false),
+        puede_firmar: !esSoloLectura && (permisoEspecial.puede_firmar ?? false),
+        puede_registrar_avances: !esSoloLectura && (permisoEspecial.puede_registrar_avances ?? false),
+        motivo: permisoEspecial.motivo?.trim() || "Permiso especial activo fuera del periodo general.",
+      };
+    }
+
+    // 7. Sin ventana global ni permiso especial → solo lectura
     const motivoBloqueo =
       rol === "profesor"
         ? "No tienes permiso de operación para editar este encuadre en este momento."
@@ -164,22 +194,16 @@ export async function resolverPermisoOperacion({
 
     return {
       puede_ver: true,
-      dentro_ventana_global: dentroVentanaGlobal,
-      tiene_permiso_especial: tienePermisoEspecial,
-      solo_lectura: !puedeOperar,
-
-      puede_editar_encuadre: rol === "profesor" ? puedeOperar : false,
-      puede_gestionar_alumnos: rol === "profesor" ? puedeOperar : false,
-      puede_firmar: rol === "alumno" ? puedeOperar : false,
-      puede_registrar_avances: puedeOperar, // ← ambos roles pueden registrar avances
-
-      motivo: puedeOperar
-        ? !dentroVentanaGlobal && tienePermisoEspecial
-          ? motivoEspecial ||
-            "Permiso especial activo fuera del periodo general."
-          : ""
-        : motivoBloqueo,
+      dentro_ventana_global: false,
+      tiene_permiso_especial: false,
+      solo_lectura: true,
+      puede_editar_encuadre: false,
+      puede_gestionar_alumnos: false,
+      puede_firmar: false,
+      puede_registrar_avances: false,
+      motivo: motivoBloqueo,
     };
+
   } catch (err) {
     console.error("Error inesperado resolviendo permiso de operación:", err);
 
