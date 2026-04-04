@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, FileText, CheckCircle } from "lucide-react";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
+import EvidenciaEncuadre from "@/components/EvidenciaEncuadre";
 
 type FirmaData = {
   id: string;
@@ -171,7 +172,6 @@ export default function EncuadreViewTab({
       } else {
         setFirma(data);
         toast.success("Tu firma de enterado ha sido registrada correctamente.");
-        // Notificar al componente padre que la firma fue completada
         if (onFirmaCompletada) {
           onFirmaCompletada();
         }
@@ -193,7 +193,10 @@ export default function EncuadreViewTab({
     });
   };
 
-  const totalPorcentaje = criterios.reduce((sum, c) => sum + (c.valor || 0), 0);
+  const totalPorcentaje = criterios.reduce(
+    (sum, c) => sum + (c.valor || 0),
+    0
+  );
 
   if (loading) {
     return (
@@ -413,7 +416,8 @@ export default function EncuadreViewTab({
               </span>
             </div>
             <p className="text-sm text-gray-600">
-              Nombre: <span className="font-medium">{firma.nombre_firma}</span>
+              Nombre:{" "}
+              <span className="font-medium">{firma.nombre_firma}</span>
             </p>
             <p className="text-sm text-gray-600">
               Fecha:{" "}
@@ -431,7 +435,8 @@ export default function EncuadreViewTab({
               className="w-72"
             />
             <p className="text-sm font-semibold text-center">
-              El grupo manifiesta su conformidad con los criterios de evaluación establecidos.
+              El grupo manifiesta su conformidad con los criterios de evaluación
+              establecidos.
             </p>
             <Button
               type="button"
@@ -439,11 +444,18 @@ export default function EncuadreViewTab({
               onClick={handleFirmar}
               disabled={guardando}
             >
-              {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {guardando && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               Guardar
             </Button>
           </>
         )}
+      </div>
+
+      {/* ── Evidencia del encuadre firmado ── */}
+      <div className="max-w-5xl mx-auto">
+        <EvidenciaEncuadre encuadreId={encuadreId} puedeSubir={false} />
       </div>
     </div>
   );

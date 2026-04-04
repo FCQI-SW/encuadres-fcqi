@@ -31,11 +31,15 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import PrintEncuadreButton from "@/components/Printencuadrebutton";
+import PrintPuaButton from "@/components/Printpuabutton";
 
 type MateriaEstado = {
   id: string;
   clave: string;
   nombre: string;
+  programaId?: string;
+  encuadreId?: string;
   encuadreCompleto: boolean;
   puaCompleto: boolean;
   editorPua?: string;
@@ -68,7 +72,9 @@ type EncuadreDB = {
 
 export default function Materias() {
   const [materias, setMaterias] = useState<MateriaEstado[]>([]);
-  const [materiasFiltradas, setMateriasFiltradas] = useState<MateriaEstado[]>([]);
+  const [materiasFiltradas, setMateriasFiltradas] = useState<MateriaEstado[]>(
+    []
+  );
 
   const [busqueda, setBusqueda] = useState("");
   const [filtroProgreso, setFiltroProgreso] =
@@ -113,11 +119,9 @@ export default function Materias() {
         let edicionPua: Date | undefined;
         let editorEncuadre: string | undefined;
         let edicionEncuadre: Date | undefined;
+        let encuadreId: string | undefined;
 
         if (programa) {
-          // =========================
-          // Última edición de PUA
-          // =========================
           if (programa.ultimo_editor_id) {
             const { data: editorData } = await supabase
               .from("usuarios")
@@ -131,9 +135,6 @@ export default function Materias() {
               : undefined;
           }
 
-          // =========================
-          // Verificar TODOS los encuadres del programa
-          // =========================
           const { data: encuadres, error: encuadresError } = await supabase
             .from("encuadres")
             .select(`
@@ -156,12 +157,15 @@ export default function Materias() {
           const encuadresLista = (encuadres || []) as EncuadreDB[];
 
           if (encuadresLista.length > 0) {
+            encuadreId = encuadresLista[0].id;
+
             const encuadreIds = encuadresLista.map((e) => e.id);
 
-            const { data: criteriosData, error: criteriosError } = await supabase
-              .from("criterios_evaluacion")
-              .select("encuadre_id, criterio, valor")
-              .in("encuadre_id", encuadreIds);
+            const { data: criteriosData, error: criteriosError } =
+              await supabase
+                .from("criterios_evaluacion")
+                .select("encuadre_id, criterio, valor")
+                .in("encuadre_id", encuadreIds);
 
             if (criteriosError) {
               console.error(
@@ -205,10 +209,6 @@ export default function Materias() {
               );
             });
 
-            // =========================
-            // Última edición de Encuadre
-            // toma el más reciente entre todos
-            // =========================
             const encuadreMasReciente = [...encuadresLista]
               .filter((e) => e.ultima_edicion)
               .sort((a, b) => {
@@ -235,9 +235,6 @@ export default function Materias() {
             }
           }
 
-          // =========================
-          // Verificar PUA completo
-          // =========================
           const numUnidades = programa.unidades || 0;
           const camposBasicosCompletos = !!(
             programa.proposito &&
@@ -281,7 +278,6 @@ export default function Materias() {
               practicasTallerCompletas =
                 practicasValidas.length === practicasTaller.length;
             } else {
-              // Si no hay prácticas, sigue como pendiente
               practicasTallerCompletas = false;
             }
 
@@ -295,6 +291,8 @@ export default function Materias() {
           id: materia.id,
           clave: materia.clave,
           nombre: materia.nombre_materia,
+          programaId: programa?.id,
+          encuadreId,
           encuadreCompleto,
           puaCompleto,
           editorPua,
@@ -371,30 +369,18 @@ export default function Materias() {
     if (editoPua && editoEncuadre) {
       return {
         tipo: "ambos" as const,
-        pua: {
-          editor: m.editorPua!,
-          fecha: m.edicionPua!,
-        },
-        encuadre: {
-          editor: m.editorEncuadre!,
-          fecha: m.edicionEncuadre!,
-        },
+        pua: { editor: m.editorPua!, fecha: m.edicionPua! },
+        encuadre: { editor: m.editorEncuadre!, fecha: m.edicionEncuadre! },
       };
     } else if (editoPua) {
       return {
         tipo: "pua" as const,
-        pua: {
-          editor: m.editorPua!,
-          fecha: m.edicionPua!,
-        },
+        pua: { editor: m.editorPua!, fecha: m.edicionPua! },
       };
     } else if (editoEncuadre) {
       return {
         tipo: "encuadre" as const,
-        encuadre: {
-          editor: m.editorEncuadre!,
-          fecha: m.edicionEncuadre!,
-        },
+        encuadre: { editor: m.editorEncuadre!, fecha: m.edicionEncuadre! },
       };
     }
 
@@ -403,7 +389,7 @@ export default function Materias() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
@@ -411,14 +397,14 @@ export default function Materias() {
 
   return (
     <div className="px-4 py-8">
-      <div className="mx-auto max-w-6xl mb-6 p-4 border rounded-lg bg-muted/30">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="mx-auto mb-6 max-w-6xl rounded-lg border bg-muted/30 p-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="md:col-span-2">
             <Label className="mb-2 block text-sm font-medium">
               Buscar por nombre o clave
             </Label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Ej: Cívica, MAT202s..."
@@ -463,12 +449,13 @@ export default function Materias() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between mt-4 pt-4 border-t">
+        <div className="mt-4 flex items-center justify-between border-t pt-4">
           <span className="text-sm text-muted-foreground">
             Mostrando{" "}
             <span className="font-semibold">{materiasFiltradas.length}</span> de{" "}
             <span className="font-semibold">{materias.length}</span> materias
           </span>
+
           {(busqueda || filtroProgreso !== "todas") && (
             <Button
               variant="outline"
@@ -486,12 +473,12 @@ export default function Materias() {
         <Table className="w-full text-sm">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[30%]">Nombre del curso</TableHead>
-              <TableHead className="w-[15%] text-center">Clave</TableHead>
-              <TableHead className="w-[20%] text-center">
+              <TableHead className="w-[26%]">Nombre del curso</TableHead>
+              <TableHead className="w-[12%] text-center">Clave</TableHead>
+              <TableHead className="w-[22%] text-center">
                 Última edición
               </TableHead>
-              <TableHead className="w-[35%] text-center">Acciones</TableHead>
+              <TableHead className="w-[40%] text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -511,15 +498,15 @@ export default function Materias() {
 
                 return (
                   <TableRow key={m.id} className="hover:bg-muted/50">
-                    <TableCell className="font-medium">
+                    <TableCell className="align-top font-medium">
                       <span className="block truncate">{m.nombre}</span>
                     </TableCell>
 
-                    <TableCell className="tabular-nums text-center">
+                    <TableCell className="tabular-nums text-center align-top">
                       {m.clave}
                     </TableCell>
 
-                    <TableCell className="text-center">
+                    <TableCell className="text-center align-top">
                       <div className="flex flex-col items-center gap-2">
                         {infoEdicion ? (
                           <>
@@ -573,7 +560,9 @@ export default function Materias() {
                                     Encuadre: {infoEdicion.encuadre.editor}
                                   </span>
                                   <span className="text-muted-foreground">
-                                    {formatearFecha(infoEdicion.encuadre.fecha)}
+                                    {formatearFecha(
+                                      infoEdicion.encuadre.fecha
+                                    )}
                                   </span>
                                 </div>
                               </div>
@@ -587,70 +576,94 @@ export default function Materias() {
                       </div>
                     </TableCell>
 
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="flex flex-col items-center gap-1">
-                          <Button
-                            asChild
-                            size="sm"
-                            variant="outline"
-                            className={`cursor-pointer ${
-                              m.encuadreCompleto
-                                ? "border-green-600 text-green-700 hover:bg-green-50"
-                                : "border-orange-600 text-orange-700 hover:bg-orange-50"
-                            }`}
-                          >
-                            <Link href={`/capturista/materias/${m.clave}/encuadre`}>
-                              {m.encuadreCompleto ? (
-                                <CheckCircle2 className="mr-1 h-4 w-4" />
-                              ) : (
-                                <AlertCircle className="mr-1 h-4 w-4" />
-                              )}
-                              Ver Encuadre
-                            </Link>
-                          </Button>
-                          <Badge
-                            variant={m.encuadreCompleto ? "default" : "secondary"}
-                            className={`text-xs ${
-                              m.encuadreCompleto
-                                ? "bg-green-600 hover:bg-green-700"
-                                : "bg-orange-500 hover:bg-orange-600"
-                            }`}
-                          >
-                            {m.encuadreCompleto ? "Completo" : "Pendiente"}
-                          </Badge>
+                    <TableCell className="align-top">
+                      <div className="flex flex-col items-center justify-start gap-3 py-1">
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                          <div className="flex w-[170px] flex-col items-center gap-1">
+                            <Button
+                              asChild
+                              size="sm"
+                              variant="outline"
+                              className={`w-full justify-center whitespace-nowrap cursor-pointer ${
+                                m.encuadreCompleto
+                                  ? "border-green-600 text-green-700 hover:bg-green-50"
+                                  : "border-orange-600 text-orange-700 hover:bg-orange-50"
+                              }`}
+                            >
+                              <Link
+                                href={`/capturista/materias/${m.clave}/encuadre`}
+                              >
+                                {m.encuadreCompleto ? (
+                                  <CheckCircle2 className="mr-1 h-4 w-4 shrink-0" />
+                                ) : (
+                                  <AlertCircle className="mr-1 h-4 w-4 shrink-0" />
+                                )}
+                                Ver Encuadre
+                              </Link>
+                            </Button>
+
+                            <Badge
+                              variant={
+                                m.encuadreCompleto ? "default" : "secondary"
+                              }
+                              className={`min-w-[95px] justify-center text-xs ${
+                                m.encuadreCompleto
+                                  ? "bg-green-600 hover:bg-green-700"
+                                  : "bg-orange-500 hover:bg-orange-600"
+                              }`}
+                            >
+                              {m.encuadreCompleto ? "Completo" : "Pendiente"}
+                            </Badge>
+                          </div>
+
+                          <div className="flex w-[170px] flex-col items-center gap-1">
+                            <Button
+                              asChild
+                              size="sm"
+                              className={`w-full justify-center whitespace-nowrap cursor-pointer ${
+                                m.puaCompleto
+                                  ? "bg-green-600 text-white hover:bg-green-700"
+                                  : "bg-orange-500 text-white hover:bg-orange-600"
+                              }`}
+                            >
+                              <Link href={`/capturista/materias/${m.clave}/pua`}>
+                                {m.puaCompleto ? (
+                                  <CheckCircle2 className="mr-1 h-4 w-4 shrink-0" />
+                                ) : (
+                                  <AlertCircle className="mr-1 h-4 w-4 shrink-0" />
+                                )}
+                                Ver PUA
+                              </Link>
+                            </Button>
+
+                            <Badge
+                              variant={m.puaCompleto ? "default" : "secondary"}
+                              className={`min-w-[95px] justify-center text-xs ${
+                                m.puaCompleto
+                                  ? "bg-green-600 hover:bg-green-700"
+                                  : "bg-orange-500 hover:bg-orange-600"
+                              }`}
+                            >
+                              {m.puaCompleto ? "Completo" : "Pendiente"}
+                            </Badge>
+                          </div>
                         </div>
 
-                        <div className="flex flex-col items-center gap-1">
-                          <Button
-                            asChild
-                            size="sm"
-                            className={`cursor-pointer ${
-                              m.puaCompleto
-                                ? "bg-green-600 text-white hover:bg-green-700"
-                                : "bg-orange-500 text-white hover:bg-orange-600"
-                            }`}
-                          >
-                            <Link href={`/capturista/materias/${m.clave}/pua`}>
-                              {m.puaCompleto ? (
-                                <CheckCircle2 className="mr-1 h-4 w-4" />
-                              ) : (
-                                <AlertCircle className="mr-1 h-4 w-4" />
-                              )}
-                              Ver PUA
-                            </Link>
-                          </Button>
-                          <Badge
-                            variant={m.puaCompleto ? "default" : "secondary"}
-                            className={`text-xs ${
-                              m.puaCompleto
-                                ? "bg-green-600 hover:bg-green-700"
-                                : "bg-orange-500 hover:bg-orange-600"
-                            }`}
-                          >
-                            {m.puaCompleto ? "Completo" : "Pendiente"}
-                          </Badge>
-                        </div>
+                        {(m.encuadreId || m.programaId) && (
+                          <div className="flex flex-wrap items-center justify-center gap-2">
+                            {m.encuadreId && (
+                              <div className="flex min-w-[170px] justify-center">
+                                <PrintEncuadreButton encuadreId={m.encuadreId} />
+                              </div>
+                            )}
+
+                            {m.programaId && (
+                              <div className="flex min-w-[170px] justify-center">
+                                <PrintPuaButton programaId={m.programaId} />
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

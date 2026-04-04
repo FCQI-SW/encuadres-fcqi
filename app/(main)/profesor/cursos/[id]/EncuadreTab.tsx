@@ -24,6 +24,7 @@ import { Loader2, Plus, Trash2, Lock, AlertCircle } from "lucide-react";
 import { useEncuadreProfesor } from "@/hooks/useEncuadreProfesor";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
+import EvidenciaEncuadre from "@/components/EvidenciaEncuadre";
 
 type CriterioCalificacion = {
   criterio: string;
@@ -235,7 +236,6 @@ export default function EncuadreTab({
 
   const agregarCriterioCalificacion = () => {
     if (!puedeEditar || !profesorPuedeModificar) return;
-
     setCriteriosCalificacion([
       ...criteriosCalificacion,
       { criterio: "", valor: 0, descripcion: "" },
@@ -244,7 +244,6 @@ export default function EncuadreTab({
 
   const eliminarCriterioCalificacion = (index: number) => {
     if (!puedeEditar || !profesorPuedeModificar) return;
-
     setCriteriosCalificacion(
       criteriosCalificacion.filter((_, i) => i !== index)
     );
@@ -256,7 +255,6 @@ export default function EncuadreTab({
     value: string | number
   ) => {
     if (!puedeEditar || !profesorPuedeModificar) return;
-
     const nuevosCriterios = [...criteriosCalificacion];
     nuevosCriterios[index] = { ...nuevosCriterios[index], [field]: value };
     setCriteriosCalificacion(nuevosCriterios);
@@ -265,7 +263,10 @@ export default function EncuadreTab({
   const criteriosConValor = criteriosCalificacion.filter(
     (c) => c.criterio.trim() !== ""
   );
-  const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
+  const totalPorcentaje = criteriosConValor.reduce(
+    (sum, c) => sum + c.valor,
+    0
+  );
 
   if (loadingData) {
     return (
@@ -312,8 +313,9 @@ export default function EncuadreTab({
                   Permisos de edición limitados
                 </h3>
                 <p className="text-sm text-yellow-800">
-                  El capturista ha restringido la edición de los criterios de evaluación.
-                  Solo podrás editar las descripciones y contenidos generales del encuadre.
+                  El capturista ha restringido la edición de los criterios de
+                  evaluación. Solo podrás editar las descripciones y contenidos
+                  generales del encuadre.
                 </p>
               </div>
             </div>
@@ -396,7 +398,9 @@ export default function EncuadreTab({
                   <TableHead className="w-[35%]">Criterio</TableHead>
                   <TableHead className="w-[15%] text-center">Valor %</TableHead>
                   <TableHead className="w-[40%]">Descripción</TableHead>
-                  {profesorPuedeModificar && <TableHead className="w-[10%]"></TableHead>}
+                  {profesorPuedeModificar && (
+                    <TableHead className="w-[10%]"></TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -406,7 +410,11 @@ export default function EncuadreTab({
                       <Input
                         value={crit.criterio}
                         onChange={(e) =>
-                          actualizarCriterioCalificacion(index, "criterio", e.target.value)
+                          actualizarCriterioCalificacion(
+                            index,
+                            "criterio",
+                            e.target.value
+                          )
                         }
                         placeholder="Nombre del criterio"
                         disabled={!puedeEditar || !profesorPuedeModificar}
@@ -465,8 +473,7 @@ export default function EncuadreTab({
                           size="sm"
                           onClick={() => eliminarCriterioCalificacion(index)}
                           disabled={
-                            !puedeEditar ||
-                            criteriosCalificacion.length === 1
+                            !puedeEditar || criteriosCalificacion.length === 1
                           }
                           className="cursor-pointer"
                         >
@@ -546,9 +553,12 @@ export default function EncuadreTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>Descripción de Producto o Evidencia de Desempeño</CardTitle>
+          <CardTitle>
+            Descripción de Producto o Evidencia de Desempeño
+          </CardTitle>
           <CardDescription>
-            En caso de existir rúbrica del trabajo final, incluirla en este apartado
+            En caso de existir rúbrica del trabajo final, incluirla en este
+            apartado
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -579,9 +589,12 @@ export default function EncuadreTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>Normas de Conducta dentro del Salón de Clases</CardTitle>
+          <CardTitle>
+            Normas de Conducta dentro del Salón de Clases
+          </CardTitle>
           <CardDescription>
-            Describir las reglas de conducta, retardos, uso de celular, alimentos, etc.
+            Describir las reglas de conducta, retardos, uso de celular,
+            alimentos, etc.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -594,6 +607,9 @@ export default function EncuadreTab({
           />
         </CardContent>
       </Card>
+
+      {/* ── Evidencia del encuadre firmado ── */}
+      <EvidenciaEncuadre encuadreId={encuadreId} puedeSubir={true} />
 
       <div className="flex justify-end">
         <Button

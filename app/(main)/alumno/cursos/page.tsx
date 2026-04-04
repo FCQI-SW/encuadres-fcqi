@@ -30,9 +30,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import PrintEncuadreButton from "@/components/Printencuadrebutton";
+import PrintPuaButton from "@/components/Printpuabutton";
 
 type Curso = {
-  id: string;
+  id: string;          // programa_id
   encuadre_id: string;
   materia_clave: string;
   materia_nombre: string;
@@ -127,7 +128,7 @@ export default function CursosAlumnoPage() {
         const docente = docenteMap.get(e.usuario_id);
 
         return {
-          id: e.programa_id,
+          id: e.programa_id, // programa_id para PrintPuaButton
           encuadre_id: e.id,
           materia_clave: materia?.clave || "N/A",
           materia_nombre: materia?.nombre_materia || "Sin información",
@@ -162,13 +163,8 @@ export default function CursosAlumnoPage() {
   useEffect(() => {
     let filtered = [...cursos];
 
-    if (selectedPeriodo !== "Todos") {
-      filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
-    }
-
-    if (selectedGrupo !== "Todos") {
-      filtered = filtered.filter((c) => c.grupo === selectedGrupo);
-    }
+    if (selectedPeriodo !== "Todos") filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
+    if (selectedGrupo !== "Todos") filtered = filtered.filter((c) => c.grupo === selectedGrupo);
 
     if (searchTerm.trim() !== "") {
       const term = searchTerm.toLowerCase();
@@ -318,9 +314,7 @@ export default function CursosAlumnoPage() {
                         className="hover:bg-gray-50 cursor-pointer"
                         onClick={() => handleVerCurso(curso.encuadre_id)}
                       >
-                        <TableCell className="font-medium">
-                          {curso.materia_clave}
-                        </TableCell>
+                        <TableCell className="font-medium">{curso.materia_clave}</TableCell>
                         <TableCell>{curso.materia_nombre}</TableCell>
                         <TableCell>{curso.docente}</TableCell>
                         <TableCell>{curso.periodo}</TableCell>
@@ -337,21 +331,20 @@ export default function CursosAlumnoPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {/* ── Acciones por fila ── */}
-                          <div className="flex items-center justify-end gap-2">
-                            {/* Solo mostrar imprimir si ya firmó */}
+                          <div
+                            className="flex items-center justify-end gap-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {/* PUA siempre visible */}
+                            <PrintPuaButton programaId={curso.id} />
+                            {/* Encuadre solo si ya firmó */}
                             {curso.firmado && (
-                              <div onClick={(e) => e.stopPropagation()}>
-                                <PrintEncuadreButton encuadreId={curso.encuadre_id} />
-                              </div>
+                              <PrintEncuadreButton encuadreId={curso.encuadre_id} />
                             )}
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleVerCurso(curso.encuadre_id);
-                              }}
+                              onClick={() => handleVerCurso(curso.encuadre_id)}
                               className="cursor-pointer"
                             >
                               <GraduationCap className="h-4 w-4 mr-2" />

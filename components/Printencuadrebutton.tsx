@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Printer, Loader2 } from "lucide-react";
+import { useConfirm } from "@/components/global-confirm-modal";
 
 type Props = {
   encuadreId: string;
@@ -11,6 +12,7 @@ type Props = {
 
 export default function PrintEncuadreButton({ encuadreId }: Props) {
   const [loading, setLoading] = useState(false);
+  const confirm = useConfirm();
 
   const handlePrint = async () => {
     if (!encuadreId) return;
@@ -74,29 +76,27 @@ export default function PrintEncuadreButton({ encuadreId }: Props) {
         fecha: firmasMap.get(ae.alumno_id) || null,
       }));
 
-      // ── Verificar campos incompletos ──────────────────────────
-const camposVacios: string[] = [];
+      // ── Advertencia si hay campos incompletos ─────────────────
+      const camposVacios: string[] = [];
+      if (!programa?.competencia?.trim()) camposVacios.push("Competencia del curso");
+      if (!unidades || unidades.length === 0) camposVacios.push("Plan de clases");
+      if (!criterios || criterios.length === 0) camposVacios.push("Criterios de evaluación");
+      if (!encuadre.derecho_ordinario?.trim()) camposVacios.push("Derecho a examen ordinario");
+      if (!encuadre.derecho_extraordinario?.trim()) camposVacios.push("Derecho a examen extraordinario");
+      if (!encuadre.normas_conducta?.trim()) camposVacios.push("Normas de conducta");
 
-if (!programa?.competencia?.trim()) camposVacios.push("Competencia del curso");
-if (!unidades || unidades.length === 0) camposVacios.push("Plan de clases (sin unidades)");
-if (!criterios || criterios.length === 0) camposVacios.push("Criterios de evaluación");
-if (!encuadre.derecho_ordinario?.trim()) camposVacios.push("Derecho examen ordinario");
-if (!encuadre.derecho_extraordinario?.trim()) camposVacios.push("Derecho examen extraordinario");
-if (!encuadre.normas_conducta?.trim()) camposVacios.push("Normas de conducta");
+      if (camposVacios.length > 0) {
+        const continuar = await confirm({
+          title: "Documento incompleto",
+          message: "Algunos campos no han sido llenados. El documento puede salir incompleto. ¿Deseas imprimir de todas formas?",
+          confirmText: "Sí, imprimir",
+          cancelText: "Cancelar",
+        });
+        if (!continuar) { setLoading(false); return; }
+      }
+      // ─────────────────────────────────────────────────────────
 
-if (camposVacios.length > 0) {
-  const lista = camposVacios.map(c => `• ${c}`).join("\n");
-  const continuar = window.confirm(
-    `Los siguientes campos están vacíos o incompletos:\n\n${lista}\n\n¿Deseas imprimir de todas formas?`
-  );
-  if (!continuar) {
-    setLoading(false);
-    return;
-  }
-}
-// ─────────────────────────────────────────────────────────
-
-      // ── Helpers ──────────────────────────────────────────────
+      // ── Helpers ───────────────────────────────────────────────
       const semestre = encuadre.periodo || "";
 
       const esc = (s: string) =>
@@ -198,7 +198,6 @@ if (camposVacios.length > 0) {
           </div>`;
       }
 
-      // ── HTML completo ─────────────────────────────────────────
       const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -364,7 +363,7 @@ if (camposVacios.length > 0) {
 
   <div class="sec">Plan de Clases</div>
   <p class="lbl">COMPETENCIA DEL CURSO:</p>
-  <div class="txt">${esc(programa?.competencia || "Sin competencia registrada.")}</div>
+  <div class="txt">${esc(programa?.competencia || "")}</div>
 
   <table class="tbl">
     <thead>
@@ -433,10 +432,7 @@ ${paginasFirmas}
 </body>
 </html>`;
 
-      // ── Imprimir via iframe oculto (sin abrir ventana nueva) ──
       const iframeId = "print-frame-encuadre";
-
-      // Eliminar iframe previo si existe
       const prevIframe = document.getElementById(iframeId);
       if (prevIframe) prevIframe.remove();
 
@@ -457,11 +453,9 @@ ${paginasFirmas}
       doc.write(html);
       doc.close();
 
-      // Esperar a que cargue el contenido antes de imprimir
       iframe.onload = () => {
         setTimeout(() => {
           iframe.contentWindow?.print();
-          // Limpiar iframe después de imprimir
           setTimeout(() => iframe.remove(), 1000);
         }, 300);
       };

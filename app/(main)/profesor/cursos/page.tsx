@@ -54,6 +54,7 @@ import {
   Archive,
 } from "lucide-react";
 import PrintEncuadreButton from "@/components/Printencuadrebutton";
+import PrintPuaButton from "@/components/Printpuabutton";
 
 type Curso = {
   id: string;
@@ -213,7 +214,7 @@ export default function CursosProfesorPage() {
           : false;
 
         return {
-          id: e.programa_id,
+          id: e.programa_id, // programa_id para PrintPuaButton
           encuadre_id: e.id,
           materia_clave: materia?.clave || "N/A",
           materia_nombre: materia?.nombre_materia || "Sin información",
@@ -242,7 +243,7 @@ export default function CursosProfesorPage() {
     try {
       const { data: alumnosEncuadre } = await supabase
         .from("encuadre_alumnos")
-        .select(`alumno_id, usuarios!encuadre_alumnos_alumno_id_fkey (id, correo, nombre)`)
+        .select("alumno_id, usuarios!encuadre_alumnos_alumno_id_fkey (id, correo, nombre)")
         .eq("encuadre_id", curso.encuadre_id)
         .neq("estado", "revocada");
 
@@ -324,19 +325,11 @@ export default function CursosProfesorPage() {
   useEffect(() => {
     let filtered = [...cursos];
 
-    if (selectedVista === "actuales") {
-      filtered = filtered.filter((c) => !c.archivado);
-    } else if (selectedVista === "archivados") {
-      filtered = filtered.filter((c) => c.archivado);
-    }
+    if (selectedVista === "actuales") filtered = filtered.filter((c) => !c.archivado);
+    else if (selectedVista === "archivados") filtered = filtered.filter((c) => c.archivado);
 
-    if (selectedPeriodo !== "Todos") {
-      filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
-    }
-
-    if (selectedGrupo !== "Todos") {
-      filtered = filtered.filter((c) => c.grupo === selectedGrupo);
-    }
+    if (selectedPeriodo !== "Todos") filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
+    if (selectedGrupo !== "Todos") filtered = filtered.filter((c) => c.grupo === selectedGrupo);
 
     if (searchTerm.trim() !== "") {
       const term = searchTerm.toLowerCase();
@@ -399,9 +392,7 @@ export default function CursosProfesorPage() {
         <div className="mx-auto max-w-7xl space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <p className="text-gray-600 mt-1">
-                Administra tus cursos, alumnos y avances
-              </p>
+              <p className="text-gray-600 mt-1">Administra tus cursos, alumnos y avances</p>
               {periodoActual && (
                 <p className="text-sm text-muted-foreground mt-1">
                   Periodo actual detectado:{" "}
@@ -530,14 +521,10 @@ export default function CursosProfesorPage() {
                       {filteredCursos.map((curso) => (
                         <TableRow
                           key={curso.encuadre_id}
-                          className={`cursor-pointer hover:bg-gray-50 ${
-                            curso.archivado ? "bg-amber-50/40" : ""
-                          }`}
+                          className={`cursor-pointer hover:bg-gray-50 ${curso.archivado ? "bg-amber-50/40" : ""}`}
                           onClick={() => handleVerCurso(curso.encuadre_id)}
                         >
-                          <TableCell className="font-medium">
-                            {curso.materia_clave}
-                          </TableCell>
+                          <TableCell className="font-medium">{curso.materia_clave}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <span>{curso.materia_nombre}</span>
@@ -562,20 +549,14 @@ export default function CursosProfesorPage() {
                               <TooltipTrigger asChild>
                                 <button
                                   onClick={(e) => handleOpenModal(curso, "firmas", e)}
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(
-                                    curso.firmas_completadas,
-                                    curso.total_alumnos
-                                  )}`}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(curso.firmas_completadas, curso.total_alumnos)}`}
                                 >
                                   <FileSignature className="h-3 w-3" />
                                   <span>{curso.firmas_completadas}/{curso.total_alumnos}</span>
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>
-                                  {curso.firmas_completadas} de {curso.total_alumnos} alumnos
-                                  han firmado el encuadre. Clic para ver detalles.
-                                </p>
+                                <p>{curso.firmas_completadas} de {curso.total_alumnos} alumnos han firmado el encuadre. Clic para ver detalles.</p>
                               </TooltipContent>
                             </Tooltip>
                           </TableCell>
@@ -584,36 +565,28 @@ export default function CursosProfesorPage() {
                               <TooltipTrigger asChild>
                                 <button
                                   onClick={(e) => handleOpenModal(curso, "avances", e)}
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(
-                                    curso.avances_completados,
-                                    curso.total_alumnos
-                                  )}`}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(curso.avances_completados, curso.total_alumnos)}`}
                                 >
                                   <ClipboardCheck className="h-3 w-3" />
                                   <span>{curso.avances_completados}/{curso.total_alumnos}</span>
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>
-                                  {curso.avances_completados} de {curso.total_alumnos} alumnos
-                                  han registrado avances. Clic para ver detalles.
-                                </p>
+                                <p>{curso.avances_completados} de {curso.total_alumnos} alumnos han registrado avances. Clic para ver detalles.</p>
                               </TooltipContent>
                             </Tooltip>
                           </TableCell>
                           <TableCell className="text-right">
-                            {/* ── Acciones por fila ── */}
-                            <div className="flex items-center justify-end gap-2">
-                              <div onClick={(e) => e.stopPropagation()}>
-                                <PrintEncuadreButton encuadreId={curso.encuadre_id} />
-                              </div>
+                            <div
+                              className="flex items-center justify-end gap-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <PrintPuaButton programaId={curso.id} />
+                              <PrintEncuadreButton encuadreId={curso.encuadre_id} />
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleVerCurso(curso.encuadre_id);
-                                }}
+                                onClick={() => handleVerCurso(curso.encuadre_id)}
                                 className="cursor-pointer"
                               >
                                 <GraduationCap className="h-4 w-4 mr-2" />
