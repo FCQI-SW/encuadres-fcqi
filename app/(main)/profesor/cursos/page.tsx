@@ -214,7 +214,7 @@ export default function CursosProfesorPage() {
           : false;
 
         return {
-          id: e.programa_id, // programa_id para PrintPuaButton
+          id: e.programa_id,
           encuadre_id: e.id,
           materia_clave: materia?.clave || "N/A",
           materia_nombre: materia?.nombre_materia || "Sin información",
@@ -322,14 +322,25 @@ export default function CursosProfesorPage() {
     });
   };
 
+  // ── FIX: cuando el usuario elige un periodo específico, mostrar
+  // todos sus cursos de ese periodo sin aplicar el filtro de vista
+  // (archivado/actual). Esto evita que cursos de periodos anteriores
+  // desaparezcan al filtrar por periodo explícito.
   useEffect(() => {
     let filtered = [...cursos];
 
-    if (selectedVista === "actuales") filtered = filtered.filter((c) => !c.archivado);
-    else if (selectedVista === "archivados") filtered = filtered.filter((c) => c.archivado);
+    if (selectedPeriodo !== "Todos") {
+      // Periodo específico seleccionado → ignorar filtro de vista
+      filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
+    } else {
+      // Sin periodo específico → aplicar filtro de vista normalmente
+      if (selectedVista === "actuales") filtered = filtered.filter((c) => !c.archivado);
+      else if (selectedVista === "archivados") filtered = filtered.filter((c) => c.archivado);
+    }
 
-    if (selectedPeriodo !== "Todos") filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
-    if (selectedGrupo !== "Todos") filtered = filtered.filter((c) => c.grupo === selectedGrupo);
+    if (selectedGrupo !== "Todos") {
+      filtered = filtered.filter((c) => c.grupo === selectedGrupo);
+    }
 
     if (searchTerm.trim() !== "") {
       const term = searchTerm.toLowerCase();
@@ -422,19 +433,22 @@ export default function CursosProfesorPage() {
                     />
                   </div>
 
-                  <Select
-                    value={selectedVista}
-                    onValueChange={(value) => setSelectedVista(value as VistaCursos)}
-                  >
-                    <SelectTrigger className="min-w-[180px]">
-                      <SelectValue placeholder="Vista" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="actuales">Cursos actuales</SelectItem>
-                      <SelectItem value="archivados">Cursos archivados</SelectItem>
-                      <SelectItem value="todos">Todos los cursos</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {/* Solo mostrar filtro de vista cuando no hay periodo específico */}
+                  {selectedPeriodo === "Todos" && (
+                    <Select
+                      value={selectedVista}
+                      onValueChange={(value) => setSelectedVista(value as VistaCursos)}
+                    >
+                      <SelectTrigger className="min-w-[180px]">
+                        <SelectValue placeholder="Vista" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="actuales">Cursos actuales</SelectItem>
+                        <SelectItem value="archivados">Cursos archivados</SelectItem>
+                        <SelectItem value="todos">Todos los cursos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
 
                   <Select value={selectedPeriodo} onValueChange={setSelectedPeriodo}>
                     <SelectTrigger className="min-w-[180px]">

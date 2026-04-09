@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, Upload, Loader2, X } from "lucide-react";
+import { AlertCircle, Upload, Loader2, X, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { generarClaveSegura } from "@/lib/password-generator";
 
 interface Role {
   id: string;
@@ -59,6 +60,7 @@ export function AddUserModal({
   saving = false,
 }: AddUserModalProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   if (!isOpen) return null;
 
@@ -75,12 +77,20 @@ export function AddUserModal({
     fileInputRef.current?.click();
   }
 
-  // Handler para el select de rol
   function handleRoleSelect(value: string) {
     const syntheticEvent = {
       target: { name: "role_id", value },
     } as React.ChangeEvent<HTMLSelectElement>;
     onInputChange(syntheticEvent);
+  }
+
+  function handleGenerarPassword() {
+    const nuevaClave = generarClaveSegura(12);
+    const syntheticEvent = {
+      target: { name: "password", value: nuevaClave },
+    } as React.ChangeEvent<HTMLInputElement>;
+    onInputChange(syntheticEvent);
+    setShowPassword(true); // Mostrar la contraseña generada
   }
 
   return (
@@ -103,7 +113,6 @@ export function AddUserModal({
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Errores */}
           {errors.length > 0 && (
             <div className="p-3 border border-red-200 bg-red-50 rounded-lg">
               <div className="flex items-start gap-2">
@@ -117,7 +126,6 @@ export function AddUserModal({
             </div>
           )}
 
-          {/* Campos del formulario */}
           <div className="space-y-3">
             <div className="space-y-1">
               <Label htmlFor="email">Correo electrónico *</Label>
@@ -125,7 +133,7 @@ export function AddUserModal({
                 id="email"
                 name="email"
                 type="email"
-                placeholder="usuario@ejemplo.com"
+                placeholder="usuario@uabc.edu.mx"
                 value={newUser.email}
                 onChange={onInputChange}
                 disabled={saving}
@@ -146,16 +154,45 @@ export function AddUserModal({
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="password">Contraseña *</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                value={newUser.password}
-                onChange={onInputChange}
-                disabled={saving}
-              />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Contraseña *</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleGenerarPassword}
+                  disabled={saving}
+                  className="cursor-pointer text-xs text-[#00723F] hover:text-[#005e30] hover:bg-green-50 h-7 px-2"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Generar
+                </Button>
+              </div>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Mínimo 12 caracteres"
+                  value={newUser.password}
+                  onChange={onInputChange}
+                  disabled={saving}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -179,7 +216,6 @@ export function AddUserModal({
             </div>
           </div>
 
-          {/* Botones principales */}
           <div className="flex justify-end gap-2 pt-2">
             <Button
               variant="outline"
@@ -207,7 +243,6 @@ export function AddUserModal({
 
           <Separator />
 
-          {/* Importar desde Excel */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">
               Importar usuarios desde Excel

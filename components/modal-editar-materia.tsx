@@ -35,6 +35,8 @@ type Licenciatura = {
 };
 
 type Materia = {
+  id?: string;
+  programa_id?: string;
   clave: string;
   nombre_materia: string;
   licenciatura: string;
@@ -44,6 +46,7 @@ type Materia = {
   estado: "Activa" | "Inactiva";
   periodo: string;
   plan_estudios: string;
+  archivada?: boolean;
 };
 
 interface ModalEditarMateriaProps {
@@ -134,6 +137,18 @@ export function ModalEditarMateria({
     setManagingLic(false);
   }
 
+  const estadoTexto = materia.archivada
+    ? "Archivada"
+    : materia.estado === "Activa"
+    ? "Activa"
+    : "Inactiva";
+
+  const estadoClase = materia.archivada
+    ? "text-amber-700 bg-amber-50 border-amber-200"
+    : materia.estado === "Activa"
+    ? "text-green-700 bg-green-50 border-green-200"
+    : "text-red-700 bg-red-50 border-red-200";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <Card className="w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
@@ -147,9 +162,11 @@ export function ModalEditarMateria({
           >
             <X className="h-4 w-4" />
           </Button>
-          <CardTitle>Editar Materia</CardTitle>
+
+          <CardTitle>Editar materia / periodo</CardTitle>
           <CardDescription>
-            Modifica los datos de la materia {materia.clave}
+            Modifica los datos de la materia {materia.clave} en el periodo{" "}
+            {materia.periodo || "seleccionado"}.
           </CardDescription>
         </CardHeader>
 
@@ -407,20 +424,16 @@ export function ModalEditarMateria({
             </div>
 
             <div className="space-y-1">
-              <Label>Estado</Label>
-              <Select
-                value={materia.estado}
-                onValueChange={(value) => onSelectChange("estado", value)}
-                disabled={saving}
+              <Label>Estado actual del periodo</Label>
+              <div
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${estadoClase}`}
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Activa">Activa</SelectItem>
-                  <SelectItem value="Inactiva">Inactiva</SelectItem>
-                </SelectContent>
-              </Select>
+                {estadoTexto}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                El estado activo/inactivo y el archivado se cambian desde los
+                botones de la tabla, no desde este formulario.
+              </p>
             </div>
           </div>
 

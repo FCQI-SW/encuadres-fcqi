@@ -55,7 +55,11 @@ type GuardarPuaParams = {
   perfilDocente: string;
 };
 
-export function usePuaForm(materiaId: string) {
+// ── FIX: el hook ahora recibe programaId en lugar de materiaId ──
+// Antes usaba materia_id para buscar y guardar, lo que causaba que
+// con múltiples periodos se tomara el programa equivocado.
+// Ahora trabaja directamente con el id del programa correcto.
+export function usePuaForm(programaId: string) {
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,14 +76,6 @@ export function usePuaForm(materiaId: string) {
       }
 
       const userId = session.user.id;
-
-      const { data: programaExistente, error: errorBuscar } = await supabase
-        .from("programas")
-        .select("id")
-        .eq("materia_id", params.materiaId)
-        .single();
-
-      let programaId: string;
 
       const programaData = {
         unidad_academica: params.unidadAcademica,
@@ -109,11 +105,14 @@ export function usePuaForm(materiaId: string) {
         ultima_edicion: new Date().toISOString(),
       };
 
-      if (programaExistente) {
+      if (programaId) {
+        // ── FIX: actualizar por programaId directamente ──────────
+        // Antes buscaba por materia_id y traía el programa equivocado
+        // cuando había varios periodos para la misma materia.
         const { error: errorActualizar } = await supabase
           .from("programas")
           .update(programaData)
-          .eq("id", programaExistente.id);
+          .eq("id", programaId);
 
         if (errorActualizar) {
           console.error("Error al actualizar programa:", errorActualizar);
@@ -122,29 +121,15 @@ export function usePuaForm(materiaId: string) {
           return null;
         }
 
-        programaId = programaExistente.id;
+        setLoading(false);
+        return programaId;
       } else {
-        const { data: nuevoPrograma, error: errorCrear } = await supabase
-          .from("programas")
-          .insert({
-            ...programaData,
-            materia_id: params.materiaId,
-          })
-          .select("id")
-          .single();
-
-        if (errorCrear || !nuevoPrograma) {
-          console.error("Error al crear programa:", errorCrear);
-          setError("Error al crear el PUA");
-          setLoading(false);
-          return null;
-        }
-
-        programaId = nuevoPrograma.id;
+        // Sin programaId no podemos crear — el programa debe existir
+        // ya que se crea automáticamente al agregar la materia.
+        setError("No se encontró el programa. Contacta al administrador.");
+        setLoading(false);
+        return null;
       }
-
-      setLoading(false);
-      return programaId;
     } catch (err) {
       console.error("Error en guardarPua:", err);
       setError("Error inesperado al guardar el PUA");
@@ -154,24 +139,26 @@ export function usePuaForm(materiaId: string) {
   };
 
   const cargarPua = async (): Promise<PuaData | null> => {
-    if (!materiaId) return null;
+    if (!programaId) return null;
 
     try {
+      // ── FIX: cargar por id del programa, no por materia_id ──────
+      // Antes: .eq("materia_id", materiaId) → traía el primer programa
+      //        encontrado sin importar el periodo.
+      // Ahora: .eq("id", programaId) → trae exactamente el programa
+      //        del periodo que el usuario seleccionó.
       const { data, error } = await supabase
         .from("programas")
         .select("*")
-        .eq("materia_id", materiaId)
-        .single();
+        .eq("id", programaId)
+        .maybeSingle();
 
       if (error) {
-        if (error.code === "PGRST116") {
-          return null;
-        }
         console.error("Error al cargar PUA:", error);
         return null;
       }
 
-      return data as PuaData;
+      return data as PuaData | null;
     } catch (err) {
       console.error("Error en cargarPua:", err);
       return null;

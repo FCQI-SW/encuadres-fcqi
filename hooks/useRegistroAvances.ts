@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
-import { resolverPermisoOperacion } from "@/lib/permisoOperacion";
 
 export type Tema = {
   id: number;
@@ -204,23 +203,14 @@ export function useRegistroAvances(encuadreId: string) {
       return { success: false, error: "El grupo no es válido." };
     }
 
-    const permisoOperacion = await resolverPermisoOperacion({
-      encuadreId,
-      userId: session.user.id,
-      rol: "profesor",
-    });
-
-    if (
-      !permisoOperacion.puede_registrar_avances ||
-      permisoOperacion.solo_lectura
-    ) {
-      return {
-        success: false,
-        error:
-          permisoOperacion.motivo ||
-          "No tienes permiso para registrar avances en este momento.",
-      };
-    }
+    // ── FIX: eliminada la doble validación de permisos ───────────
+    // Antes se llamaba resolverPermisoOperacion() aquí con rol fijo
+    // "profesor", lo que causaba que:
+    // 1. Alumnos no pudieran guardar (su rol no coincidía)
+    // 2. Si el permiso expiraba entre el render y el guardado, fallaba
+    // 3. Era redundante — la página ya validó permisos antes de mostrar
+    //    el botón "Guardar avances"
+    // La seguridad real la maneja Supabase RLS en la tabla temas_checkin.
 
     const respuestasValidas = Object.entries(respuestas).filter(
       ([_, data]) => data.vista !== null
@@ -229,8 +219,7 @@ export function useRegistroAvances(encuadreId: string) {
     if (respuestasValidas.length === 0) {
       return {
         success: false,
-        error:
-          "No hay cambios para guardar. Marca al menos un tema como visto o no visto.",
+        error: "No hay cambios para guardar. Marca al menos un tema como visto o no visto.",
       };
     }
 
@@ -290,16 +279,12 @@ export function useRegistroAvances(encuadreId: string) {
                 tema_id: temaId,
                 usuario_id: userId,
                 grupo: grupo,
-                encuadre_id: encuadreId,
                 tema_visto: data.vista,
                 justificacion: data.justificacion || "",
               });
 
             if (errorInsert) {
-              console.error(
-                "Error al insertar checkin:",
-                JSON.stringify(errorInsert, null, 2)
-              );
+              console.error("Error al insertar checkin:", JSON.stringify(errorInsert, null, 2));
               erroresEncontrados++;
             } else {
               temasGuardados++;
@@ -316,8 +301,7 @@ export function useRegistroAvances(encuadreId: string) {
       if (erroresEncontrados > 0 && temasGuardados === 0) {
         return {
           success: false,
-          error:
-            "No se pudo guardar ningún registro. Verifica los permisos de acceso.",
+          error: "No se pudo guardar ningún registro. Verifica los permisos de acceso.",
         };
       }
 

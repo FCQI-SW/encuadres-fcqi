@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,16 +41,7 @@ type UnidadData = {
 };
 
 function crearUnidadVacia(numero: number): UnidadData {
-  return {
-    numero,
-    nombre: "",
-    competencia: "",
-    contenido: "",
-    duracion: 0,
-    semana_inicio: null,
-    semana_fin: null,
-    temas: [],
-  };
+  return { numero, nombre: "", competencia: "", contenido: "", duracion: 0, semana_inicio: null, semana_fin: null, temas: [] };
 }
 
 function normalizarUnidad(unidad?: Partial<UnidadData> | null): UnidadData {
@@ -60,8 +51,7 @@ function normalizarUnidad(unidad?: Partial<UnidadData> | null): UnidadData {
     competencia: unidad?.competencia ?? "",
     contenido: unidad?.contenido ?? "",
     duracion: Number(unidad?.duracion ?? 0),
-    semana_inicio:
-      unidad?.semana_inicio === undefined ? null : unidad.semana_inicio,
+    semana_inicio: unidad?.semana_inicio === undefined ? null : unidad.semana_inicio,
     semana_fin: unidad?.semana_fin === undefined ? null : unidad.semana_fin,
     temas: unidad?.temas ?? [],
   };
@@ -74,277 +64,161 @@ function esNumeroValido(value: unknown) {
 export default function PuaMateriaUnidades() {
   const router = useRouter();
   const params = useParams<{ clave: string }>();
+  const searchParams = useSearchParams();
   const clave = params?.clave;
+  const programaIdFromQuery = searchParams.get("programaId") || "";
+
   const confirm = useConfirm();
 
   const [programa, setPrograma] = useState<Programa | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [loadingUnidades, setLoadingUnidades] = useState(false);
+  const [unidadesData, setUnidadesData] = useState<Record<number, UnidadData>>({});
+  const [collapsedState, setCollapsedState] = useState<Record<number, boolean>>({});
 
-  const [unidadesData, setUnidadesData] = useState<Record<number, UnidadData>>(
-    {}
-  );
+  const { loading: saving, guardarUnidades } = useUnidadesForm(programa?.id || "");
 
-  const [unidadesCargadas, setUnidadesCargadas] = useState<UnidadData[]>([]);
-
-  const [collapsedState, setCollapsedState] = useState<Record<number, boolean>>(
-    {}
-  );
-
-  const { loading, guardarUnidades, cargarUnidades } = useUnidadesForm(
-    programa?.id || ""
-  );
-
+  // ── 1. Cargar programa ───────────────────────────────────────
   useEffect(() => {
-    const fetchPrograma = async () => {
-      if (!clave) return;
-
-      setLoadingData(true);
-      try {
-        const { data: materiaData } = await supabase
-          .from("materias")
-          .select("id")
-          .eq("clave", clave)
-          .single();
-
-        if (!materiaData) {
-          setPrograma(null);
-          setLoadingData(false);
-          return;
-        }
-
-        const { data: programaData, error } = await supabase
-          .from("programas")
-          .select("id, materia_id, unidades, ht, hl")
-          .eq("materia_id", materiaData.id)
-          .single();
-
-        if (error) {
-          console.error("Error al obtener programa:", error);
-          setPrograma(null);
-        } else {
-          setPrograma(programaData as Programa);
-        }
-      } catch (err) {
-        console.error("Error:", err);
-        setPrograma(null);
-      } finally {
+    if (!programaIdFromQuery) {
+      setPrograma(null);
+      setLoadingData(false);
+      return;
+    }
+    setLoadingData(true);
+    supabase
+      .from("programas")
+      .select("id, materia_id, unidades, ht, hl")
+      .eq("id", programaIdFromQuery)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        setPrograma(error || !data ? null : (data as Programa));
         setLoadingData(false);
-      }
-    };
+      });
+  }, [programaIdFromQuery]);
 
-    fetchPrograma();
-  }, [clave]);
-
+  // ── 2. Cargar unidades ───────────────────────────────────────
+  // FIX CLAVE: inicializar unidadesData con los datos cargados.
+  // El componente <Unidad> tiene un useEffect que llama onChange()
+  // en el primer render con sus valores internos (inicialmente vacíos).
+  // Si unidadesData está vacío, ese onChange sobreescribe los datos
+  // cargados porque unidadesData tiene prioridad en unidadesFinales.
+  // Al inicializar unidadesData con los datos reales, el onChange del
+  // componente solo "confirma" lo que ya está — nunca sobreescribe.
   useEffect(() => {
     if (!programa?.id) return;
 
-    (async () => {
-      const unidades = await cargarUnidades();
+    let cancelled = false;
+    setLoadingUnidades(true);
 
-      const unidadesNormalizadas = (unidades || []).map((u: any) =>
-        normalizarUnidad(u)
-      );
+    supabase
+      .from("unidades")
+      .select("numero, nombre, competencia, contenido, duracion, semana_inicio, semana_fin")
+      .eq("programa_id", programa.id)
+      .order("numero", { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) { console.error("Error al cargar unidades:", error); setLoadingUnidades(false); return; }
 
-      setUnidadesCargadas(unidadesNormalizadas);
+        const normalizadas = (data || []).map((u: any) => normalizarUnidad(u));
 
-      const collapsedInicial: Record<number, boolean> = {};
-      unidadesNormalizadas.forEach((u) => {
-        const tieneAlgo =
-          !!u.nombre ||
-          !!u.competencia ||
-          !!u.contenido ||
-          !!u.duracion ||
-          !!u.semana_inicio ||
-          !!u.semana_fin;
-        collapsedInicial[u.numero] = tieneAlgo;
+        // ── Inicializar unidadesData Y collapsedState en un solo paso ──
+        const dataInicial: Record<number, UnidadData> = {};
+        const collapsedInicial: Record<number, boolean> = {};
+
+        normalizadas.forEach((u) => {
+          dataInicial[u.numero] = u;
+          collapsedInicial[u.numero] = !!(
+            u.nombre || u.competencia || u.contenido || u.duracion || u.semana_inicio || u.semana_fin
+          );
+        });
+
+        setUnidadesData(dataInicial);
+        setCollapsedState(collapsedInicial);
+        setLoadingUnidades(false);
       });
-      setCollapsedState(collapsedInicial);
-    })();
-  }, [programa?.id, cargarUnidades]);
+
+    return () => { cancelled = true; };
+  }, [programa?.id]);
 
   const handleBack = () => {
-    router.push(`/capturista/materias/${clave}/pua`);
+    router.push(`/capturista/materias/${clave}/pua?programaId=${programaIdFromQuery}`);
   };
 
-  // ── useCallback para evitar el loop infinito con Unidad.useEffect ──
   const handleUnidadChange = useCallback((data: UnidadData) => {
-    const unidadNormalizada = normalizarUnidad(data);
-    setUnidadesData((prev) => ({
-      ...prev,
-      [unidadNormalizada.numero]: unidadNormalizada,
-    }));
+    setUnidadesData((prev) => ({ ...prev, [data.numero]: normalizarUnidad(data) }));
   }, []);
 
   const toggleCollapse = useCallback((numero: number) => {
-    setCollapsedState((prev) => ({
-      ...prev,
-      [numero]: !prev[numero],
-    }));
+    setCollapsedState((prev) => ({ ...prev, [numero]: !prev[numero] }));
   }, []);
-  // ──────────────────────────────────────────────────────────────────
 
+  // unidadesFinales ahora viene siempre de unidadesData (ya inicializado
+  // con los datos cargados), así que no necesita fallback a unidadesCargadas
   const unidadesFinales = useMemo(() => {
     if (!programa) return [];
-
-    return Array.from({ length: programa.unidades }, (_, i) => i + 1).map(
-      (num) => {
-        const editada = unidadesData[num];
-        const cargada = unidadesCargadas.find((u) => u.numero === num);
-
-        if (editada) return normalizarUnidad(editada);
-        if (cargada) return normalizarUnidad(cargada);
-        return crearUnidadVacia(num);
-      }
+    return Array.from({ length: programa.unidades }, (_, i) => i + 1).map((num) =>
+      unidadesData[num] ? normalizarUnidad(unidadesData[num]) : crearUnidadVacia(num)
     );
-  }, [programa, unidadesData, unidadesCargadas]);
+  }, [programa, unidadesData]);
 
   const handleContinuar = async () => {
     if (!programa) return;
 
-    if (unidadesFinales.length < programa.unidades) {
-      await confirm({
-        title: "Unidades incompletas",
-        message: `Debes completar todas las ${programa.unidades} unidades antes de continuar.`,
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
     for (const unidad of unidadesFinales) {
       if (!unidad.nombre.trim()) {
-        await confirm({
-          title: "Campo requerido",
-          message: `La Unidad ${unidad.numero} debe tener un nombre.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
+        await confirm({ title: "Campo requerido", message: `La Unidad ${unidad.numero} debe tener un nombre.`, confirmText: "Entendido", cancelText: "" });
         return;
       }
-
       if (!unidad.competencia.trim()) {
-        await confirm({
-          title: "Campo requerido",
-          message: `La Unidad ${unidad.numero} debe tener una competencia.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
+        await confirm({ title: "Campo requerido", message: `La Unidad ${unidad.numero} debe tener una competencia.`, confirmText: "Entendido", cancelText: "" });
         return;
       }
-
       if (!unidad.contenido.trim()) {
-        await confirm({
-          title: "Campo requerido",
-          message: `La Unidad ${unidad.numero} debe tener contenido.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
+        await confirm({ title: "Campo requerido", message: `La Unidad ${unidad.numero} debe tener contenido.`, confirmText: "Entendido", cancelText: "" });
         return;
       }
-
       if (!esNumeroValido(unidad.duracion) || unidad.duracion <= 0) {
-        await confirm({
-          title: "Duración inválida",
-          message: `La Unidad ${unidad.numero} debe tener una duración mayor a 0 horas.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
+        await confirm({ title: "Duración inválida", message: `La Unidad ${unidad.numero} debe tener una duración mayor a 0 horas.`, confirmText: "Entendido", cancelText: "" });
         return;
       }
-
-      if (
-        !esNumeroValido(unidad.semana_inicio) ||
-        (unidad.semana_inicio ?? 0) <= 0
-      ) {
-        await confirm({
-          title: "Semana inicial inválida",
-          message: `La Unidad ${unidad.numero} debe tener una semana de inicio válida.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
+      if (!esNumeroValido(unidad.semana_inicio) || (unidad.semana_inicio ?? 0) <= 0) {
+        await confirm({ title: "Semana inicial inválida", message: `La Unidad ${unidad.numero} debe tener una semana de inicio válida.`, confirmText: "Entendido", cancelText: "" });
         return;
       }
-
-      if (
-        !esNumeroValido(unidad.semana_fin) ||
-        (unidad.semana_fin ?? 0) <= 0
-      ) {
-        await confirm({
-          title: "Semana final inválida",
-          message: `La Unidad ${unidad.numero} debe tener una semana final válida.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
+      if (!esNumeroValido(unidad.semana_fin) || (unidad.semana_fin ?? 0) <= 0) {
+        await confirm({ title: "Semana final inválida", message: `La Unidad ${unidad.numero} debe tener una semana final válida.`, confirmText: "Entendido", cancelText: "" });
         return;
       }
-
       if ((unidad.semana_fin ?? 0) < (unidad.semana_inicio ?? 0)) {
-        await confirm({
-          title: "Rango de semanas inválido",
-          message: `La Unidad ${unidad.numero} no puede tener una semana final menor que la semana inicial.`,
-          confirmText: "Entendido",
-          cancelText: "",
-        });
+        await confirm({ title: "Rango de semanas inválido", message: `La Unidad ${unidad.numero} no puede tener semana final menor que la inicial.`, confirmText: "Entendido", cancelText: "" });
         return;
       }
     }
 
-    const shouldSave = await confirm({
-      title: "Guardar unidades",
-      message: "¿Deseas guardar todas las unidades?",
-      confirmText: "Guardar",
-      cancelText: "Cancelar",
-    });
-
+    const shouldSave = await confirm({ title: "Guardar unidades", message: "¿Deseas guardar todas las unidades?", confirmText: "Guardar", cancelText: "Cancelar" });
     if (!shouldSave) return;
 
     const success = await guardarUnidades(unidadesFinales);
 
     if (success) {
       if ((programa.ht || 0) > 0) {
-        await confirm({
-          title: "¡Guardado exitoso!",
-          message:
-            "Las unidades se han guardado correctamente. Ahora continuarás con las prácticas de taller.",
-          confirmText: "Continuar",
-          cancelText: "",
-        });
-
-        router.push(`/capturista/materias/${clave}/pua/taller`);
+        await confirm({ title: "¡Guardado exitoso!", message: "Las unidades se guardaron. Continuarás con las prácticas de taller.", confirmText: "Continuar", cancelText: "" });
+        router.push(`/capturista/materias/${clave}/pua/taller?programaId=${programa.id}`);
         return;
       }
-
       if ((programa.hl || 0) > 0) {
-        await confirm({
-          title: "¡Guardado exitoso!",
-          message:
-            "Las unidades se han guardado correctamente. Ahora continuarás con las prácticas de laboratorio.",
-          confirmText: "Continuar",
-          cancelText: "",
-        });
-
-        router.push(`/capturista/materias/${clave}/pua/laboratorio`);
+        await confirm({ title: "¡Guardado exitoso!", message: "Las unidades se guardaron. Continuarás con las prácticas de laboratorio.", confirmText: "Continuar", cancelText: "" });
+        router.push(`/capturista/materias/${clave}/pua/laboratorio?programaId=${programa.id}`);
         return;
       }
-
-      await confirm({
-        title: "¡Guardado exitoso!",
-        message:
-          "Las unidades se han guardado correctamente. Esta materia no requiere prácticas de taller ni de laboratorio.",
-        confirmText: "Finalizar",
-        cancelText: "",
-      });
-
+      await confirm({ title: "¡Guardado exitoso!", message: "Las unidades se guardaron correctamente. El PUA está completado.", confirmText: "Finalizar", cancelText: "" });
       router.push(`/capturista/materias`);
     }
   };
 
-  if (loadingData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+  if (loadingData || loadingUnidades) {
+    return <div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
   if (!programa) {
@@ -354,19 +228,10 @@ export default function PuaMateriaUnidades() {
           <Card>
             <CardHeader>
               <CardTitle>No se encontró el programa</CardTitle>
-              <CardDescription>
-                Por favor regresa y completa los datos generales del PUA
-                primero.
-              </CardDescription>
+              <CardDescription>Por favor regresa y completa los datos generales del PUA primero.</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={handleBack}
-                className="cursor-pointer"
-              >
-                Volver a datos generales
-              </Button>
+              <Button variant="outline" onClick={handleBack} className="cursor-pointer">Volver a datos generales</Button>
             </CardContent>
           </Card>
         </div>
@@ -380,34 +245,23 @@ export default function PuaMateriaUnidades() {
     <div className="px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <div>
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            className="cursor-pointer"
-          >
-            <ChevronLeft className="mr-2 h-5 w-5" />
-            Volver a datos generales
+          <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+            <ChevronLeft className="mr-2 h-5 w-5" /> Volver a datos generales
           </Button>
         </div>
 
         <div className="text-center py-4">
           <h1 className="text-2xl font-bold">V. DESARROLLO POR UNIDADES</h1>
           <p className="text-sm text-muted-foreground mt-2">
-            Captura el contenido de cada unidad, sus horas y el rango de semanas
-            para integrarlo al plan de clases del encuadre.
+            Captura el contenido de cada unidad, sus horas y el rango de semanas para integrarlo al plan de clases del encuadre.
           </p>
         </div>
 
         <div className="space-y-8">
           {nUnidades.map((num) => {
-            const unidadCargada = unidadesCargadas.find((u) => u.numero === num);
-            const unidadEditada = unidadesData[num];
-            const unidadActual = unidadEditada
-              ? normalizarUnidad(unidadEditada)
-              : unidadCargada
-              ? normalizarUnidad(unidadCargada)
+            const unidadActual = unidadesData[num]
+              ? normalizarUnidad(unidadesData[num])
               : crearUnidadVacia(num);
-
             const isCollapsed = collapsedState[num] ?? false;
 
             return (
@@ -424,21 +278,10 @@ export default function PuaMateriaUnidades() {
         </div>
 
         <div className="flex justify-end gap-2 pt-4">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={loading}
-            className="cursor-pointer"
-          >
-            Cancelar
-          </Button>
-          <Button
-            className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
-            onClick={handleContinuar}
-            disabled={loading}
-          >
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {loading ? "Guardando..." : "Guardar unidades"}
+          <Button variant="outline" onClick={handleBack} disabled={saving} className="cursor-pointer">Cancelar</Button>
+          <Button className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer" onClick={handleContinuar} disabled={saving}>
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {saving ? "Guardando..." : "Guardar unidades"}
           </Button>
         </div>
       </div>

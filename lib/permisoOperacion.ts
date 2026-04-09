@@ -100,8 +100,13 @@ export async function resolverPermisoOperacion({
       }
     }
 
-    // 3. Validar periodo global
-    let dentroVentanaGlobal = true;
+    // 3. Validar ventana global
+    // ── FIX: el default es FALSE (ventana cerrada) ───────────────
+    // Antes era `true`, lo que hacía que si no había config activa
+    // (o fallaba la consulta), el sistema asumía ventana abierta y
+    // daba permisos completos ignorando los permisos especiales.
+    // Ahora, sin config = ventana cerrada = evaluar permisos especiales.
+    let dentroVentanaGlobal = false;
 
     const { data: config, error: errorConfig } = await supabase
       .from("configuracion_fechas")
@@ -176,8 +181,6 @@ export async function resolverPermisoOperacion({
         dentro_ventana_global: false,
         tiene_permiso_especial: true,
         solo_lectura: esSoloLectura,
-        // Si solo_lectura está marcado, ninguna acción está disponible
-        // Si no, se usan los flags específicos del permiso
         puede_editar_encuadre: !esSoloLectura && (permisoEspecial.puede_editar_encuadre ?? false),
         puede_gestionar_alumnos: !esSoloLectura && (permisoEspecial.puede_gestionar_alumnos ?? false),
         puede_firmar: !esSoloLectura && (permisoEspecial.puede_firmar ?? false),

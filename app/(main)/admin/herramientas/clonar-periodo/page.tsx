@@ -75,19 +75,20 @@ export default function ClonarPeriodoPage() {
     const cargarCatalogos = async () => {
       setLoadingData(true);
 
-      const [{ data: encuadresData }, { data: materiasData }] =
-        await Promise.all([
-          supabase.from("encuadres").select("periodo").not("periodo", "is", null),
-          supabase
-            .from("materias")
-            .select("id, clave, nombre_materia")
-            .eq("estado", "Activa")
-            .order("clave", { ascending: true }),
-        ]);
+const [{ data: encuadresData }, { data: programasData }, { data: materiasData }] =
+  await Promise.all([
+    supabase.from("encuadres").select("periodo").not("periodo", "is", null),
+    supabase.from("programas").select("periodo").not("periodo", "is", null),
+    supabase.from("materias").select("id, clave, nombre_materia")
+      .eq("estado", "Activa").order("clave", { ascending: true }),
+  ]);
 
-      const periodosUnicos = Array.from(
-        new Set((encuadresData || []).map((e: any) => e.periodo).filter(Boolean))
-      ).sort();
+const periodosUnicos = Array.from(
+  new Set([
+    ...(encuadresData || []).map((e: any) => e.periodo),
+    ...(programasData || []).map((p: any) => p.periodo),
+  ].filter(Boolean))
+).sort();
 
       setPeriodos(periodosUnicos);
       setMaterias((materiasData || []) as MateriaOption[]);
@@ -191,10 +192,11 @@ export default function ClonarPeriodoPage() {
               <Copy className="h-5 w-5 text-[#00723F]" />
               Clonar estructura de periodo
             </CardTitle>
-            <CardDescription>
-              Copia PUA y encuadres a un nuevo periodo, sin arrastrar alumnos,
-              firmas ni avances.
-            </CardDescription>
+<CardDescription>
+  Copia PUA y encuadres a un nuevo periodo, sin arrastrar alumnos,
+  firmas ni avances. Solo aparecen como origen los periodos que ya
+  tienen encuadres capturados.
+</CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6">

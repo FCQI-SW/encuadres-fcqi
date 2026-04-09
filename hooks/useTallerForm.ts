@@ -1,5 +1,4 @@
-// useTallerForm.ts
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 
@@ -17,71 +16,75 @@ export function useTallerForm(programaId: string) {
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
 
-  const guardarPracticas = async (practicas: PracticaTaller[]): Promise<boolean> => {
-    setLoading(true);
+  // ── FIX: useCallback para evitar stale closure en useEffect ──
+  // Sin useCallback, cargarPracticas/guardarPracticas son funciones
+  // nuevas en cada render. El useEffect de la página las captura en
+  // el primer render cuando programaId todavía es "", por lo que
+  // aunque el programa cargue después, siguen consultando con "".
+  const guardarPracticas = useCallback(
+    async (practicas: PracticaTaller[]): Promise<boolean> => {
+      setLoading(true);
 
-    try {
-      if (!session?.user?.id || !programaId) {
-        console.error("Faltan datos de sesión o programa");
-        setLoading(false);
-        return false;
-      }
-
-      const userId = session.user.id;
-
-      // Eliminar prácticas existentes
-      await supabase
-        .from("practicas_taller")
-        .delete()
-        .eq("programa_id", programaId);
-
-      // Insertar nuevas prácticas
-      if (practicas.length > 0) {
-        const { error } = await supabase
-          .from("practicas_taller")
-          .insert(
-            practicas.map((p) => ({
-              programa_id: programaId,
-              unidad: p.unidad,
-              numero: p.numero,
-              competencia: p.competencia,
-              descripcion: p.descripcion,
-              material_apoyo: p.material_apoyo,
-              duracion: p.duracion,
-            }))
-          );
-
-        if (error) {
-          console.error("Error al guardar prácticas:", error);
+      try {
+        if (!session?.user?.id || !programaId) {
+          console.error("Faltan datos de sesión o programa");
           setLoading(false);
           return false;
         }
+
+        const userId = session.user.id;
+
+        await supabase
+          .from("practicas_taller")
+          .delete()
+          .eq("programa_id", programaId);
+
+        if (practicas.length > 0) {
+          const { error } = await supabase
+            .from("practicas_taller")
+            .insert(
+              practicas.map((p) => ({
+                programa_id: programaId,
+                unidad: p.unidad,
+                numero: p.numero,
+                competencia: p.competencia,
+                descripcion: p.descripcion,
+                material_apoyo: p.material_apoyo,
+                duracion: p.duracion,
+              }))
+            );
+
+          if (error) {
+            console.error("Error al guardar prácticas:", error);
+            setLoading(false);
+            return false;
+          }
+        }
+
+        const { error: errorAuditoria } = await supabase
+          .from("programas")
+          .update({
+            ultimo_editor_id: userId,
+            ultima_edicion: new Date().toISOString(),
+          })
+          .eq("id", programaId);
+
+        if (errorAuditoria) {
+          console.error("Error al actualizar auditoría del PUA:", errorAuditoria);
+        }
+
+        setLoading(false);
+        return true;
+      } catch (err) {
+        console.error("Error en guardarPracticas:", err);
+        setLoading(false);
+        return false;
       }
+    },
+    [programaId, session?.user?.id]
+  );
 
-      // Actualizar auditoría en el PUA
-      const { error: errorAuditoria } = await supabase
-        .from("programas")
-        .update({
-          ultimo_editor_id: userId,
-          ultima_edicion: new Date().toISOString(),
-        })
-        .eq("id", programaId);
-
-      if (errorAuditoria) {
-        console.error("Error al actualizar auditoría del PUA:", errorAuditoria);
-        // No retornamos false aquí porque las prácticas sí se guardaron
-      }
-
-      setLoading(false);
-      return true;
-    } catch (err) {
-      console.error("Error en guardarPracticas:", err);
-      setLoading(false);
-      return false;
-    }
-  };
-
-  const cargarPracticas = async (): Promise<PracticaTaller[]> => {
+  const cargarPracticas = useCallback(async (): Promise<PracticaTaller[]> => {
     if (!programaId) return [];
 
     try {
@@ -110,7 +113,7 @@ export function useTallerForm(programaId: string) {
       console.error("Error en cargarPracticas:", err);
       return [];
     }
-  };
+  }, [programaId]);
 
   return {
     guardarPracticas,
