@@ -6,6 +6,20 @@ La documentacion tecnica del proyecto se encuentra en:
 
 Dentro de esa carpeta se incluye la documentacion general del sistema, la documentacion completa de la base de datos y un archivo SQL de referencia con la estructura observada en Supabase.
 
+## Usuarios de prueba
+
+Para probar las distintas funciones del sistema se pueden utilizar las siguientes cuentas:
+
+| Rol | Correo | Contraseña |
+|---|---|---|
+| Administrador | admin@gmail.com | admin123 |
+| Capturista | capturista@gmail.com | capturista123 |
+| Profesor | profe2@gmail.com | profesor123 |
+| Alumno | alumno@gmail.com | alumno123 |
+| Lector | lector@gmail.com | lector123 |
+
+Estas cuentas fueron creadas exclusivamente para pruebas y demostracion del sistema.
+
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
