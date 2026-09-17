@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,13 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { ChevronLeft, Loader2, Plus, AlertCircle } from "lucide-react";
+import { ChevronLeft, Loader2, Plus, AlertCircle, Lock, ShieldCheck } from "lucide-react";
 import { PracticaTaller } from "@/components/practica-taller";
 import {
   useTallerForm,
   type PracticaTaller as PracticaTallerType,
 } from "@/hooks/useTallerForm";
+import { usePermisoPua } from "@/hooks/usePermisoPua";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
 
@@ -33,6 +34,18 @@ type ErroresCampos = {
   descripcion?: string;
   duracion?: string;
 };
+
+// Firma estable de una práctica, para no re-guardar lo idéntico
+function firmaPractica(p: PracticaTallerType): string {
+  return JSON.stringify([
+    p.unidad,
+    p.numero,
+    p.competencia,
+    p.descripcion,
+    p.material_apoyo,
+    p.duracion,
+  ]);
+}
 
 export default function PuaMateriaTaller() {
   const router = useRouter();
@@ -52,6 +65,13 @@ export default function PuaMateriaTaller() {
   const [erroresPorPractica, setErroresPorPractica] = useState<Record<string, ErroresCampos>>({});
 
   const { loading, guardarPracticas, cargarPracticas } = useTallerForm(programa?.id || "");
+
+  // ── PERMISO DE CAPTURA ───────────────────────────────────────
+  const { permiso, puedeEditar: puedeEditarPua, loadingPermiso } =
+    usePermisoPua(programa?.id || "");
+
+  const puedeCapturar = !!programa?.id && puedeEditarPua && !loadingPermiso;
+  const mostrarAvisoBloqueo = !!programa?.id && !loadingPermiso && !puedeEditarPua;
 
   useEffect(() => {
     const fetchPrograma = async () => {
@@ -87,7 +107,6 @@ export default function PuaMateriaTaller() {
     fetchPrograma();
   }, [programaIdFromQuery, clave, router]);
 
-  // ── FIX: incluir cargarPracticas en las dependencias ─────────
   useEffect(() => {
     if (!programa?.id || practicasCargadas) return;
 
@@ -106,44 +125,68 @@ export default function PuaMateriaTaller() {
       setCollapsedState(collapsedInicial);
       setPracticasCargadas(true);
     })();
-  }, [programa?.id, practicasCargadas, cargarPracticas]); // ← cargarPracticas incluido
+  }, [programa?.id, practicasCargadas, cargarPracticas]);
 
   const handleBack = () => {
     router.push(`/capturista/materias/${clave}/pua/unidades?programaId=${programaIdFromQuery}`);
   };
 
+  // Los setState anidados salieron del updater: React puede ejecutar
+  // el updater dos veces en desarrollo y eso duplicaba efectos.
   const agregarPractica = (unidad: number) => {
-    setPracticasPorUnidad((prev) => {
-      const practicasUnidad = prev[unidad] || [];
-      const nuevoNumero = practicasUnidad.length + 1;
-      const nuevaPractica: PracticaTallerType = { unidad, numero: nuevoNumero, competencia: "", descripcion: "", material_apoyo: "", duracion: 0 };
-      setCollapsedState((p) => ({ ...p, [`${unidad}-${nuevoNumero}`]: false }));
-      return { ...prev, [unidad]: [...practicasUnidad, nuevaPractica] };
-    });
+    const practicasUnidad = practicasPorUnidad[unidad] || [];
+    const nuevoNumero = practicasUnidad.length + 1;
+    const nuevaPractica: PracticaTallerType = {
+      unidad, numero: nuevoNumero, competencia: "", descripcion: "", material_apoyo: "", duracion: 0,
+    };
+
+    setPracticasPorUnidad((prev) => ({
+      ...prev,
+      [unidad]: [...(prev[unidad] || []), nuevaPractica],
+    }));
+    setCollapsedState((p) => ({ ...p, [`${unidad}-${nuevoNumero}`]: false }));
   };
 
   const eliminarPractica = (unidad: number, numero: number) => {
-    setPracticasPorUnidad((prev) => {
-      const nuevasPracticas = (prev[unidad] || []).filter((p) => p.numero !== numero).map((p, i) => ({ ...p, numero: i + 1 }));
-      setCollapsedState((prevC) => {
-        const nuevo: Record<string, boolean> = {};
-        nuevasPracticas.forEach((p) => { nuevo[`${p.unidad}-${p.numero}`] = prevC[`${p.unidad}-${p.numero}`] ?? true; });
-        return { ...prevC, ...nuevo };
+    const nuevasPracticas = (practicasPorUnidad[unidad] || [])
+      .filter((p) => p.numero !== numero)
+      .map((p, i) => ({ ...p, numero: i + 1 }));
+
+    setPracticasPorUnidad((prev) => ({ ...prev, [unidad]: nuevasPracticas }));
+
+    setCollapsedState((prevC) => {
+      const nuevo: Record<string, boolean> = { ...prevC };
+      nuevasPracticas.forEach((p) => {
+        nuevo[`${p.unidad}-${p.numero}`] = prevC[`${p.unidad}-${p.numero}`] ?? true;
       });
-      setErroresPorPractica((prev) => { const n = { ...prev }; delete n[`${unidad}-${numero}`]; return n; });
-      return { ...prev, [unidad]: nuevasPracticas };
+      return nuevo;
+    });
+
+    setErroresPorPractica((prev) => {
+      const n = { ...prev };
+      delete n[`${unidad}-${numero}`];
+      return n;
     });
   };
 
-  const handlePracticaChange = (data: PracticaTallerType) => {
+  // Guarda con comparación por firma: si nada cambió, devuelve el
+  // mismo estado y React no vuelve a renderizar (evita el bucle).
+  const handlePracticaChange = useCallback((data: PracticaTallerType) => {
     setPracticasPorUnidad((prev) => {
-      const practicasUnidad = [...(prev[data.unidad] || [])];
+      const practicasUnidad = prev[data.unidad] || [];
       const index = practicasUnidad.findIndex((p) => p.numero === data.numero);
-      if (index >= 0) practicasUnidad[index] = data;
-      else practicasUnidad.push(data);
-      return { ...prev, [data.unidad]: practicasUnidad };
+
+      if (index >= 0 && firmaPractica(practicasUnidad[index]) === firmaPractica(data)) {
+        return prev;
+      }
+
+      const copia = [...practicasUnidad];
+      if (index >= 0) copia[index] = data;
+      else copia.push(data);
+
+      return { ...prev, [data.unidad]: copia };
     });
-  };
+  }, []);
 
   const toggleCollapse = (unidad: number, numero: number) => {
     const key = `${unidad}-${numero}`;
@@ -165,6 +208,11 @@ export default function PuaMateriaTaller() {
   };
 
   const handleGuardar = async () => {
+    if (!puedeCapturar) {
+      toast.error(permiso.motivo || "No tienes permiso para editar el PUA en este momento.");
+      return;
+    }
+
     const erroresValidacion = validarPracticas();
     setErroresPorPractica(erroresValidacion);
     if (Object.keys(erroresValidacion).length > 0) { toast.error("Por favor completa todos los campos obligatorios antes de guardar."); return; }
@@ -222,6 +270,42 @@ export default function PuaMateriaTaller() {
           <p className="text-muted-foreground mt-2">Agrega prácticas para cada unidad. Es obligatorio agregar al menos una práctica.</p>
         </div>
 
+        {/* Aviso: captura cerrada */}
+        {mostrarAvisoBloqueo && (
+          <Card className="border-amber-300 bg-amber-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Lock className="h-5 w-5 text-amber-700 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-amber-900">Captura cerrada — modo consulta</p>
+                  <p className="text-sm text-amber-800 mt-1">
+                    {permiso.motivo ||
+                      "El periodo de captura del PUA está cerrado. Puedes revisar las prácticas, pero no guardar cambios."}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Aviso: permiso especial */}
+        {permiso.tiene_permiso_especial && puedeCapturar && (
+          <Card className="border-green-300 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="h-5 w-5 text-green-700 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-green-900">Permiso especial activo</p>
+                  <p className="text-sm text-green-800 mt-1">
+                    {permiso.motivo ||
+                      "El administrador te habilitó la captura de este PUA fuera del periodo general."}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {totalErrores > 0 && (
           <Card className="border-red-200 bg-red-50">
             <CardContent className="pt-6">
@@ -242,9 +326,11 @@ export default function PuaMateriaTaller() {
             <div key={unidad} className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold">UNIDAD {unidad}</h2>
-                <Button variant="outline" size="sm" onClick={() => agregarPractica(unidad)} className="cursor-pointer">
-                  <Plus className="h-4 w-4 mr-2" /> Agregar práctica
-                </Button>
+                {puedeCapturar && (
+                  <Button variant="outline" size="sm" onClick={() => agregarPractica(unidad)} className="cursor-pointer">
+                    <Plus className="h-4 w-4 mr-2" /> Agregar práctica
+                  </Button>
+                )}
               </div>
               {practicas.length === 0 ? (
                 <Card><CardContent className="py-8 text-center text-muted-foreground">No hay prácticas agregadas para esta unidad.</CardContent></Card>
@@ -257,7 +343,7 @@ export default function PuaMateriaTaller() {
                         collapsed={collapsedState[key] ?? false}
                         onToggleCollapse={() => toggleCollapse(unidad, practica.numero)}
                         onChange={handlePracticaChange}
-                        onDelete={() => eliminarPractica(unidad, practica.numero)}
+                        onDelete={puedeCapturar ? () => eliminarPractica(unidad, practica.numero) : undefined}
                         errores={erroresPorPractica[key]} />
                     );
                   })}
@@ -268,11 +354,16 @@ export default function PuaMateriaTaller() {
         })}
 
         <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" onClick={handleBack} disabled={loading} className="cursor-pointer">Cancelar</Button>
-          <Button className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer" onClick={handleGuardar} disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {loading ? "Guardando..." : "Guardar y finalizar"}
+          <Button variant="outline" onClick={handleBack} disabled={loading} className="cursor-pointer">
+            {puedeCapturar ? "Cancelar" : "Volver"}
           </Button>
+
+          {puedeCapturar && (
+            <Button className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer" onClick={handleGuardar} disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {loading ? "Guardando..." : "Guardar y finalizar"}
+            </Button>
+          )}
         </div>
       </div>
     </div>

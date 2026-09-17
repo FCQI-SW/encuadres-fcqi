@@ -11,9 +11,10 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, Lock, ShieldCheck } from "lucide-react";
 import { Unidad } from "@/components/unidad";
 import { useUnidadesForm } from "@/hooks/useUnidadesForm";
+import { usePermisoPua } from "@/hooks/usePermisoPua";
 import { useConfirm } from "@/components/global-confirm-modal";
 
 type Programa = {
@@ -57,6 +58,21 @@ function normalizarUnidad(unidad?: Partial<UnidadData> | null): UnidadData {
   };
 }
 
+// Comparación estable de unidades: se usa para decidir si un cambio
+// reportado por <Unidad> es real. Se ignora `temas` porque se recrea
+// en cada normalización y no participa en el guardado.
+function firmaUnidad(u: UnidadData): string {
+  return JSON.stringify([
+    u.numero,
+    u.nombre,
+    u.competencia,
+    u.contenido,
+    u.duracion,
+    u.semana_inicio ?? null,
+    u.semana_fin ?? null,
+  ]);
+}
+
 function esNumeroValido(value: unknown) {
   return typeof value === "number" && !Number.isNaN(value);
 }
@@ -78,6 +94,13 @@ export default function PuaMateriaUnidades() {
 
   const { loading: saving, guardarUnidades } = useUnidadesForm(programa?.id || "");
 
+  // ── PERMISO DE CAPTURA ───────────────────────────────────────
+  const { permiso, puedeEditar: puedeEditarPua, loadingPermiso } =
+    usePermisoPua(programa?.id || "");
+
+  const puedeCapturar = !!programa?.id && puedeEditarPua && !loadingPermiso;
+  const mostrarAvisoBloqueo = !!programa?.id && !loadingPermiso && !puedeEditarPua;
+
   // ── 1. Cargar programa ───────────────────────────────────────
   useEffect(() => {
     if (!programaIdFromQuery) {
@@ -98,13 +121,6 @@ export default function PuaMateriaUnidades() {
   }, [programaIdFromQuery]);
 
   // ── 2. Cargar unidades ───────────────────────────────────────
-  // FIX CLAVE: inicializar unidadesData con los datos cargados.
-  // El componente <Unidad> tiene un useEffect que llama onChange()
-  // en el primer render con sus valores internos (inicialmente vacíos).
-  // Si unidadesData está vacío, ese onChange sobreescribe los datos
-  // cargados porque unidadesData tiene prioridad en unidadesFinales.
-  // Al inicializar unidadesData con los datos reales, el onChange del
-  // componente solo "confirma" lo que ya está — nunca sobreescribe.
   useEffect(() => {
     if (!programa?.id) return;
 
@@ -122,7 +138,6 @@ export default function PuaMateriaUnidades() {
 
         const normalizadas = (data || []).map((u: any) => normalizarUnidad(u));
 
-        // ── Inicializar unidadesData Y collapsedState en un solo paso ──
         const dataInicial: Record<number, UnidadData> = {};
         const collapsedInicial: Record<number, boolean> = {};
 
@@ -145,25 +160,59 @@ export default function PuaMateriaUnidades() {
     router.push(`/capturista/materias/${clave}/pua?programaId=${programaIdFromQuery}`);
   };
 
+  // Ignorar cambios que no cambian nada: <Unidad> reporta su estado
+  // en cada render, y crear un objeto nuevo dispararía otro render.
   const handleUnidadChange = useCallback((data: UnidadData) => {
-    setUnidadesData((prev) => ({ ...prev, [data.numero]: normalizarUnidad(data) }));
+    setUnidadesData((prev) => {
+      const normalizada = normalizarUnidad(data);
+      const actual = prev[normalizada.numero];
+
+      if (actual && firmaUnidad(actual) === firmaUnidad(normalizada)) {
+        return prev;
+      }
+
+      return { ...prev, [normalizada.numero]: normalizada };
+    });
   }, []);
 
   const toggleCollapse = useCallback((numero: number) => {
     setCollapsedState((prev) => ({ ...prev, [numero]: !prev[numero] }));
   }, []);
 
-  // unidadesFinales ahora viene siempre de unidadesData (ya inicializado
-  // con los datos cargados), así que no necesita fallback a unidadesCargadas
-  const unidadesFinales = useMemo(() => {
-    if (!programa) return [];
-    return Array.from({ length: programa.unidades }, (_, i) => i + 1).map((num) =>
-      unidadesData[num] ? normalizarUnidad(unidadesData[num]) : crearUnidadVacia(num)
-    );
-  }, [programa, unidadesData]);
+  const nUnidades = useMemo(
+    () => (programa ? Array.from({ length: programa.unidades }, (_, i) => i + 1) : []),
+    [programa]
+  );
+
+  // Objetos `value` memoizados: sin esto se creaba uno nuevo en cada
+  // render y el useEffect de <Unidad> se disparaba indefinidamente.
+  const unidadesMap = useMemo(() => {
+    const map: Record<number, UnidadData> = {};
+    nUnidades.forEach((num) => {
+      map[num] = unidadesData[num]
+        ? normalizarUnidad(unidadesData[num])
+        : crearUnidadVacia(num);
+    });
+    return map;
+  }, [unidadesData, nUnidades]);
+
+  const unidadesFinales = useMemo(
+    () => nUnidades.map((num) => unidadesMap[num]),
+    [nUnidades, unidadesMap]
+  );
 
   const handleContinuar = async () => {
     if (!programa) return;
+
+    if (!puedeCapturar) {
+      await confirm({
+        title: "Captura cerrada",
+        message: permiso.motivo || "No tienes permiso para editar el PUA en este momento.",
+        confirmText: "Entendido",
+        cancelText: "",
+      });
+      return;
+    }
 
     for (const unidad of unidadesFinales) {
       if (!unidad.nombre.trim()) {
@@ -239,8 +288,6 @@ export default function PuaMateriaUnidades() {
     );
   }
 
-  const nUnidades = Array.from({ length: programa.unidades }, (_, i) => i + 1);
-
   return (
     <div className="px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -257,32 +304,66 @@ export default function PuaMateriaUnidades() {
           </p>
         </div>
 
-        <div className="space-y-8">
-          {nUnidades.map((num) => {
-            const unidadActual = unidadesData[num]
-              ? normalizarUnidad(unidadesData[num])
-              : crearUnidadVacia(num);
-            const isCollapsed = collapsedState[num] ?? false;
+        {/* Aviso: captura cerrada */}
+        {mostrarAvisoBloqueo && (
+          <Card className="border-amber-300 bg-amber-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Lock className="h-5 w-5 text-amber-700 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-amber-900">Captura cerrada — modo consulta</p>
+                  <p className="text-sm text-amber-800 mt-1">
+                    {permiso.motivo ||
+                      "El periodo de captura del PUA está cerrado. Puedes revisar las unidades, pero no guardar cambios."}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-            return (
-              <Unidad
-                key={num}
-                nUnidad={num}
-                value={unidadActual}
-                onChange={handleUnidadChange}
-                collapsed={isCollapsed}
-                onToggleCollapse={() => toggleCollapse(num)}
-              />
-            );
-          })}
+        {/* Aviso: permiso especial */}
+        {permiso.tiene_permiso_especial && puedeCapturar && (
+          <Card className="border-green-300 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="h-5 w-5 text-green-700 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-green-900">Permiso especial activo</p>
+                  <p className="text-sm text-green-800 mt-1">
+                    {permiso.motivo ||
+                      "El administrador te habilitó la captura de este PUA fuera del periodo general."}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="space-y-8">
+          {nUnidades.map((num) => (
+            <Unidad
+              key={num}
+              nUnidad={num}
+              value={unidadesMap[num]}
+              onChange={handleUnidadChange}
+              collapsed={collapsedState[num] ?? false}
+              onToggleCollapse={() => toggleCollapse(num)}
+            />
+          ))}
         </div>
 
         <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" onClick={handleBack} disabled={saving} className="cursor-pointer">Cancelar</Button>
-          <Button className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer" onClick={handleContinuar} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {saving ? "Guardando..." : "Guardar unidades"}
+          <Button variant="outline" onClick={handleBack} disabled={saving} className="cursor-pointer">
+            {puedeCapturar ? "Cancelar" : "Volver"}
           </Button>
+
+          {puedeCapturar && (
+            <Button className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer" onClick={handleContinuar} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {saving ? "Guardando..." : "Guardar unidades"}
+            </Button>
+          )}
         </div>
       </div>
     </div>

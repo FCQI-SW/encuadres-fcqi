@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -39,6 +39,27 @@ type UnidadProps = {
   onToggleCollapse?: () => void;
 };
 
+// Firma estable de un conjunto de campos, para comparar por valor.
+function firma(
+  numero: number,
+  nombre: string,
+  competencia: string,
+  contenido: string,
+  duracion: number,
+  semanaInicio: number | null,
+  semanaFin: number | null
+): string {
+  return JSON.stringify([
+    numero,
+    nombre,
+    competencia,
+    contenido,
+    duracion,
+    semanaInicio,
+    semanaFin,
+  ]);
+}
+
 export function Unidad({
   nUnidad,
   value,
@@ -65,51 +86,89 @@ export function Unidad({
       : ""
   );
 
-  useEffect(() => {
-    if (value) {
-      setNombre(value.nombre || "");
-      setCompetencia(value.competencia || "");
-      setContenido(value.contenido || "");
-      setDuracion(
-        value.duracion !== undefined && value.duracion !== null
-          ? String(value.duracion)
-          : ""
-      );
-      setSemanaInicio(
-        value.semana_inicio !== undefined && value.semana_inicio !== null
-          ? String(value.semana_inicio)
-          : ""
-      );
-      setSemanaFin(
-        value.semana_fin !== undefined && value.semana_fin !== null
-          ? String(value.semana_fin)
-          : ""
-      );
-    }
-  }, [value]);
+  // ── CLAVE: firma de lo último que ESTE componente le mandó al padre.
+  // El padre guarda ese dato y lo devuelve como `value` en el siguiente
+  // render. Eso es un ECO, no un cambio externo. Si lo tratamos como
+  // cambio, sincronizamos -> render -> emitimos -> eco -> ... infinito.
+  // Guardando la firma podemos reconocer nuestro propio reflejo e
+  // ignorarlo por completo.
+  const ultimoEmitido = useRef<string>("");
 
+  // `onChange` en un ref para que no participe en las dependencias del
+  // efecto: si el padre lo recrea, no queremos re-emitir por eso.
+  const onChangeRef = useRef(onChange);
   useEffect(() => {
-    if (onChange) {
-      onChange({
-        numero: nUnidad,
-        nombre,
-        competencia,
-        contenido,
-        duracion: Number(duracion) || 0,
-        semana_inicio: semanaInicio.trim() ? Number(semanaInicio) : null,
-        semana_fin: semanaFin.trim() ? Number(semanaFin) : null,
-      });
-    }
-  }, [
-    nombre,
-    competencia,
-    contenido,
-    duracion,
-    semanaInicio,
-    semanaFin,
-    nUnidad,
-    onChange,
-  ]);
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  // ── 1. Sincronizar desde `value` SOLO si es un cambio externo ──
+  useEffect(() => {
+    if (!value) return;
+
+    const entrante = firma(
+      nUnidad,
+      value.nombre || "",
+      value.competencia || "",
+      value.contenido || "",
+      Number(value.duracion) || 0,
+      value.semana_inicio ?? null,
+      value.semana_fin ?? null
+    );
+
+    // Es nuestro propio eco -> ignorar.
+    if (entrante === ultimoEmitido.current) return;
+
+    const nuevoNombre = value.nombre || "";
+    const nuevaCompetencia = value.competencia || "";
+    const nuevoContenido = value.contenido || "";
+    const nuevaDuracion =
+      value.duracion !== undefined && value.duracion !== null
+        ? String(value.duracion)
+        : "";
+    const nuevaSemanaInicio =
+      value.semana_inicio !== undefined && value.semana_inicio !== null
+        ? String(value.semana_inicio)
+        : "";
+    const nuevaSemanaFin =
+      value.semana_fin !== undefined && value.semana_fin !== null
+        ? String(value.semana_fin)
+        : "";
+
+    setNombre((prev) => (prev === nuevoNombre ? prev : nuevoNombre));
+    setCompetencia((prev) => (prev === nuevaCompetencia ? prev : nuevaCompetencia));
+    setContenido((prev) => (prev === nuevoContenido ? prev : nuevoContenido));
+    setDuracion((prev) => (prev === nuevaDuracion ? prev : nuevaDuracion));
+    setSemanaInicio((prev) => (prev === nuevaSemanaInicio ? prev : nuevaSemanaInicio));
+    setSemanaFin((prev) => (prev === nuevaSemanaFin ? prev : nuevaSemanaFin));
+  }, [value, nUnidad]);
+
+  // ── 2. Notificar al padre solo cuando algo cambie de verdad ──
+  useEffect(() => {
+    const payload: UnidadChangeData = {
+      numero: nUnidad,
+      nombre,
+      competencia,
+      contenido,
+      duracion: Number(duracion) || 0,
+      semana_inicio: semanaInicio.trim() ? Number(semanaInicio) : null,
+      semana_fin: semanaFin.trim() ? Number(semanaFin) : null,
+    };
+
+    const actual = firma(
+      payload.numero,
+      payload.nombre,
+      payload.competencia,
+      payload.contenido,
+      payload.duracion,
+      payload.semana_inicio ?? null,
+      payload.semana_fin ?? null
+    );
+
+    if (actual === ultimoEmitido.current) return;
+
+    ultimoEmitido.current = actual;
+    onChangeRef.current?.(payload);
+  }, [nombre, competencia, contenido, duracion, semanaInicio, semanaFin, nUnidad]);
 
   const ta =
     "min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm " +

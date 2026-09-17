@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -41,6 +41,18 @@ type PracticaTallerProps = {
   errores?: ErroresCampos;
 };
 
+// Firma estable para comparar por valor.
+function firmaPractica(
+  unidad: number,
+  numero: number,
+  competencia: string,
+  descripcion: string,
+  materialApoyo: string,
+  duracion: number
+): string {
+  return JSON.stringify([unidad, numero, competencia, descripcion, materialApoyo, duracion]);
+}
+
 export function PracticaTaller({
   unidad,
   numero,
@@ -53,35 +65,72 @@ export function PracticaTaller({
 }: PracticaTallerProps) {
   const [competencia, setCompetencia] = useState(value?.competencia || "");
   const [descripcion, setDescripcion] = useState(value?.descripcion || "");
-  const [materialApoyo, setMaterialApoyo] = useState(
-    value?.material_apoyo || ""
-  );
-  const [duracion, setDuracion] = useState<string>(
-    String(value?.duracion || "")
-  );
+  const [materialApoyo, setMaterialApoyo] = useState(value?.material_apoyo || "");
+  const [duracion, setDuracion] = useState<string>(String(value?.duracion || ""));
 
-  // Sincronizar con value
-  useEffect(() => {
-    if (value) {
-      setCompetencia(value.competencia || "");
-      setDescripcion(value.descripcion || "");
-      setMaterialApoyo(value.material_apoyo || "");
-      setDuracion(String(value.duracion || ""));
-    }
-  }, [value]);
+  // ── CLAVE: firma de lo último que este componente emitió ─────
+  // El padre lo guarda y lo devuelve como `value` en el siguiente
+  // render. Eso es un ECO, no un cambio externo. Sin reconocerlo,
+  // se genera: emitir -> el padre actualiza -> nuevo value ->
+  // sincronizar -> emitir -> ... bucle infinito.
+  const ultimoEmitido = useRef<string>("");
 
-  // Avisar al padre cuando algo cambie
+  // onChange en un ref: si el padre lo recrea, no debe re-disparar.
+  const onChangeRef = useRef(onChange);
   useEffect(() => {
-    if (onChange) {
-      onChange({
-        unidad,
-        numero,
-        competencia,
-        descripcion,
-        material_apoyo: materialApoyo,
-        duracion: Number(duracion) || 0,
-      });
-    }
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  // ── 1. Sincronizar desde `value` solo si es cambio externo ──
+  useEffect(() => {
+    if (!value) return;
+
+    const entrante = firmaPractica(
+      unidad,
+      numero,
+      value.competencia || "",
+      value.descripcion || "",
+      value.material_apoyo || "",
+      Number(value.duracion) || 0
+    );
+
+    if (entrante === ultimoEmitido.current) return; // es nuestro eco
+
+    const nuevaCompetencia = value.competencia || "";
+    const nuevaDescripcion = value.descripcion || "";
+    const nuevoMaterial = value.material_apoyo || "";
+    const nuevaDuracion = String(value.duracion || "");
+
+    setCompetencia((p) => (p === nuevaCompetencia ? p : nuevaCompetencia));
+    setDescripcion((p) => (p === nuevaDescripcion ? p : nuevaDescripcion));
+    setMaterialApoyo((p) => (p === nuevoMaterial ? p : nuevoMaterial));
+    setDuracion((p) => (p === nuevaDuracion ? p : nuevaDuracion));
+  }, [value, unidad, numero]);
+
+  // ── 2. Avisar al padre solo cuando algo cambie de verdad ────
+  useEffect(() => {
+    const duracionNum = Number(duracion) || 0;
+
+    const actual = firmaPractica(
+      unidad,
+      numero,
+      competencia,
+      descripcion,
+      materialApoyo,
+      duracionNum
+    );
+
+    if (actual === ultimoEmitido.current) return;
+
+    ultimoEmitido.current = actual;
+    onChangeRef.current?.({
+      unidad,
+      numero,
+      competencia,
+      descripcion,
+      material_apoyo: materialApoyo,
+      duracion: duracionNum,
+    });
   }, [competencia, descripcion, materialApoyo, duracion, unidad, numero]);
 
   const ta =
@@ -96,7 +145,6 @@ export function PracticaTaller({
     "focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background " +
     "disabled:cursor-not-allowed disabled:opacity-50";
 
-  // Clases dinámicas para textarea con error
   const getTextareaClass = (fieldName: keyof ErroresCampos) => {
     const hasError = errores[fieldName];
     return hasError
@@ -104,7 +152,6 @@ export function PracticaTaller({
       : ta + " border-input";
   };
 
-  // Clases dinámicas para input con error
   const getInputClass = (fieldName: keyof ErroresCampos) => {
     const hasError = errores[fieldName];
     return hasError
@@ -159,10 +206,8 @@ export function PracticaTaller({
         </div>
       </CardHeader>
 
-      {/* Solo mostramos el formulario si NO está colapsada */}
       {!collapsed && (
         <CardContent className="space-y-4">
-          {/* Competencia */}
           <div>
             <Label className="mb-2 block">
               Competencia <span className="text-red-500">*</span>
@@ -181,7 +226,6 @@ export function PracticaTaller({
             )}
           </div>
 
-          {/* Descripción */}
           <div>
             <Label className="mb-2 block">
               Descripción <span className="text-red-500">*</span>
@@ -200,7 +244,6 @@ export function PracticaTaller({
             )}
           </div>
 
-          {/* Material de Apoyo */}
           <div>
             <Label className="mb-2 block">Material de Apoyo</Label>
             <textarea
@@ -211,7 +254,6 @@ export function PracticaTaller({
             />
           </div>
 
-          {/* Duración */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
               <Label className="mb-2 block">

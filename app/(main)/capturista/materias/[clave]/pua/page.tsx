@@ -22,8 +22,9 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, Lock, ShieldCheck } from "lucide-react";
 import { usePuaForm } from "@/hooks/usePuaForm";
+import { usePermisoPua } from "@/hooks/usePermisoPua";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
 
@@ -57,7 +58,6 @@ export default function PuaMateria() {
   const [puaCompleto, setPuaCompleto] = useState(false);
   const [programaId, setProgramaId] = useState<string>(programaIdFromQuery);
   const [periodo, setPeriodo] = useState("");
-  // ── FIX: guardar ht/hl para mostrar botones correctos ────────
   const [programaInfo, setProgramaInfo] = useState<ProgramaInfo | null>(null);
 
   const [unidadAcademica, setUnidadAcademica] = useState("");
@@ -92,6 +92,16 @@ export default function PuaMateria() {
   const { guardarPua, cargarPua, loading, error } = usePuaForm(programaId);
   const [prevError, setPrevError] = useState<string | null>(null);
 
+  // ── PERMISO DE CAPTURA ───────────────────────────────────────
+  // El capturista solo puede editar si hay una ventana de PUA
+  // abierta o si el admin le dio un permiso especial sobre este
+  // programa. Sin eso, la pantalla queda en consulta.
+  const { permiso, puedeEditar: puedeEditarPua, loadingPermiso } =
+    usePermisoPua(programaId);
+
+  // Editable = hay programa válido Y permiso vigente
+  const puedeCapturar = !!programaId && puedeEditarPua && !loadingPermiso;
+
   useEffect(() => {
     if (error && error !== prevError) {
       toast.error(error);
@@ -125,7 +135,6 @@ export default function PuaMateria() {
       setCaracterUA(data.requisito === "obligatoria" ? "Obligatoria" : "Optativa");
 
       if (programaIdFromQuery) {
-        // ── FIX: obtener también ht y hl ────────────────────────
         const { data: programaData } = await supabase
           .from("programas")
           .select("id, periodo, plan_estudios, materia_id, ht, hl")
@@ -193,10 +202,6 @@ export default function PuaMateria() {
         setReferenciasComplementarias(pua.referencias_complementarias || "");
         setPerfilDocente(pua.perfil_docente || "");
 
-        // ── FIX: actualizar ht/hl desde el PUA también ──────────
-        // El PUA puede tener ht/hl distintos a los del programa si
-        // el capturista los cambió manualmente en el formulario.
-        // Actualizamos programaInfo para que los botones sean correctos.
         setProgramaInfo((prev) =>
           prev
             ? { ...prev, ht: pua.ht || prev.ht, hl: pua.hl || prev.hl }
@@ -294,7 +299,8 @@ export default function PuaMateria() {
   ]);
 
   const handleNavegacion = async (ruta: string) => {
-    if (hayCambiosSinGuardar) {
+    // Sin permiso no hay cambios que perder
+    if (hayCambiosSinGuardar && puedeCapturar) {
       const shouldLeave = await confirm({
         title: "Cambios sin guardar",
         message: "Tienes cambios sin guardar. ¿Deseas salir sin guardar?",
@@ -332,6 +338,10 @@ export default function PuaMateria() {
   };
 
   const handleGuardarSoloEnEdicion = async () => {
+    if (!puedeCapturar) {
+      toast.error(permiso.motivo || "No tienes permiso para editar el PUA en este momento.");
+      return;
+    }
     if (!materia || !programaId) {
       toast.error("No se encontró un programa válido para guardar.");
       return;
@@ -339,7 +349,6 @@ export default function PuaMateria() {
     const savedProgramaId = await guardarPua(buildPayload());
     if (savedProgramaId) {
       actualizarValoresOriginales();
-      // ── FIX: actualizar ht/hl en programaInfo desde los campos ──
       setProgramaInfo((prev) =>
         prev ? { ...prev, ht: Number(ht), hl: Number(hl) } : prev
       );
@@ -350,6 +359,10 @@ export default function PuaMateria() {
   };
 
   const handleContinuar = async () => {
+    if (!puedeCapturar) {
+      toast.error(permiso.motivo || "No tienes permiso para editar el PUA en este momento.");
+      return;
+    }
     if (!materia || !programaId) {
       toast.error("No se encontró un programa válido para continuar.");
       return;
@@ -364,8 +377,6 @@ export default function PuaMateria() {
 
     const savedProgramaId = await guardarPua(buildPayload());
     if (savedProgramaId) {
-      // ── FIX: actualizar ht/hl tras guardar para que los botones
-      //   del modo "completo" sean correctos en el mismo render ────
       setProgramaInfo((prev) =>
         prev ? { ...prev, ht: Number(ht), hl: Number(hl) } : prev
       );
@@ -405,11 +416,13 @@ export default function PuaMateria() {
     "focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background " +
     "disabled:cursor-not-allowed disabled:opacity-50";
 
-  // ── FIX: leer ht/hl desde programaInfo o desde los campos ────
-  // Usar los valores capturados en el form (ht/hl como strings) para
-  // saber si hay taller/laboratorio, así los botones son inmediatos.
   const tieneTaller = Number(ht) > 0 || (programaInfo?.ht ?? 0) > 0;
   const tieneLaboratorio = Number(hl) > 0 || (programaInfo?.hl ?? 0) > 0;
+
+  // Solo mostramos el aviso de bloqueo cuando el programa sí existe:
+  // si no hay programa, ya hay otro mensaje específico.
+  const mostrarAvisoBloqueo =
+    !!programaId && !loadingPermiso && !puedeEditarPua;
 
   return (
     <div className="px-4 py-8">
@@ -438,6 +451,46 @@ export default function PuaMateria() {
           )}
         </div>
 
+        {/* Aviso: captura cerrada */}
+        {mostrarAvisoBloqueo && (
+          <Card className="border-amber-300 bg-amber-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Lock className="h-5 w-5 text-amber-700 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-amber-900">
+                    Captura cerrada — modo consulta
+                  </p>
+                  <p className="text-sm text-amber-800 mt-1">
+                    {permiso.motivo ||
+                      "El periodo de captura del PUA está cerrado. Puedes revisar la información, pero no modificarla."}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Aviso: permiso especial activo */}
+        {permiso.tiene_permiso_especial && puedeCapturar && (
+          <Card className="border-green-300 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="h-5 w-5 text-green-700 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-green-900">
+                    Permiso especial activo
+                  </p>
+                  <p className="text-sm text-green-800 mt-1">
+                    {permiso.motivo ||
+                      "El administrador te habilitó la captura de este PUA fuera del periodo general."}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* I. Datos de identificación */}
         <Card>
           <CardHeader>
@@ -449,7 +502,7 @@ export default function PuaMateria() {
               <Label className="mb-2 block">1. Unidad Académica <span className="text-red-500">*</span></Label>
               <textarea className={ta} value={unidadAcademica}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setUnidadAcademica(e.target.value)}
-                disabled={!programaId}
+                disabled={!puedeCapturar}
                 placeholder="Ej: Facultad de Ingeniería, Mexicali..." />
             </div>
 
@@ -457,7 +510,7 @@ export default function PuaMateria() {
               <Label className="mb-2 block">2. Programa Educativo <span className="text-red-500">*</span></Label>
               <textarea className={ta} value={programaEducativo}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setProgramaEducativo(e.target.value)}
-                disabled={!programaId}
+                disabled={!puedeCapturar}
                 placeholder="Ej: Ingeniero en Computación..." />
             </div>
 
@@ -465,7 +518,7 @@ export default function PuaMateria() {
               <div>
                 <Label className="mb-2 block">3. Plan de Estudios <span className="text-red-500">*</span></Label>
                 <Input value={planEstudios} onChange={(e) => setPlanEstudios(e.target.value)}
-                  disabled={!programaId} placeholder="2019-2" />
+                  disabled={!puedeCapturar} placeholder="2019-2" />
               </div>
             </div>
 
@@ -492,7 +545,7 @@ export default function PuaMateria() {
                     <Label className="mb-1 block text-xs">{label}</Label>
                     <Input type="number" min={0} value={val}
                       onChange={(e) => setter(e.target.value)}
-                      disabled={!programaId} placeholder="0" />
+                      disabled={!puedeCapturar} placeholder="0" />
                   </div>
                 ))}
               </div>
@@ -534,7 +587,7 @@ export default function PuaMateria() {
             <div>
               <Label className="mb-2 block">9. Requisitos para Cursar la UA</Label>
               <Input value={requisitos} onChange={(e) => setRequisitos(e.target.value)}
-                disabled={!programaId} placeholder="Ej: Ninguno, Cálculo I, etc." />
+                disabled={!puedeCapturar} placeholder="Ej: Ninguno, Cálculo I, etc." />
             </div>
 
             <div>
@@ -551,7 +604,7 @@ export default function PuaMateria() {
             <Label className="mb-2 block">Propósito <span className="text-red-500">*</span></Label>
             <textarea className={ta} value={propositoUA}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPropositoUA(e.target.value)}
-              disabled={!programaId} placeholder="Ingresar propósito de la UA…" />
+              disabled={!puedeCapturar} placeholder="Ingresar propósito de la UA…" />
           </CardContent>
         </Card>
 
@@ -562,7 +615,7 @@ export default function PuaMateria() {
             <Label className="mb-2 block">Competencia <span className="text-red-500">*</span></Label>
             <textarea className={ta} value={competenciaUA}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCompetenciaUA(e.target.value)}
-              disabled={!programaId} placeholder="Ingresar competencia de la UA…" />
+              disabled={!puedeCapturar} placeholder="Ingresar competencia de la UA…" />
           </CardContent>
         </Card>
 
@@ -573,7 +626,7 @@ export default function PuaMateria() {
             <Label className="mb-2 block">Evidencias <span className="text-red-500">*</span></Label>
             <textarea className={ta} value={evidencias}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEvidencias(e.target.value)}
-              disabled={!programaId} placeholder="Ingresar evidencias de desempeño…" />
+              disabled={!puedeCapturar} placeholder="Ingresar evidencias de desempeño…" />
           </CardContent>
         </Card>
 
@@ -585,7 +638,7 @@ export default function PuaMateria() {
               <Label className="mb-2 block">Número de unidades <span className="text-red-500">*</span></Label>
               <Input type="number" inputMode="numeric" min={1} value={numUnidades}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNumUnidades(e.target.value)}
-                disabled={!programaId} placeholder="Ej. 6" />
+                disabled={!puedeCapturar} placeholder="Ej. 6" />
             </div>
           </CardContent>
         </Card>
@@ -598,19 +651,19 @@ export default function PuaMateria() {
               <Label className="mb-2 block font-semibold">Encuadre</Label>
               <textarea className={ta} value={metodoEncuadre}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMetodoEncuadre(e.target.value)}
-                disabled={!programaId} placeholder="Ingresar encuadre del método de trabajo..." />
+                disabled={!puedeCapturar} placeholder="Ingresar encuadre del método de trabajo..." />
             </div>
             <div>
               <Label className="mb-2 block font-semibold">Estrategia de enseñanza (docente)</Label>
               <textarea className={ta} value={metodoEstrategiaDocente}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMetodoEstrategiaDocente(e.target.value)}
-                disabled={!programaId} placeholder="Ingresar estrategia de enseñanza del docente..." />
+                disabled={!puedeCapturar} placeholder="Ingresar estrategia de enseñanza del docente..." />
             </div>
             <div>
               <Label className="mb-2 block font-semibold">Estrategia de aprendizaje (alumno)</Label>
               <textarea className={ta} value={metodoEstrategiaAlumno}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMetodoEstrategiaAlumno(e.target.value)}
-                disabled={!programaId} placeholder="Ingresar estrategia de aprendizaje del alumno..." />
+                disabled={!puedeCapturar} placeholder="Ingresar estrategia de aprendizaje del alumno..." />
             </div>
           </CardContent>
         </Card>
@@ -626,13 +679,13 @@ export default function PuaMateria() {
               <Label className="mb-2 block font-semibold">Básicas</Label>
               <textarea className={ta} value={referenciaBasicas}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReferenciaBasicas(e.target.value)}
-                disabled={!programaId} placeholder="Ingresar referencias bibliográficas básicas..." />
+                disabled={!puedeCapturar} placeholder="Ingresar referencias bibliográficas básicas..." />
             </div>
             <div>
               <Label className="mb-2 block font-semibold">Complementarias</Label>
               <textarea className={ta} value={referenciasComplementarias}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReferenciasComplementarias(e.target.value)}
-                disabled={!programaId} placeholder="Ingresar referencias bibliográficas complementarias..." />
+                disabled={!puedeCapturar} placeholder="Ingresar referencias bibliográficas complementarias..." />
             </div>
           </CardContent>
         </Card>
@@ -646,7 +699,7 @@ export default function PuaMateria() {
           <CardContent>
             <textarea className={ta} value={perfilDocente}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPerfilDocente(e.target.value)}
-              disabled={!programaId} placeholder="Ingresar perfil del docente..." />
+              disabled={!puedeCapturar} placeholder="Ingresar perfil del docente..." />
           </CardContent>
         </Card>
 
@@ -659,18 +712,20 @@ export default function PuaMateria() {
           </div>
 
           <div className="flex gap-3 flex-wrap">
-            <Button variant="outline" onClick={handleBack} className="cursor-pointer">Cancelar</Button>
+            <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+              {puedeCapturar ? "Cancelar" : "Regresar"}
+            </Button>
 
             {puaCompleto ? (
               <>
-                {/* Siempre mostrar Ver Unidades */}
+                {/* Navegar a las demás secciones siempre se permite:
+                    ahí también se valida el permiso por separado. */}
                 <Button variant="outline" disabled={loading}
                   onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/unidades?programaId=${programaId}`)}
                   className="cursor-pointer border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white">
                   Ver Unidades →
                 </Button>
 
-                {/* ── FIX: mostrar taller solo si HT > 0 ─────── */}
                 {tieneTaller && (
                   <Button variant="outline" disabled={loading}
                     onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/taller?programaId=${programaId}`)}
@@ -679,7 +734,6 @@ export default function PuaMateria() {
                   </Button>
                 )}
 
-                {/* ── FIX: mostrar laboratorio solo si HL > 0 ── */}
                 {tieneLaboratorio && (
                   <Button variant="outline" disabled={loading}
                     onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/laboratorio?programaId=${programaId}`)}
@@ -688,18 +742,23 @@ export default function PuaMateria() {
                   </Button>
                 )}
 
-                <Button onClick={handleGuardarSoloEnEdicion} disabled={loading || !programaId}
-                  className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer">
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {loading ? "Guardando..." : "Guardar Cambios"}
-                </Button>
+                {/* Guardar solo si hay permiso */}
+                {puedeCapturar && (
+                  <Button onClick={handleGuardarSoloEnEdicion} disabled={loading}
+                    className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer">
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {loading ? "Guardando..." : "Guardar Cambios"}
+                  </Button>
+                )}
               </>
             ) : (
-              <Button onClick={handleContinuar} disabled={loading || !programaId}
-                className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer">
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {loading ? "Guardando..." : "Guardar y Continuar →"}
-              </Button>
+              puedeCapturar && (
+                <Button onClick={handleContinuar} disabled={loading}
+                  className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer">
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {loading ? "Guardando..." : "Guardar y Continuar →"}
+                </Button>
+              )
             )}
           </div>
         </div>

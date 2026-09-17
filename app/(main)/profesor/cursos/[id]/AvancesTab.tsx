@@ -121,6 +121,18 @@ export default function AvancesTab({
     }));
   };
 
+  // ── Temas marcados como "No" que aún no tienen justificación ──
+  // Se calcula aquí para usarlo tanto en la validación de guardado
+  // como para resaltar en rojo los campos que faltan.
+  const temasSinJustificar = React.useMemo(
+    () =>
+      temas.filter((tema) => {
+        const r = respuestas[tema.id];
+        return r?.vista === false && !r.justificacion?.trim();
+      }),
+    [temas, respuestas]
+  );
+
   const handleGuardar = async () => {
     if (!puedeEditar) {
       toast.error(
@@ -137,6 +149,15 @@ export default function AvancesTab({
     if (!tieneRespuestas) {
       toast.warning(
         "No hay cambios para guardar. Marca al menos un tema como visto o no visto."
+      );
+      return;
+    }
+
+    // ── VALIDACIÓN: todo tema marcado como "No" requiere justificación ──
+    if (temasSinJustificar.length > 0) {
+      const lista = temasSinJustificar.map((t) => t.numero).join(", ");
+      toast.error(
+        `Debes escribir una justificación para los temas marcados como "No": ${lista}`
       );
       return;
     }
@@ -224,6 +245,27 @@ export default function AvancesTab({
         </Card>
       )}
 
+      {/* Aviso de justificaciones pendientes */}
+      {puedeEditar && temasSinJustificar.length > 0 && (
+        <Card className="border-red-300 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-red-900 mb-1">
+                  {temasSinJustificar.length} tema
+                  {temasSinJustificar.length > 1 ? "s" : ""} sin justificar
+                </h3>
+                <p className="text-sm text-red-800">
+                  Los temas marcados como &quot;No&quot; requieren una
+                  justificación: {temasSinJustificar.map((t) => t.numero).join(", ")}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-center text-lg">
@@ -290,8 +332,8 @@ export default function AvancesTab({
             Plan de Clases
           </CardTitle>
           <CardDescription>
-            Marque los temas que se han cubierto y agregue comentarios si es
-            necesario
+            Marque los temas que se han cubierto. Los temas marcados como
+            &quot;No&quot; requieren justificación.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -324,6 +366,12 @@ export default function AvancesTab({
 
                       {unidadData.temas.map((tema) => {
                         const state = respuestas[tema.id];
+                        // Falta justificación en un tema marcado como "No"
+                        const faltaJustificacion =
+                          puedeEditar &&
+                          state?.vista === false &&
+                          !state.justificacion?.trim();
+
                         return (
                           <TableRow key={tema.id}>
                             <TableCell className="text-center text-muted-foreground">
@@ -369,14 +417,28 @@ export default function AvancesTab({
 
                             <TableCell>
                               <Input
-                                placeholder="Escriba una justificación..."
+                                placeholder={
+                                  state?.vista === false
+                                    ? "Justificación obligatoria..."
+                                    : "Escriba una justificación..."
+                                }
                                 value={state?.justificacion ?? ""}
                                 onChange={(e) =>
                                   setJustificacion(tema.id, e.target.value)
                                 }
-                                className="text-sm"
+                                className={`text-sm ${
+                                  faltaJustificacion
+                                    ? "border-red-500 focus-visible:ring-red-500"
+                                    : ""
+                                }`}
                                 disabled={!puedeEditar || state?.vista !== false}
+                                maxLength={500}
                               />
+                              {faltaJustificacion && (
+                                <p className="text-xs text-red-600 mt-1">
+                                  Este campo es obligatorio
+                                </p>
+                              )}
                             </TableCell>
                           </TableRow>
                         );
