@@ -1,3 +1,26 @@
+## Documentacion
+
+La documentacion tecnica del proyecto se encuentra en:
+
+[`/docs`](./docs)
+
+Dentro de esa carpeta se incluye la documentacion general del sistema, la documentacion completa de la base de datos y un archivo SQL de referencia con la estructura observada en Supabase.
+
+## Usuarios de prueba
+
+Para probar las distintas funciones del sistema se pueden utilizar las siguientes cuentas:
+
+| Rol | Correo | Contraseña |
+|---|---|---|
+| Administrador | admin@gmail.com | admin123 |
+| Capturista | capturista@gmail.com | capturista123 |
+| Profesor | profe2@gmail.com | profesor123 |
+| Alumno | alumno@gmail.com | alumno123 |
+| Lector | lector@gmail.com | lector123 |
+
+Estas cuentas fueron creadas exclusivamente para pruebas y demostracion del sistema.
+
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -34,3 +57,26 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+
+## Variables de entorno
+
+Para ejecutar el proyecto es necesario crear un archivo .env.local en la raiz.
+
+El repositorio incluye .env.example como referencia de las variables necesarias. Los valores reales no se incluyen en Git porque contienen credenciales del proyecto.
+
+1. Copiar .env.example.
+2. Renombrar la copia como .env.local.
+3. Completar los valores correspondientes.
+
+Variables utilizadas:
+
+- NEXT_PUBLIC_SUPABASE_URL: URL de la instancia de Supabase.
+- NEXT_PUBLIC_SUPABASE_ANON_KEY: clave publica utilizada por el cliente de Supabase.
+- SUPABASE_SERVICE_ROLE_KEY: clave administrativa utilizada solamente desde codigo del servidor.
+- NEXTAUTH_SECRET: secreto utilizado para firmar y proteger la sesion de NextAuth.
+
+SUPABASE_SERVICE_ROLE_KEY no debe utilizarse en componentes cliente ni exponerse mediante variables con el prefijo NEXT_PUBLIC_.
+
+NODE_ENV tambien es utilizado por el proyecto, pero normalmente es definido automaticamente por Next.js y no necesita agregarse a .env.local.

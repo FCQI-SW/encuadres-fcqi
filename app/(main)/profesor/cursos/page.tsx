@@ -51,7 +51,10 @@ import {
   X,
   CheckCircle,
   XCircle,
+  Archive,
 } from "lucide-react";
+import PrintEncuadreButton from "@/components/Printencuadrebutton";
+import PrintPuaButton from "@/components/Printpuabutton";
 
 type Curso = {
   id: string;
@@ -63,6 +66,7 @@ type Curso = {
   total_alumnos: number;
   firmas_completadas: number;
   avances_completados: number;
+  archivado: boolean;
 };
 
 type AlumnoDetalle = {
@@ -73,6 +77,8 @@ type AlumnoDetalle = {
   fecha: string | null;
 };
 
+type VistaCursos = "actuales" | "archivados" | "todos";
+
 export default function CursosProfesorPage() {
   const router = useRouter();
   const { data: session } = useSession();
@@ -82,14 +88,37 @@ export default function CursosProfesorPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPeriodo, setSelectedPeriodo] = useState<string>("Todos");
   const [selectedGrupo, setSelectedGrupo] = useState<string>("Todos");
+  const [selectedVista, setSelectedVista] = useState<VistaCursos>("actuales");
+  const [periodoActual, setPeriodoActual] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
-  // Estados para el modal de detalles
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTipo, setModalTipo] = useState<"firmas" | "avances">("firmas");
   const [modalCurso, setModalCurso] = useState<Curso | null>(null);
   const [alumnosDetalle, setAlumnosDetalle] = useState<AlumnoDetalle[]>([]);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
+
+  const parsePeriodo = (periodo: string) => {
+    const match = periodo?.match(/^(\d{4})-(\d+)$/);
+    if (!match) return null;
+    return { anio: Number(match[1]), ciclo: Number(match[2]) };
+  };
+
+  const comparePeriodos = (a: string, b: string) => {
+    const pa = parsePeriodo(a);
+    const pb = parsePeriodo(b);
+    if (pa && pb) {
+      if (pa.anio !== pb.anio) return pa.anio - pb.anio;
+      return pa.ciclo - pb.ciclo;
+    }
+    return a.localeCompare(b, "es", { numeric: true, sensitivity: "base" });
+  };
+
+  const obtenerPeriodoMasReciente = (periodos: string[]) => {
+    const unicos = Array.from(new Set(periodos.filter(Boolean)));
+    if (unicos.length === 0) return "";
+    return unicos.sort((a, b) => comparePeriodos(b, a))[0];
+  };
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -100,7 +129,6 @@ export default function CursosProfesorPage() {
 
   const cargarCursos = async () => {
     if (!session?.user?.id) return;
-
     setLoading(true);
 
     try {
@@ -119,9 +147,15 @@ export default function CursosProfesorPage() {
       if (encuadres.length === 0) {
         setCursos([]);
         setFilteredCursos([]);
+        setPeriodoActual("");
         setLoading(false);
         return;
       }
+
+      const periodoActualCalculado = obtenerPeriodoMasReciente(
+        encuadres.map((e) => e.periodo || "")
+      );
+      setPeriodoActual(periodoActualCalculado);
 
       const programaIds = encuadres.map((e) => e.programa_id);
       const { data: programas } = await supabase
@@ -137,20 +171,17 @@ export default function CursosProfesorPage() {
 
       const encuadreIds = encuadres.map((e) => e.id);
 
-      // Obtener alumnos inscritos
       const { data: alumnosData } = await supabase
         .from("encuadre_alumnos")
         .select("encuadre_id, alumno_id")
         .in("encuadre_id", encuadreIds)
         .neq("estado", "revocada");
 
-      // Obtener firmas
       const { data: firmasData } = await supabase
         .from("encuadre_firmas")
         .select("encuadre_id, alumno_id")
         .in("encuadre_id", encuadreIds);
 
-      // Obtener avances (alumnos que han registrado al menos un check-in)
       const { data: avancesData } = await supabase
         .from("temas_checkin")
         .select("encuadre_id, usuario_id")
@@ -159,32 +190,28 @@ export default function CursosProfesorPage() {
       const programaMap = new Map((programas || []).map((p: any) => [p.id, p]));
       const materiaMap = new Map((materias || []).map((m: any) => [m.id, m]));
 
-      // Contar alumnos por encuadre
       const alumnosCountMap = new Map<string, number>();
       (alumnosData || []).forEach((a: any) => {
-        const count = alumnosCountMap.get(a.encuadre_id) || 0;
-        alumnosCountMap.set(a.encuadre_id, count + 1);
+        alumnosCountMap.set(a.encuadre_id, (alumnosCountMap.get(a.encuadre_id) || 0) + 1);
       });
 
-      // Contar firmas por encuadre
       const firmasCountMap = new Map<string, number>();
       (firmasData || []).forEach((f: any) => {
-        const count = firmasCountMap.get(f.encuadre_id) || 0;
-        firmasCountMap.set(f.encuadre_id, count + 1);
+        firmasCountMap.set(f.encuadre_id, (firmasCountMap.get(f.encuadre_id) || 0) + 1);
       });
 
-      // Contar alumnos únicos que han registrado avances por encuadre
       const avancesMap = new Map<string, Set<string>>();
       (avancesData || []).forEach((a: any) => {
-        if (!avancesMap.has(a.encuadre_id)) {
-          avancesMap.set(a.encuadre_id, new Set());
-        }
+        if (!avancesMap.has(a.encuadre_id)) avancesMap.set(a.encuadre_id, new Set());
         avancesMap.get(a.encuadre_id)?.add(a.usuario_id);
       });
 
       const cursosFormateados: Curso[] = encuadres.map((e: any) => {
         const programa = programaMap.get(e.programa_id);
         const materia = programa ? materiaMap.get(programa.materia_id) : null;
+        const esArchivado = periodoActualCalculado
+          ? comparePeriodos(e.periodo || "", periodoActualCalculado) < 0
+          : false;
 
         return {
           id: e.programa_id,
@@ -196,6 +223,7 @@ export default function CursosProfesorPage() {
           total_alumnos: alumnosCountMap.get(e.id) || 0,
           firmas_completadas: firmasCountMap.get(e.id) || 0,
           avances_completados: avancesMap.get(e.id)?.size || 0,
+          archivado: esArchivado,
         };
       });
 
@@ -208,25 +236,14 @@ export default function CursosProfesorPage() {
     setLoading(false);
   };
 
-  // Cargar detalles de firmas o avances
   const cargarDetalle = async (curso: Curso, tipo: "firmas" | "avances") => {
     setLoadingDetalle(true);
     setAlumnosDetalle([]);
 
     try {
-      // Obtener todos los alumnos del encuadre
       const { data: alumnosEncuadre } = await supabase
         .from("encuadre_alumnos")
-        .select(
-          `
-          alumno_id,
-          usuarios!encuadre_alumnos_alumno_id_fkey (
-            id,
-            correo,
-            nombre
-          )
-        `
-        )
+        .select("alumno_id, usuarios!encuadre_alumnos_alumno_id_fkey (id, correo, nombre)")
         .eq("encuadre_id", curso.encuadre_id)
         .neq("estado", "revocada");
 
@@ -237,15 +254,12 @@ export default function CursosProfesorPage() {
       }
 
       if (tipo === "firmas") {
-        // Obtener firmas de este encuadre
         const { data: firmas } = await supabase
           .from("encuadre_firmas")
           .select("alumno_id, firmado_at")
           .eq("encuadre_id", curso.encuadre_id);
 
-        const firmasMap = new Map(
-          (firmas || []).map((f: any) => [f.alumno_id, f.firmado_at])
-        );
+        const firmasMap = new Map((firmas || []).map((f: any) => [f.alumno_id, f.firmado_at]));
 
         const detalle: AlumnoDetalle[] = alumnosEncuadre.map((ae: any) => ({
           id: ae.alumno_id,
@@ -255,21 +269,14 @@ export default function CursosProfesorPage() {
           fecha: firmasMap.get(ae.alumno_id) || null,
         }));
 
-        // Ordenar: primero los que NO han firmado
-        detalle.sort((a, b) => {
-          if (a.completado === b.completado) return 0;
-          return a.completado ? 1 : -1;
-        });
-
+        detalle.sort((a, b) => (a.completado === b.completado ? 0 : a.completado ? 1 : -1));
         setAlumnosDetalle(detalle);
       } else {
-        // Obtener avances de este encuadre
         const { data: avances } = await supabase
           .from("temas_checkin")
           .select("usuario_id, created_at")
           .eq("encuadre_id", curso.encuadre_id);
 
-        // Agrupar por usuario y obtener la fecha más reciente
         const avancesMap = new Map<string, string>();
         (avances || []).forEach((a: any) => {
           const existente = avancesMap.get(a.usuario_id);
@@ -286,12 +293,7 @@ export default function CursosProfesorPage() {
           fecha: avancesMap.get(ae.alumno_id) || null,
         }));
 
-        // Ordenar: primero los que NO han registrado avances
-        detalle.sort((a, b) => {
-          if (a.completado === b.completado) return 0;
-          return a.completado ? 1 : -1;
-        });
-
+        detalle.sort((a, b) => (a.completado === b.completado ? 0 : a.completado ? 1 : -1));
         setAlumnosDetalle(detalle);
       }
     } catch (err) {
@@ -301,11 +303,7 @@ export default function CursosProfesorPage() {
     setLoadingDetalle(false);
   };
 
-  const handleOpenModal = (
-    curso: Curso,
-    tipo: "firmas" | "avances",
-    e: React.MouseEvent
-  ) => {
+  const handleOpenModal = (curso: Curso, tipo: "firmas" | "avances", e: React.MouseEvent) => {
     e.stopPropagation();
     setModalCurso(curso);
     setModalTipo(tipo);
@@ -324,20 +322,26 @@ export default function CursosProfesorPage() {
     });
   };
 
+  // ── FIX: cuando el usuario elige un periodo específico, mostrar
+  // todos sus cursos de ese periodo sin aplicar el filtro de vista
+  // (archivado/actual). Esto evita que cursos de periodos anteriores
+  // desaparezcan al filtrar por periodo explícito.
   useEffect(() => {
     let filtered = [...cursos];
 
-    // Filtro por periodo
     if (selectedPeriodo !== "Todos") {
+      // Periodo específico seleccionado → ignorar filtro de vista
       filtered = filtered.filter((c) => c.periodo === selectedPeriodo);
+    } else {
+      // Sin periodo específico → aplicar filtro de vista normalmente
+      if (selectedVista === "actuales") filtered = filtered.filter((c) => !c.archivado);
+      else if (selectedVista === "archivados") filtered = filtered.filter((c) => c.archivado);
     }
 
-    // Filtro por grupo
     if (selectedGrupo !== "Todos") {
       filtered = filtered.filter((c) => c.grupo === selectedGrupo);
     }
 
-    // Búsqueda por texto
     if (searchTerm.trim() !== "") {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -350,25 +354,30 @@ export default function CursosProfesorPage() {
     }
 
     setFilteredCursos(filtered);
-  }, [searchTerm, selectedPeriodo, selectedGrupo, cursos]);
+  }, [searchTerm, selectedPeriodo, selectedGrupo, selectedVista, cursos]);
 
-  const periodos = Array.from(new Set(cursos.map((c) => c.periodo)));
-  const grupos = Array.from(new Set(cursos.map((c) => c.grupo)));
+  const periodos = Array.from(new Set(cursos.map((c) => c.periodo))).sort((a, b) =>
+    comparePeriodos(b, a)
+  );
+  const grupos = Array.from(new Set(cursos.map((c) => c.grupo))).sort();
 
   const handleClearFilters = () => {
     setSearchTerm("");
     setSelectedPeriodo("Todos");
     setSelectedGrupo("Todos");
+    setSelectedVista("actuales");
   };
 
   const hasActiveFilters =
-    searchTerm || selectedPeriodo !== "Todos" || selectedGrupo !== "Todos";
+    searchTerm ||
+    selectedPeriodo !== "Todos" ||
+    selectedGrupo !== "Todos" ||
+    selectedVista !== "actuales";
 
   const handleVerCurso = (encuadreId: string) => {
     router.push(`/profesor/cursos/${encuadreId}`);
   };
 
-  // Función para obtener el color del badge según el porcentaje
   const getStatusColor = (completados: number, total: number) => {
     if (total === 0) return "bg-gray-100 text-gray-500";
     const porcentaje = (completados / total) * 100;
@@ -392,26 +401,27 @@ export default function CursosProfesorPage() {
     <TooltipProvider>
       <div className="px-4 py-8">
         <div className="mx-auto max-w-7xl space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <p className="text-gray-600 mt-1">
-                Administra tus cursos, alumnos y avances
-              </p>
+              <p className="text-gray-600 mt-1">Administra tus cursos, alumnos y avances</p>
+              {periodoActual && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Periodo actual detectado:{" "}
+                  <span className="font-medium">{periodoActual}</span>
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <GraduationCap className="h-5 w-5" />
-              <span className="font-semibold">{cursos.length}</span>
-              <span>cursos asignados</span>
+              <span className="font-semibold">{filteredCursos.length}</span>
+              <span>cursos visibles</span>
             </div>
           </div>
 
-          {/* Filtros */}
           <Card>
             <CardContent className="pt-4">
               <div className="space-y-4">
-                {/* Búsqueda y filtros en la misma fila */}
                 <div className="flex flex-wrap items-center gap-4">
-                  {/* Búsqueda */}
                   <div className="flex items-center gap-2">
                     <Search className="h-5 w-5 text-gray-400" />
                     <Input
@@ -423,43 +433,47 @@ export default function CursosProfesorPage() {
                     />
                   </div>
 
-                  {/* Filtro por periodo */}
-                  <Select
-                    value={selectedPeriodo}
-                    onValueChange={setSelectedPeriodo}
-                  >
+                  {/* Solo mostrar filtro de vista cuando no hay periodo específico */}
+                  {selectedPeriodo === "Todos" && (
+                    <Select
+                      value={selectedVista}
+                      onValueChange={(value) => setSelectedVista(value as VistaCursos)}
+                    >
+                      <SelectTrigger className="min-w-[180px]">
+                        <SelectValue placeholder="Vista" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="actuales">Cursos actuales</SelectItem>
+                        <SelectItem value="archivados">Cursos archivados</SelectItem>
+                        <SelectItem value="todos">Todos los cursos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  <Select value={selectedPeriodo} onValueChange={setSelectedPeriodo}>
                     <SelectTrigger className="min-w-[180px]">
                       <SelectValue placeholder="Periodo" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Todos">Todos los periodos</SelectItem>
                       {periodos.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
 
-                  {/* Filtro por grupo */}
-                  <Select
-                    value={selectedGrupo}
-                    onValueChange={setSelectedGrupo}
-                  >
+                  <Select value={selectedGrupo} onValueChange={setSelectedGrupo}>
                     <SelectTrigger className="min-w-[140px]">
                       <SelectValue placeholder="Grupo" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Todos">Todos los grupos</SelectItem>
                       {grupos.map((g) => (
-                        <SelectItem key={g} value={g}>
-                          {g}
-                        </SelectItem>
+                        <SelectItem key={g} value={g}>{g}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
 
-                  {/* Botón limpiar filtros */}
                   {hasActiveFilters && (
                     <Button
                       variant="outline"
@@ -473,7 +487,6 @@ export default function CursosProfesorPage() {
                   )}
                 </div>
 
-                {/* Contador de resultados */}
                 <div className="text-sm text-muted-foreground">
                   Mostrando {filteredCursos.length} de {cursos.length} cursos
                 </div>
@@ -487,14 +500,10 @@ export default function CursosProfesorPage() {
                 <div className="text-center py-12">
                   <GraduationCap className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                    {searchTerm
-                      ? "No se encontraron cursos"
-                      : "Sin cursos asignados"}
+                    No se encontraron cursos
                   </h3>
                   <p className="text-gray-500">
-                    {searchTerm
-                      ? "Intenta con otros términos de búsqueda"
-                      : "Aún no tienes cursos asignados"}
+                    Intenta con otros filtros o revisa el periodo seleccionado
                   </p>
                 </div>
               </CardContent>
@@ -504,8 +513,7 @@ export default function CursosProfesorPage() {
               <CardHeader>
                 <CardTitle>Lista de Cursos</CardTitle>
                 <CardDescription>
-                  Haz clic en un curso para gestionar encuadre, alumnos y
-                  avances
+                  Los cursos de periodos anteriores se muestran como archivados
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -527,13 +535,21 @@ export default function CursosProfesorPage() {
                       {filteredCursos.map((curso) => (
                         <TableRow
                           key={curso.encuadre_id}
-                          className="hover:bg-gray-50 cursor-pointer"
+                          className={`cursor-pointer hover:bg-gray-50 ${curso.archivado ? "bg-amber-50/40" : ""}`}
                           onClick={() => handleVerCurso(curso.encuadre_id)}
                         >
-                          <TableCell className="font-medium">
-                            {curso.materia_clave}
+                          <TableCell className="font-medium">{curso.materia_clave}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span>{curso.materia_nombre}</span>
+                              {curso.archivado && (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                  <Archive className="h-3 w-3" />
+                                  Archivado
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
-                          <TableCell>{curso.materia_nombre}</TableCell>
                           <TableCell>{curso.periodo}</TableCell>
                           <TableCell>{curso.grupo}</TableCell>
                           <TableCell className="text-center">
@@ -546,27 +562,15 @@ export default function CursosProfesorPage() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
-                                  onClick={(e) =>
-                                    handleOpenModal(curso, "firmas", e)
-                                  }
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(
-                                    curso.firmas_completadas,
-                                    curso.total_alumnos
-                                  )}`}
+                                  onClick={(e) => handleOpenModal(curso, "firmas", e)}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(curso.firmas_completadas, curso.total_alumnos)}`}
                                 >
                                   <FileSignature className="h-3 w-3" />
-                                  <span>
-                                    {curso.firmas_completadas}/
-                                    {curso.total_alumnos}
-                                  </span>
+                                  <span>{curso.firmas_completadas}/{curso.total_alumnos}</span>
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>
-                                  {curso.firmas_completadas} de{" "}
-                                  {curso.total_alumnos} alumnos han firmado el
-                                  encuadre. Clic para ver detalles.
-                                </p>
+                                <p>{curso.firmas_completadas} de {curso.total_alumnos} alumnos han firmado el encuadre. Clic para ver detalles.</p>
                               </TooltipContent>
                             </Tooltip>
                           </TableCell>
@@ -574,43 +578,35 @@ export default function CursosProfesorPage() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
-                                  onClick={(e) =>
-                                    handleOpenModal(curso, "avances", e)
-                                  }
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(
-                                    curso.avances_completados,
-                                    curso.total_alumnos
-                                  )}`}
+                                  onClick={(e) => handleOpenModal(curso, "avances", e)}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${getStatusColor(curso.avances_completados, curso.total_alumnos)}`}
                                 >
                                   <ClipboardCheck className="h-3 w-3" />
-                                  <span>
-                                    {curso.avances_completados}/
-                                    {curso.total_alumnos}
-                                  </span>
+                                  <span>{curso.avances_completados}/{curso.total_alumnos}</span>
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>
-                                  {curso.avances_completados} de{" "}
-                                  {curso.total_alumnos} alumnos han registrado
-                                  avances. Clic para ver detalles.
-                                </p>
+                                <p>{curso.avances_completados} de {curso.total_alumnos} alumnos han registrado avances. Clic para ver detalles.</p>
                               </TooltipContent>
                             </Tooltip>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleVerCurso(curso.encuadre_id);
-                              }}
-                              className="cursor-pointer"
+                            <div
+                              className="flex items-center justify-end gap-2"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              <GraduationCap className="h-4 w-4 mr-2" />
-                              Gestionar
-                            </Button>
+                              <PrintPuaButton programaId={curso.id} />
+                              <PrintEncuadreButton encuadreId={curso.encuadre_id} />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleVerCurso(curso.encuadre_id)}
+                                className="cursor-pointer"
+                              >
+                                <GraduationCap className="h-4 w-4 mr-2" />
+                                Gestionar
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -623,7 +619,6 @@ export default function CursosProfesorPage() {
         </div>
       </div>
 
-      {/* Modal de detalles de firmas/avances */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -633,16 +628,13 @@ export default function CursosProfesorPage() {
               ) : (
                 <ClipboardCheck className="h-5 w-5 text-[#00723F]" />
               )}
-              {modalTipo === "firmas"
-                ? "Firmas del Encuadre"
-                : "Registro de Avances"}
+              {modalTipo === "firmas" ? "Firmas del Encuadre" : "Registro de Avances"}
             </DialogTitle>
             <DialogDescription>
               {modalCurso?.materia_nombre} - Grupo {modalCurso?.grupo}
             </DialogDescription>
           </DialogHeader>
 
-          {/* Resumen */}
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
@@ -661,8 +653,7 @@ export default function CursosProfesorPage() {
             </div>
             <div
               className={`px-3 py-1 rounded-full text-sm font-medium ${
-                completados === alumnosDetalle.length &&
-                alumnosDetalle.length > 0
+                completados === alumnosDetalle.length && alumnosDetalle.length > 0
                   ? "bg-green-100 text-green-800"
                   : alumnosDetalle.length === 0
                   ? "bg-gray-100 text-gray-600"
@@ -673,7 +664,6 @@ export default function CursosProfesorPage() {
             </div>
           </div>
 
-          {/* Tabla de alumnos */}
           {loadingDetalle ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-[#00723F]" />
@@ -691,9 +681,7 @@ export default function CursosProfesorPage() {
                     <TableHead className="w-[50px]">Estado</TableHead>
                     <TableHead>Alumno</TableHead>
                     <TableHead>
-                      {modalTipo === "firmas"
-                        ? "Fecha de firma"
-                        : "Último registro"}
+                      {modalTipo === "firmas" ? "Fecha de firma" : "Último registro"}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -709,13 +697,9 @@ export default function CursosProfesorPage() {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">
-                            {alumno.nombre || alumno.correo}
-                          </p>
+                          <p className="font-medium">{alumno.nombre || alumno.correo}</p>
                           {alumno.nombre && (
-                            <p className="text-sm text-muted-foreground">
-                              {alumno.correo}
-                            </p>
+                            <p className="text-sm text-muted-foreground">{alumno.correo}</p>
                           )}
                         </div>
                       </TableCell>
@@ -723,9 +707,7 @@ export default function CursosProfesorPage() {
                         {alumno.completado ? (
                           formatearFecha(alumno.fecha)
                         ) : (
-                          <span className="text-red-500 font-medium">
-                            Pendiente
-                          </span>
+                          <span className="text-red-500 font-medium">Pendiente</span>
                         )}
                       </TableCell>
                     </TableRow>

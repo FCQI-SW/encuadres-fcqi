@@ -21,36 +21,43 @@ type ContenidoEditorProps = {
 export function ContenidoEditor({ numeroUnidad, value, onChange }: ContenidoEditorProps) {
   const [temas, setTemas] = useState<Tema[]>([]);
   const inicializadoRef = useRef(false);
-  const valueInicialRef = useRef(value);
 
-  // Cargar contenido inicial desde value (solo una vez)
+  // ── FIX: guarda el último texto emitido al padre ─────────────
+  // Se inicializa con el valor que llegó de la BD. Así, en el primer
+  // render, el efecto de notificación compara contra el valor real y
+  // NO emite "" (que era lo que borraba el contenido guardado).
+  const ultimoEmitido = useRef<string>(value ?? "");
+
+  // ── 1. Cargar contenido inicial desde value (solo una vez) ───
   useEffect(() => {
-    if (!inicializadoRef.current) {
-      if (value && value.trim()) {
-        const temasParseados = parseContenidoATexto(value);
-        if (temasParseados.length > 0) {
-          setTemas(temasParseados);
-        }
+    if (inicializadoRef.current) return;
+
+    if (value && value.trim()) {
+      const temasParseados = parseContenidoATexto(value);
+      if (temasParseados.length > 0) {
+        setTemas(temasParseados);
       }
-      inicializadoRef.current = true;
     }
+    inicializadoRef.current = true;
   }, [value]);
 
-  // Notificar cambios al padre (después de la inicialización)
+  // ── 2. Notificar cambios al padre ────────────────────────────
+  // FIX: solo emite cuando el texto REALMENTE cambió respecto a lo
+  // último emitido. Antes comparaba contra valueInicialRef, lo que
+  // provocaba un ping-pong infinito entre "" y el texto real porque
+  // el texto reserializado nunca es idéntico byte por byte al de la BD.
   useEffect(() => {
-    if (inicializadoRef.current && onChange) {
-      const textoEstructurado = convertirTemasATexto(temas, numeroUnidad);
-      // Solo notificar si cambió respecto al valor inicial
-      if (textoEstructurado !== valueInicialRef.current) {
-        onChange(textoEstructurado);
-      }
-    }
+    if (!inicializadoRef.current || !onChange) return;
+
+    const texto = convertirTemasATexto(temas, numeroUnidad);
+    if (texto === ultimoEmitido.current) return;
+
+    ultimoEmitido.current = texto;
+    onChange(texto);
   }, [temas, numeroUnidad, onChange]);
 
-  // Forzar inicialización después del primer render
-  useEffect(() => {
-    inicializadoRef.current = true;
-  }, []);
+  // (Se eliminó el tercer useEffect que forzaba inicializadoRef = true;
+  //  era el que permitía que el efecto 2 corriera con temas todavía vacío.)
 
   const agregarTemaPrincipal = () => {
     const nuevoId = `tema-${Date.now()}-${Math.random()}`;
@@ -353,27 +360,27 @@ function parseContenidoATexto(contenido: string): Tema[] {
     const niveles = numeracion.split(".").filter((n) => n).length;
 
     if (niveles === 2) {
-      temaActual = { 
-        id: `tema-${index}-${Date.now()}-${Math.random()}`, 
-        texto, 
-        nivel: 1, 
-        hijos: [] 
+      temaActual = {
+        id: `tema-${index}-${Date.now()}-${Math.random()}`,
+        texto,
+        nivel: 1,
+        hijos: [],
       };
       temas.push(temaActual);
       subtemaActual = null;
     } else if (niveles === 3 && temaActual) {
-      subtemaActual = { 
-        id: `subtema-${index}-${Date.now()}-${Math.random()}`, 
-        texto, 
-        nivel: 2, 
-        hijos: [] 
+      subtemaActual = {
+        id: `subtema-${index}-${Date.now()}-${Math.random()}`,
+        texto,
+        nivel: 2,
+        hijos: [],
       };
       temaActual.hijos = [...(temaActual.hijos || []), subtemaActual];
     } else if (niveles === 4 && subtemaActual) {
-      const inciso = { 
-        id: `inciso-${index}-${Date.now()}-${Math.random()}`, 
-        texto, 
-        nivel: 3 
+      const inciso = {
+        id: `inciso-${index}-${Date.now()}-${Math.random()}`,
+        texto,
+        nivel: 3,
       };
       subtemaActual.hijos = [...(subtemaActual.hijos || []), inciso];
     }

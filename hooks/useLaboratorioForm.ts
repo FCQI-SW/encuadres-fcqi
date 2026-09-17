@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 
-export type PracticaTaller = {
+export type PracticaLaboratorio = {
   id?: string;
   unidad: number;
   numero: number;
@@ -12,7 +12,7 @@ export type PracticaTaller = {
   duracion: number;
 };
 
-export function useTallerForm(programaId: string) {
+export function useLaboratorioForm(programaId: string) {
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +22,7 @@ export function useTallerForm(programaId: string) {
   // el primer render cuando programaId todavía es "", por lo que
   // aunque el programa cargue después, siguen consultando con "".
   const guardarPracticas = useCallback(
-    async (practicas: PracticaTaller[]): Promise<boolean> => {
+    async (practicas: PracticaLaboratorio[]): Promise<boolean> => {
       setLoading(true);
 
       try {
@@ -35,13 +35,13 @@ export function useTallerForm(programaId: string) {
         const userId = session.user.id;
 
         await supabase
-          .from("practicas_taller")
+          .from("practicas_laboratorio")
           .delete()
           .eq("programa_id", programaId);
 
         if (practicas.length > 0) {
           const { error } = await supabase
-            .from("practicas_taller")
+            .from("practicas_laboratorio")
             .insert(
               practicas.map((p) => ({
                 programa_id: programaId,
@@ -55,7 +55,7 @@ export function useTallerForm(programaId: string) {
             );
 
           if (error) {
-            console.error("Error al guardar prácticas:", error);
+            console.error("Error al guardar prácticas de laboratorio:", error);
             setLoading(false);
             return false;
           }
@@ -76,7 +76,7 @@ export function useTallerForm(programaId: string) {
         setLoading(false);
         return true;
       } catch (err) {
-        console.error("Error en guardarPracticas:", err);
+        console.error("Error en guardarPracticas laboratorio:", err);
         setLoading(false);
         return false;
       }
@@ -84,36 +84,39 @@ export function useTallerForm(programaId: string) {
     [programaId, session?.user?.id]
   );
 
-  const cargarPracticas = useCallback(async (): Promise<PracticaTaller[]> => {
-    if (!programaId) return [];
+  const cargarPracticas = useCallback(
+    async (): Promise<PracticaLaboratorio[]> => {
+      if (!programaId) return [];
 
-    try {
-      const { data, error } = await supabase
-        .from("practicas_taller")
-        .select("*")
-        .eq("programa_id", programaId)
-        .order("unidad", { ascending: true })
-        .order("numero", { ascending: true });
+      try {
+        const { data, error } = await supabase
+          .from("practicas_laboratorio")
+          .select("*")
+          .eq("programa_id", programaId)
+          .order("unidad", { ascending: true })
+          .order("numero", { ascending: true });
 
-      if (error) {
-        console.error("Error al cargar prácticas:", error);
+        if (error) {
+          console.error("Error al cargar prácticas de laboratorio:", error);
+          return [];
+        }
+
+        return (data || []).map((p: any) => ({
+          id: p.id,
+          unidad: p.unidad,
+          numero: p.numero,
+          competencia: p.competencia,
+          descripcion: p.descripcion,
+          material_apoyo: p.material_apoyo,
+          duracion: p.duracion,
+        }));
+      } catch (err) {
+        console.error("Error en cargarPracticas laboratorio:", err);
         return [];
       }
-
-      return (data || []).map((p: any) => ({
-        id: p.id,
-        unidad: p.unidad,
-        numero: p.numero,
-        competencia: p.competencia,
-        descripcion: p.descripcion,
-        material_apoyo: p.material_apoyo,
-        duracion: p.duracion,
-      }));
-    } catch (err) {
-      console.error("Error en cargarPracticas:", err);
-      return [];
-    }
-  }, [programaId]);
+    },
+    [programaId]
+  );
 
   return {
     guardarPracticas,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,16 +9,24 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 interface VerificarPeriodoProps {
-  children: React.ReactNode;
+  children: ReactNode;
   rolesExentos?: string[];
   rolActual: string;
+  userId?: string | null;
+}
+
+function esRutaDetalleCapturista(pathname: string) {
+  return /^\/capturista\/cursos\/[^/]+$/.test(pathname);
 }
 
 export function VerificarPeriodo({
   children,
-  rolesExentos = ["admin"],
+  rolesExentos = ["admin", "capturista"],
   rolActual,
+  userId,
 }: VerificarPeriodoProps) {
+  const pathname = usePathname();
+
   const [verificando, setVerificando] = useState(true);
   const [permitido, setPermitido] = useState(false);
   const [mensaje, setMensaje] = useState("");
@@ -30,16 +39,58 @@ export function VerificarPeriodo({
 
   useEffect(() => {
     verificarPeriodo();
-  }, [rolActual]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rolActual, pathname, userId]);
 
   async function verificarPeriodo() {
-    // Si el rol está exento, permitir siempre
+    setVerificando(true);
+    setMensaje("");
+    setPeriodo(null);
+
+    // 1. Admin y capturista exentos
     if (rolesExentos.includes(rolActual)) {
       setPermitido(true);
       setVerificando(false);
       return;
     }
 
+    // 2. Solo capturista puede entrar directo a detalle fuera del periodo
+    if (rolActual === "capturista" && esRutaDetalleCapturista(pathname)) {
+      setPermitido(true);
+      setVerificando(false);
+      return;
+    }
+
+    // 3. Permiso especial general para profesor/alumno
+    if (userId && (rolActual === "profesor" || rolActual === "alumno")) {
+      try {
+        const ahoraIso = new Date().toISOString();
+
+        const { data: permisos, error: errorPermiso } = await supabase
+          .from("permisos_operacion_encuadre")
+          .select("id")
+          .eq("usuario_id", userId)
+          .eq("rol_objetivo", rolActual)
+          .eq("activo", true)
+          .lte("acceso_desde", ahoraIso)
+          .gte("acceso_hasta", ahoraIso)
+          .limit(1);
+
+        if (errorPermiso) {
+          console.error("Error verificando permiso especial:", errorPermiso);
+        }
+
+        if ((permisos?.length ?? 0) > 0) {
+          setPermitido(true);
+          setVerificando(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Error verificando permiso especial:", err);
+      }
+    }
+
+    // 4. Revisar periodo global
     try {
       const { data, error } = await supabase
         .from("configuracion_fechas")
@@ -50,7 +101,6 @@ export function VerificarPeriodo({
         .single();
 
       if (error || !data) {
-        // Si no hay configuración, permitir acceso
         setPermitido(true);
         setVerificando(false);
         return;
@@ -58,10 +108,11 @@ export function VerificarPeriodo({
 
       const ahora = new Date();
       const fechaHoy = format(ahora, "yyyy-MM-dd");
-      const horaActual = format(ahora, "HH:mm");
+      const horaActual = format(ahora, "HH:mm:ss");
 
       const dentroFechas =
         fechaHoy >= data.fecha_inicio && fechaHoy <= data.fecha_fin;
+
       const dentroHorario =
         horaActual >= data.hora_inicio && horaActual <= data.hora_fin;
 
@@ -123,13 +174,17 @@ export function VerificarPeriodo({
                     Periodo de operación:
                   </p>
                   <p className="text-gray-600">
-                    {format(new Date(periodo.inicio + "T00:00:00"), "d 'de' MMMM", {
-                      locale: es,
-                    })}{" "}
+                    {format(
+                      new Date(periodo.inicio + "T00:00:00"),
+                      "d 'de' MMMM",
+                      { locale: es }
+                    )}{" "}
                     al{" "}
-                    {format(new Date(periodo.fin + "T00:00:00"), "d 'de' MMMM 'de' yyyy", {
-                      locale: es,
-                    })}
+                    {format(
+                      new Date(periodo.fin + "T00:00:00"),
+                      "d 'de' MMMM 'de' yyyy",
+                      { locale: es }
+                    )}
                   </p>
                   <p className="text-gray-600">
                     Horario: {periodo.horaInicio} - {periodo.horaFin}

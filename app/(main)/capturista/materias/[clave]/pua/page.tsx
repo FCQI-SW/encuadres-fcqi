@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,8 +22,9 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, Lock, ShieldCheck } from "lucide-react";
 import { usePuaForm } from "@/hooks/usePuaForm";
+import { usePermisoPua } from "@/hooks/usePermisoPua";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
 
@@ -33,19 +34,32 @@ type Materia = {
   nombre: string;
 };
 
+// ── FIX: incluir ht y hl para saber qué botones mostrar ─────────
+type ProgramaInfo = {
+  id: string;
+  periodo: string;
+  plan_estudios: string;
+  ht: number;
+  hl: number;
+};
+
 export default function PuaMateria() {
   const router = useRouter();
   const params = useParams<{ clave: string }>();
+  const searchParams = useSearchParams();
   const clave = params?.clave as string;
+  const programaIdFromQuery = searchParams.get("programaId") || "";
+
   const confirm = useConfirm();
   const toast = useToast();
 
   const [loadingData, setLoadingData] = useState(true);
   const [materia, setMateria] = useState<Materia | null>(null);
   const [puaCompleto, setPuaCompleto] = useState(false);
-  const [programaId, setProgramaId] = useState<string>("");
+  const [programaId, setProgramaId] = useState<string>(programaIdFromQuery);
+  const [periodo, setPeriodo] = useState("");
+  const [programaInfo, setProgramaInfo] = useState<ProgramaInfo | null>(null);
 
-  // Estados para los campos de la sección I
   const [unidadAcademica, setUnidadAcademica] = useState("");
   const [programaEducativo, setProgramaEducativo] = useState("");
   const [planEstudios, setPlanEstudios] = useState("");
@@ -60,13 +74,11 @@ export default function PuaMateria() {
   const [caracterUA, setCaracterUA] = useState("");
   const [requisitos, setRequisitos] = useState("");
 
-  // Estados para las secciones II, III, IV, V
   const [propositoUA, setPropositoUA] = useState("");
   const [competenciaUA, setCompetenciaUA] = useState("");
   const [evidencias, setEvidencias] = useState("");
   const [numUnidades, setNumUnidades] = useState<string>("");
 
-  // Estados para las secciones VII, VIII, IX
   const [metodoEncuadre, setMetodoEncuadre] = useState("");
   const [metodoEstrategiaDocente, setMetodoEstrategiaDocente] = useState("");
   const [metodoEstrategiaAlumno, setMetodoEstrategiaAlumno] = useState("");
@@ -74,14 +86,22 @@ export default function PuaMateria() {
   const [referenciasComplementarias, setReferenciasComplementarias] = useState("");
   const [perfilDocente, setPerfilDocente] = useState("");
 
-  // Estados para detectar cambios sin guardar
   const [valoresOriginales, setValoresOriginales] = useState<any>(null);
   const [hayCambiosSinGuardar, setHayCambiosSinGuardar] = useState(false);
 
-  const { guardarPua, cargarPua, loading, error } = usePuaForm(materia?.id || "");
+  const { guardarPua, cargarPua, loading, error } = usePuaForm(programaId);
   const [prevError, setPrevError] = useState<string | null>(null);
 
-  // Mostrar error en toast cuando cambie
+  // ── PERMISO DE CAPTURA ───────────────────────────────────────
+  // El capturista solo puede editar si hay una ventana de PUA
+  // abierta o si el admin le dio un permiso especial sobre este
+  // programa. Sin eso, la pantalla queda en consulta.
+  const { permiso, puedeEditar: puedeEditarPua, loadingPermiso } =
+    usePermisoPua(programaId);
+
+  // Editable = hay programa válido Y permiso vigente
+  const puedeCapturar = !!programaId && puedeEditarPua && !loadingPermiso;
+
   useEffect(() => {
     if (error && error !== prevError) {
       toast.error(error);
@@ -89,40 +109,73 @@ export default function PuaMateria() {
     }
   }, [error, prevError, toast]);
 
+  // ── 1. Cargar materia y programa ─────────────────────────────
   useEffect(() => {
+    let isMounted = true;
+
     (async () => {
       setLoadingData(true);
 
-      const { data, error } = await supabase
+      const { data, error: matError } = await supabase
         .from("materias")
         .select("id, clave, nombre_materia, categoria, requisito")
-        .eq("clave", clave);
+        .eq("clave", clave)
+        .maybeSingle();
 
-      if (error) {
-        console.error("Error al obtener materia:", error);
+      if (!isMounted) return;
+
+      if (matError || !data) {
         setMateria(null);
         setLoadingData(false);
         return;
       }
 
-      if (data && data.length > 0) {
-        const m = data[0] as any;
-        setMateria({ id: m.id, clave: m.clave, nombre: m.nombre_materia });
-        
-        // Pre-cargar categoría y requisito desde la materia
-        setEtapaFormacion(m.categoria || "");
-        setCaracterUA(m.requisito === "obligatoria" ? "Obligatoria" : "Optativa");
+      setMateria({ id: data.id, clave: data.clave, nombre: data.nombre_materia });
+      setEtapaFormacion(data.categoria || "");
+      setCaracterUA(data.requisito === "obligatoria" ? "Obligatoria" : "Optativa");
+
+      if (programaIdFromQuery) {
+        const { data: programaData } = await supabase
+          .from("programas")
+          .select("id, periodo, plan_estudios, materia_id, ht, hl")
+          .eq("id", programaIdFromQuery)
+          .maybeSingle();
+
+        if (programaData && programaData.materia_id === data.id) {
+          setProgramaId(programaData.id);
+          setPeriodo(programaData.periodo || "");
+          setProgramaInfo({
+            id: programaData.id,
+            periodo: programaData.periodo || "",
+            plan_estudios: programaData.plan_estudios || "",
+            ht: programaData.ht || 0,
+            hl: programaData.hl || 0,
+          });
+          if (programaData.plan_estudios) {
+            setPlanEstudios(programaData.plan_estudios);
+          }
+        } else {
+          setProgramaId("");
+          setPeriodo("");
+          setProgramaInfo(null);
+          toast.error("El programa solicitado no corresponde a esta materia o no existe.");
+        }
       } else {
-        setMateria(null);
+        setProgramaId("");
+        setPeriodo("");
+        setProgramaInfo(null);
       }
 
       setLoadingData(false);
     })();
-  }, [clave]);
 
-  // Cargar PUA existente (si hay)
+    return () => { isMounted = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave, programaIdFromQuery]);
+
+  // ── 2. Cargar PUA ─────────────────────────────────────────────
   useEffect(() => {
-    if (!materia?.id) return;
+    if (!programaId) return;
 
     (async () => {
       const pua = await cargarPua();
@@ -137,17 +190,11 @@ export default function PuaMateria() {
         setHcl(String(pua.hcl || 0));
         setHe(String(pua.he || 0));
         setCr(String(pua.cr || 0));
-        
-        // NO sobrescribir etapaFormacion y caracterUA porque ya vienen de la materia
-        // Estos campos se cargan del primer useEffect
-        
         setRequisitos(pua.requisitos || "");
         setPropositoUA(pua.proposito || "");
         setCompetenciaUA(pua.competencia || "");
         setEvidencias(pua.evidencias || "");
         setNumUnidades(String(pua.unidades || ""));
-
-        // Cargar nuevos campos (VII, VIII, IX)
         setMetodoEncuadre(pua.metodo_encuadre || "");
         setMetodoEstrategiaDocente(pua.metodo_estrategia_docente || "");
         setMetodoEstrategiaAlumno(pua.metodo_estrategia_alumno || "");
@@ -155,7 +202,12 @@ export default function PuaMateria() {
         setReferenciasComplementarias(pua.referencias_complementarias || "");
         setPerfilDocente(pua.perfil_docente || "");
 
-        // Guardar valores originales para detectar cambios
+        setProgramaInfo((prev) =>
+          prev
+            ? { ...prev, ht: pua.ht || prev.ht, hl: pua.hl || prev.hl }
+            : prev
+        );
+
         setValoresOriginales({
           unidadAcademica: pua.unidad_academica || "",
           programaEducativo: pua.programa_educativo || "",
@@ -167,8 +219,6 @@ export default function PuaMateria() {
           hcl: String(pua.hcl || 0),
           he: String(pua.he || 0),
           cr: String(pua.cr || 0),
-          etapaFormacion: etapaFormacion,
-          caracterUA: caracterUA,
           requisitos: pua.requisitos || "",
           propositoUA: pua.proposito || "",
           competenciaUA: pua.competencia || "",
@@ -182,17 +232,13 @@ export default function PuaMateria() {
           perfilDocente: pua.perfil_docente || "",
         });
 
-        // Obtener el programa_id y verificar si está completo
         const { data: programaData } = await supabase
           .from("programas")
           .select("id, unidades")
-          .eq("materia_id", materia.id)
-          .single();
+          .eq("id", programaId)
+          .maybeSingle();
 
         if (programaData) {
-          setProgramaId(programaData.id);
-
-          // Verificar si todas las unidades están completas
           const { data: unidades } = await supabase
             .from("unidades")
             .select("numero, nombre, competencia, contenido, duracion")
@@ -204,12 +250,10 @@ export default function PuaMateria() {
               u.nombre?.trim() &&
               u.competencia?.trim() &&
               u.contenido?.trim() &&
-              u.duracion > 0
+              Number(u.duracion) > 0
           );
-
           const todasUnidadesCompletas = unidadesCompletas.length === numUnidadesEsperadas;
-          
-          // Verificar prácticas de taller
+
           let practicasTallerCompletas = false;
           const { data: practicasTaller } = await supabase
             .from("practicas_taller")
@@ -218,97 +262,52 @@ export default function PuaMateria() {
 
           if (practicasTaller && practicasTaller.length > 0) {
             const practicasValidas = practicasTaller.filter(
-              (p) =>
-                p.competencia?.trim() &&
-                p.descripcion?.trim() &&
-                p.duracion > 0
+              (p) => p.competencia?.trim() && p.descripcion?.trim() && Number(p.duracion) > 0
             );
             practicasTallerCompletas = practicasValidas.length === practicasTaller.length;
-          } else {
-            practicasTallerCompletas = false;
           }
 
           setPuaCompleto(todasUnidadesCompletas && practicasTallerCompletas);
         }
+      } else {
+        setValoresOriginales(null);
+        setPuaCompleto(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [materia?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programaId]);
 
-  // Detectar cambios sin guardar
+  // ── 3. Detectar cambios ──────────────────────────────────────
   useEffect(() => {
-    if (!valoresOriginales) {
-      setHayCambiosSinGuardar(false);
-      return;
-    }
-
+    if (!valoresOriginales) { setHayCambiosSinGuardar(false); return; }
     const valoresActuales = {
-      unidadAcademica,
-      programaEducativo,
-      planEstudios,
-      hc,
-      hl,
-      ht,
-      hpc,
-      hcl,
-      he,
-      cr,
-      etapaFormacion,
-      caracterUA,
-      requisitos,
-      propositoUA,
-      competenciaUA,
-      evidencias,
-      numUnidades,
-      metodoEncuadre,
-      metodoEstrategiaDocente,
-      metodoEstrategiaAlumno,
-      referenciaBasicas,
-      referenciasComplementarias,
-      perfilDocente,
+      unidadAcademica, programaEducativo, planEstudios,
+      hc, hl, ht, hpc, hcl, he, cr,
+      requisitos, propositoUA, competenciaUA, evidencias, numUnidades,
+      metodoEncuadre, metodoEstrategiaDocente, metodoEstrategiaAlumno,
+      referenciaBasicas, referenciasComplementarias, perfilDocente,
     };
-
-    const hayCambios = JSON.stringify(valoresOriginales) !== JSON.stringify(valoresActuales);
-    setHayCambiosSinGuardar(hayCambios);
+    setHayCambiosSinGuardar(
+      JSON.stringify(valoresOriginales) !== JSON.stringify(valoresActuales)
+    );
   }, [
-    valoresOriginales,
-    unidadAcademica,
-    programaEducativo,
-    planEstudios,
-    hc,
-    hl,
-    ht,
-    hpc,
-    hcl,
-    he,
-    cr,
-    etapaFormacion,
-    caracterUA,
-    requisitos,
-    propositoUA,
-    competenciaUA,
-    evidencias,
-    numUnidades,
-    metodoEncuadre,
-    metodoEstrategiaDocente,
-    metodoEstrategiaAlumno,
-    referenciaBasicas,
-    referenciasComplementarias,
-    perfilDocente,
+    valoresOriginales, unidadAcademica, programaEducativo, planEstudios,
+    hc, hl, ht, hpc, hcl, he, cr,
+    requisitos, propositoUA, competenciaUA, evidencias, numUnidades,
+    metodoEncuadre, metodoEstrategiaDocente, metodoEstrategiaAlumno,
+    referenciaBasicas, referenciasComplementarias, perfilDocente,
   ]);
 
   const handleNavegacion = async (ruta: string) => {
-    if (hayCambiosSinGuardar) {
+    // Sin permiso no hay cambios que perder
+    if (hayCambiosSinGuardar && puedeCapturar) {
       const shouldLeave = await confirm({
         title: "Cambios sin guardar",
         message: "Tienes cambios sin guardar. ¿Deseas salir sin guardar?",
-        confirmText: "Sí, salir",
-        cancelText: "Cancelar",
+        confirmText: "Sí, salir", cancelText: "Cancelar",
       });
-
       if (!shouldLeave) return;
     }
-
     router.push(ruta);
   };
 
@@ -316,64 +315,43 @@ export default function PuaMateria() {
     await handleNavegacion("/capturista/materias");
   };
 
-  const handleGuardarSoloEnEdicion = async () => {
-    if (!materia) return;
+  const buildPayload = () => ({
+    materiaId: materia!.id,
+    unidadAcademica, programaEducativo, planEstudios,
+    hc: Number(hc), hl: Number(hl), ht: Number(ht),
+    hpc: Number(hpc), hcl: Number(hcl), he: Number(he), cr: Number(cr),
+    etapaFormacion, caracterUA, requisitos,
+    propositoUA, competenciaUA, evidencias,
+    numUnidades: Number(numUnidades),
+    metodoEncuadre, metodoEstrategiaDocente, metodoEstrategiaAlumno,
+    referenciaBasicas, referenciasComplementarias, perfilDocente,
+  });
 
-    const savedProgramaId = await guardarPua({
-      materiaId: materia.id,
-      unidadAcademica,
-      programaEducativo,
-      planEstudios,
-      hc: Number(hc),
-      hl: Number(hl),
-      ht: Number(ht),
-      hpc: Number(hpc),
-      hcl: Number(hcl),
-      he: Number(he),
-      cr: Number(cr),
-      etapaFormacion,
-      caracterUA,
-      requisitos,
-      propositoUA,
-      competenciaUA,
-      evidencias,
-      numUnidades: Number(numUnidades),
-      metodoEncuadre,
-      metodoEstrategiaDocente,
-      metodoEstrategiaAlumno,
-      referenciaBasicas,
-      referenciasComplementarias,
-      perfilDocente,
+  const actualizarValoresOriginales = () => {
+    setValoresOriginales({
+      unidadAcademica, programaEducativo, planEstudios,
+      hc, hl, ht, hpc, hcl, he, cr,
+      requisitos, propositoUA, competenciaUA, evidencias, numUnidades,
+      metodoEncuadre, metodoEstrategiaDocente, metodoEstrategiaAlumno,
+      referenciaBasicas, referenciasComplementarias, perfilDocente,
     });
+  };
 
+  const handleGuardarSoloEnEdicion = async () => {
+    if (!puedeCapturar) {
+      toast.error(permiso.motivo || "No tienes permiso para editar el PUA en este momento.");
+      return;
+    }
+    if (!materia || !programaId) {
+      toast.error("No se encontró un programa válido para guardar.");
+      return;
+    }
+    const savedProgramaId = await guardarPua(buildPayload());
     if (savedProgramaId) {
-      // Actualizar valores originales
-      setValoresOriginales({
-        unidadAcademica,
-        programaEducativo,
-        planEstudios,
-        hc,
-        hl,
-        ht,
-        hpc,
-        hcl,
-        he,
-        cr,
-        etapaFormacion,
-        caracterUA,
-        requisitos,
-        propositoUA,
-        competenciaUA,
-        evidencias,
-        numUnidades,
-        metodoEncuadre,
-        metodoEstrategiaDocente,
-        metodoEstrategiaAlumno,
-        referenciaBasicas,
-        referenciasComplementarias,
-        perfilDocente,
-      });
-
+      actualizarValoresOriginales();
+      setProgramaInfo((prev) =>
+        prev ? { ...prev, ht: Number(ht), hl: Number(hl) } : prev
+      );
       toast.success("Los cambios se han guardado correctamente.");
     } else {
       toast.error("Error al guardar los cambios. Intenta de nuevo.");
@@ -381,120 +359,28 @@ export default function PuaMateria() {
   };
 
   const handleContinuar = async () => {
-    if (!materia) return;
-
-    // Validaciones
-    if (!unidadAcademica.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa la Unidad Académica.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
+    if (!puedeCapturar) {
+      toast.error(permiso.motivo || "No tienes permiso para editar el PUA en este momento.");
       return;
     }
-
-    if (!programaEducativo.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa el Programa Educativo.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
+    if (!materia || !programaId) {
+      toast.error("No se encontró un programa válido para continuar.");
       return;
     }
+    if (!unidadAcademica.trim()) { toast.error("Por favor ingresa la Unidad Académica."); return; }
+    if (!programaEducativo.trim()) { toast.error("Por favor ingresa el Programa Educativo."); return; }
+    if (!planEstudios.trim()) { toast.error("Por favor ingresa el Plan de Estudios."); return; }
+    if (!propositoUA.trim()) { toast.error("Por favor ingresa el propósito de la UA."); return; }
+    if (!competenciaUA.trim()) { toast.error("Por favor ingresa la competencia de la UA."); return; }
+    if (!evidencias.trim()) { toast.error("Por favor ingresa las evidencias de desempeño."); return; }
+    if (!numUnidades || Number(numUnidades) < 1) { toast.error("Por favor ingresa un número válido de unidades."); return; }
 
-    if (!planEstudios.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa el Plan de Estudios.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
-    if (!propositoUA.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa el propósito de la unidad de aprendizaje.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
-    if (!competenciaUA.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa la competencia de la unidad de aprendizaje.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
-    if (!evidencias.trim()) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa las evidencias de desempeño.",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
-    if (!numUnidades || Number(numUnidades) < 1) {
-      await confirm({
-        title: "Campo requerido",
-        message: "Por favor ingresa un número válido de unidades (mínimo 1).",
-        confirmText: "Entendido",
-        cancelText: "",
-      });
-      return;
-    }
-
-    if (!requisitos.trim()) {
-      const shouldContinue = await confirm({
-        title: "Campo vacío",
-        message: "No has ingresado los requisitos para cursar la UA. Si no hay requisitos, puedes escribir 'Ninguno'. ¿Deseas continuar de todas formas?",
-        confirmText: "Sí, continuar",
-        cancelText: "Cancelar",
-      });
-
-      if (!shouldContinue) return;
-    }
-
-    // Guardar y continuar
-    const savedProgramaId = await guardarPua({
-      materiaId: materia.id,
-      unidadAcademica,
-      programaEducativo,
-      planEstudios,
-      hc: Number(hc),
-      hl: Number(hl),
-      ht: Number(ht),
-      hpc: Number(hpc),
-      hcl: Number(hcl),
-      he: Number(he),
-      cr: Number(cr),
-      etapaFormacion,
-      caracterUA,
-      requisitos,
-      propositoUA,
-      competenciaUA,
-      evidencias,
-      numUnidades: Number(numUnidades),
-      metodoEncuadre,
-      metodoEstrategiaDocente,
-      metodoEstrategiaAlumno,
-      referenciaBasicas,
-      referenciasComplementarias,
-      perfilDocente,
-    });
-
+    const savedProgramaId = await guardarPua(buildPayload());
     if (savedProgramaId) {
-      router.push(`/capturista/materias/${clave}/pua/unidades`);
+      setProgramaInfo((prev) =>
+        prev ? { ...prev, ht: Number(ht), hl: Number(hl) } : prev
+      );
+      router.push(`/capturista/materias/${clave}/pua/unidades?programaId=${savedProgramaId}`);
     }
   };
 
@@ -513,18 +399,10 @@ export default function PuaMateria() {
           <Card>
             <CardHeader>
               <CardTitle>No se encontró la materia</CardTitle>
-              <CardDescription>
-                Verifica la clave en la URL o regresa al listado.
-              </CardDescription>
+              <CardDescription>Verifica la clave en la URL o regresa al listado.</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-end">
-              <Button
-                variant="outline"
-                onClick={handleBack}
-                className="cursor-pointer"
-              >
-                Regresar
-              </Button>
+              <Button variant="outline" onClick={handleBack} className="cursor-pointer">Regresar</Button>
             </CardContent>
           </Card>
         </div>
@@ -538,17 +416,20 @@ export default function PuaMateria() {
     "focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background " +
     "disabled:cursor-not-allowed disabled:opacity-50";
 
+  const tieneTaller = Number(ht) > 0 || (programaInfo?.ht ?? 0) > 0;
+  const tieneLaboratorio = Number(hl) > 0 || (programaInfo?.hl ?? 0) > 0;
+
+  // Solo mostramos el aviso de bloqueo cuando el programa sí existe:
+  // si no hay programa, ya hay otro mensaje específico.
+  const mostrarAvisoBloqueo =
+    !!programaId && !loadingPermiso && !puedeEditarPua;
+
   return (
     <div className="px-4 py-8">
       <div className="mx-auto max-w-5xl space-y-6">
         <div>
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            className="cursor-pointer"
-          >
-            <ChevronLeft className="mr-2 h-5 w-5" />
-            Regresar
+          <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+            <ChevronLeft className="mr-2 h-5 w-5" /> Regresar
           </Button>
         </div>
 
@@ -560,8 +441,55 @@ export default function PuaMateria() {
           <p className="text-sm text-muted-foreground mt-1">
             Completa la información de la unidad de aprendizaje antes de continuar.
           </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Periodo: <span className="font-medium">{periodo || "—"}</span>
+          </p>
+          {!programaId && (
+            <p className="mt-2 text-sm font-medium text-red-600">
+              ⚠️ No se encontró un programa válido para este periodo.
+            </p>
+          )}
         </div>
 
+        {/* Aviso: captura cerrada */}
+        {mostrarAvisoBloqueo && (
+          <Card className="border-amber-300 bg-amber-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Lock className="h-5 w-5 text-amber-700 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-amber-900">
+                    Captura cerrada — modo consulta
+                  </p>
+                  <p className="text-sm text-amber-800 mt-1">
+                    {permiso.motivo ||
+                      "El periodo de captura del PUA está cerrado. Puedes revisar la información, pero no modificarla."}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Aviso: permiso especial activo */}
+        {permiso.tiene_permiso_especial && puedeCapturar && (
+          <Card className="border-green-300 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="h-5 w-5 text-green-700 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-green-900">
+                    Permiso especial activo
+                  </p>
+                  <p className="text-sm text-green-800 mt-1">
+                    {permiso.motivo ||
+                      "El administrador te habilitó la captura de este PUA fuera del periodo general."}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* I. Datos de identificación */}
         <Card>
@@ -571,43 +499,26 @@ export default function PuaMateria() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label className="mb-2 block">
-                1. Unidad Académica <span className="text-red-500">*</span>
-              </Label>
-              <textarea
-                className={ta}
-                value={unidadAcademica}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setUnidadAcademica(e.target.value)
-                }
-                placeholder="Ej: Facultad de Ingeniería, Mexicali; Facultad de Ciencias Químicas e Ingeniería, Tijuana..."
-              />
+              <Label className="mb-2 block">1. Unidad Académica <span className="text-red-500">*</span></Label>
+              <textarea className={ta} value={unidadAcademica}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setUnidadAcademica(e.target.value)}
+                disabled={!puedeCapturar}
+                placeholder="Ej: Facultad de Ingeniería, Mexicali..." />
             </div>
 
             <div>
-              <Label className="mb-2 block">
-                2. Programa Educativo <span className="text-red-500">*</span>
-              </Label>
-              <textarea
-                className={ta}
-                value={programaEducativo}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setProgramaEducativo(e.target.value)
-                }
-                placeholder="Ej: Ingeniero Aeroespacial, Ingeniero Civil, Ingeniero Eléctrico, Ingeniero en Computación..."
-              />
+              <Label className="mb-2 block">2. Programa Educativo <span className="text-red-500">*</span></Label>
+              <textarea className={ta} value={programaEducativo}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setProgramaEducativo(e.target.value)}
+                disabled={!puedeCapturar}
+                placeholder="Ej: Ingeniero en Computación..." />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label className="mb-2 block">
-                  3. Plan de Estudios <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  value={planEstudios}
-                  onChange={(e) => setPlanEstudios(e.target.value)}
-                  placeholder="2019-2"
-                />
+                <Label className="mb-2 block">3. Plan de Estudios <span className="text-red-500">*</span></Label>
+                <Input value={planEstudios} onChange={(e) => setPlanEstudios(e.target.value)}
+                  disabled={!puedeCapturar} placeholder="2019-2" />
               </div>
             </div>
 
@@ -625,76 +536,18 @@ export default function PuaMateria() {
             <div>
               <Label className="mb-2 block">6. Horas y Créditos</Label>
               <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
-                <div>
-                  <Label className="mb-1 block text-xs">HC</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={hc}
-                    onChange={(e) => setHc(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label className="mb-1 block text-xs">HL</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={hl}
-                    onChange={(e) => setHl(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label className="mb-1 block text-xs">HT</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={ht}
-                    onChange={(e) => setHt(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label className="mb-1 block text-xs">HPC</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={hpc}
-                    onChange={(e) => setHpc(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label className="mb-1 block text-xs">HCL</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={hcl}
-                    onChange={(e) => setHcl(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label className="mb-1 block text-xs">HE</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={he}
-                    onChange={(e) => setHe(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label className="mb-1 block text-xs">CR</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={cr}
-                    onChange={(e) => setCr(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
+                {([
+                  ["HC", hc, setHc], ["HL", hl, setHl], ["HT", ht, setHt],
+                  ["HPC", hpc, setHpc], ["HCL", hcl, setHcl], ["HE", he, setHe],
+                  ["CR", cr, setCr],
+                ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
+                  <div key={label}>
+                    <Label className="mb-1 block text-xs">{label}</Label>
+                    <Input type="number" min={0} value={val}
+                      onChange={(e) => setter(e.target.value)}
+                      disabled={!puedeCapturar} placeholder="0" />
+                  </div>
+                ))}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 HC: Horas Clase | HL: Horas Laboratorio | HT: Horas Taller | HPC: Horas Práctica de Campo | HCL: Horas Clínicas | HE: Horas Extra Clase | CR: Créditos
@@ -703,17 +556,9 @@ export default function PuaMateria() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label className="mb-2 block">
-                  7. Etapa de Formación a la que Pertenece <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={etapaFormacion}
-                  onValueChange={setEtapaFormacion}
-                  disabled={true}
-                >
-                  <SelectTrigger className="w-full bg-gray-50">
-                    <SelectValue placeholder="Seleccione una etapa" />
-                  </SelectTrigger>
+                <Label className="mb-2 block">7. Etapa de Formación <span className="text-red-500">*</span></Label>
+                <Select value={etapaFormacion} onValueChange={setEtapaFormacion} disabled>
+                  <SelectTrigger className="w-full bg-gray-50"><SelectValue placeholder="Seleccione una etapa" /></SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
                       <SelectItem value="Basica">Básica</SelectItem>
@@ -722,22 +567,12 @@ export default function PuaMateria() {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Este campo se define al crear la materia y no puede modificarse aquí.
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Se define al crear la materia.</p>
               </div>
               <div>
-                <Label className="mb-2 block">
-                  8. Carácter de la Unidad de Aprendizaje <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={caracterUA}
-                  onValueChange={setCaracterUA}
-                  disabled={true}
-                >
-                  <SelectTrigger className="w-full bg-gray-50">
-                    <SelectValue placeholder="Seleccione el carácter" />
-                  </SelectTrigger>
+                <Label className="mb-2 block">8. Carácter de la UA <span className="text-red-500">*</span></Label>
+                <Select value={caracterUA} onValueChange={setCaracterUA} disabled>
+                  <SelectTrigger className="w-full bg-gray-50"><SelectValue placeholder="Seleccione el carácter" /></SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
                       <SelectItem value="Obligatoria">Obligatoria</SelectItem>
@@ -745,147 +580,90 @@ export default function PuaMateria() {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Este campo se define al crear la materia y no puede modificarse aquí.
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Se define al crear la materia.</p>
               </div>
             </div>
 
             <div>
-              <Label className="mb-2 block">9. Requisitos para Cursar la Unidad de Aprendizaje</Label>
-              <Input
-                value={requisitos}
-                onChange={(e) => setRequisitos(e.target.value)}
-                placeholder="Ej: Ninguno, Cálculo I, etc."
-              />
+              <Label className="mb-2 block">9. Requisitos para Cursar la UA</Label>
+              <Input value={requisitos} onChange={(e) => setRequisitos(e.target.value)}
+                disabled={!puedeCapturar} placeholder="Ej: Ninguno, Cálculo I, etc." />
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Periodo</Label>
+              <Input value={periodo} disabled />
             </div>
           </CardContent>
         </Card>
 
-        {/* II. Propósito de la UA */}
+        {/* II. Propósito */}
         <Card>
-          <CardHeader>
-            <CardTitle>II. Propósito de la unidad de aprendizaje</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>II. Propósito de la unidad de aprendizaje</CardTitle></CardHeader>
           <CardContent>
-            <Label className="mb-2 block">
-              Propósito <span className="text-red-500">*</span>
-            </Label>
-            <textarea
-              className={ta}
-              value={propositoUA}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setPropositoUA(e.target.value)
-              }
-              placeholder="Ingresar propósito de la UA…"
-            />
+            <Label className="mb-2 block">Propósito <span className="text-red-500">*</span></Label>
+            <textarea className={ta} value={propositoUA}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPropositoUA(e.target.value)}
+              disabled={!puedeCapturar} placeholder="Ingresar propósito de la UA…" />
           </CardContent>
         </Card>
 
-        {/* III. Competencia de la UA */}
+        {/* III. Competencia */}
         <Card>
-          <CardHeader>
-            <CardTitle>III. Competencia de la unidad de aprendizaje</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>III. Competencia de la unidad de aprendizaje</CardTitle></CardHeader>
           <CardContent>
-            <Label className="mb-2 block">
-              Competencia <span className="text-red-500">*</span>
-            </Label>
-            <textarea
-              className={ta}
-              value={competenciaUA}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setCompetenciaUA(e.target.value)
-              }
-              placeholder="Ingresar competencia de la UA…"
-            />
+            <Label className="mb-2 block">Competencia <span className="text-red-500">*</span></Label>
+            <textarea className={ta} value={competenciaUA}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCompetenciaUA(e.target.value)}
+              disabled={!puedeCapturar} placeholder="Ingresar competencia de la UA…" />
           </CardContent>
         </Card>
 
-        {/* IV. Evidencias de desempeño */}
+        {/* IV. Evidencias */}
         <Card>
-          <CardHeader>
-            <CardTitle>IV. Evidencia(s) de desempeño</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>IV. Evidencia(s) de desempeño</CardTitle></CardHeader>
           <CardContent>
-            <Label className="mb-2 block">
-              Evidencias <span className="text-red-500">*</span>
-            </Label>
-            <textarea
-              className={ta}
-              value={evidencias}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setEvidencias(e.target.value)
-              }
-              placeholder="Ingresar evidencias de desempeño…"
-            />
+            <Label className="mb-2 block">Evidencias <span className="text-red-500">*</span></Label>
+            <textarea className={ta} value={evidencias}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEvidencias(e.target.value)}
+              disabled={!puedeCapturar} placeholder="Ingresar evidencias de desempeño…" />
           </CardContent>
         </Card>
 
-        {/* V. Desarrollo por unidades */}
+        {/* V. Unidades */}
         <Card>
-          <CardHeader>
-            <CardTitle>V. Desarrollo por unidades</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>V. Desarrollo por unidades</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-6">
             <div className="sm:col-span-3">
-              <Label className="mb-2 block">
-                Número de unidades <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                value={numUnidades}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setNumUnidades(e.target.value)
-                }
-                placeholder="Ej. 6"
-              />
+              <Label className="mb-2 block">Número de unidades <span className="text-red-500">*</span></Label>
+              <Input type="number" inputMode="numeric" min={1} value={numUnidades}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNumUnidades(e.target.value)}
+                disabled={!puedeCapturar} placeholder="Ej. 6" />
             </div>
           </CardContent>
         </Card>
 
         {/* VII. Método de Trabajo */}
         <Card>
-          <CardHeader>
-            <CardTitle>VII. Método de Trabajo</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>VII. Método de Trabajo</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
               <Label className="mb-2 block font-semibold">Encuadre</Label>
-              <textarea
-                className={ta}
-                value={metodoEncuadre}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setMetodoEncuadre(e.target.value)
-                }
-                placeholder="Ingresar encuadre del método de trabajo..."
-              />
+              <textarea className={ta} value={metodoEncuadre}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMetodoEncuadre(e.target.value)}
+                disabled={!puedeCapturar} placeholder="Ingresar encuadre del método de trabajo..." />
             </div>
-
             <div>
               <Label className="mb-2 block font-semibold">Estrategia de enseñanza (docente)</Label>
-              <textarea
-                className={ta}
-                value={metodoEstrategiaDocente}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setMetodoEstrategiaDocente(e.target.value)
-                }
-                placeholder="Ingresar estrategia de enseñanza del docente..."
-              />
+              <textarea className={ta} value={metodoEstrategiaDocente}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMetodoEstrategiaDocente(e.target.value)}
+                disabled={!puedeCapturar} placeholder="Ingresar estrategia de enseñanza del docente..." />
             </div>
-
             <div>
               <Label className="mb-2 block font-semibold">Estrategia de aprendizaje (alumno)</Label>
-              <textarea
-                className={ta}
-                value={metodoEstrategiaAlumno}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setMetodoEstrategiaAlumno(e.target.value)
-                }
-                placeholder="Ingresar estrategia de aprendizaje del alumno..."
-              />
+              <textarea className={ta} value={metodoEstrategiaAlumno}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMetodoEstrategiaAlumno(e.target.value)}
+                disabled={!puedeCapturar} placeholder="Ingresar estrategia de aprendizaje del alumno..." />
             </div>
           </CardContent>
         </Card>
@@ -894,106 +672,95 @@ export default function PuaMateria() {
         <Card>
           <CardHeader>
             <CardTitle>VIII. Referencias</CardTitle>
-            <CardDescription>
-              Bibliografía básica y complementaria del curso
-            </CardDescription>
+            <CardDescription>Bibliografía básica y complementaria del curso</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div>
               <Label className="mb-2 block font-semibold">Básicas</Label>
-              <textarea
-                className={ta}
-                value={referenciaBasicas}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setReferenciaBasicas(e.target.value)
-                }
-                placeholder="Ingresar referencias bibliográficas básicas..."
-              />
+              <textarea className={ta} value={referenciaBasicas}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReferenciaBasicas(e.target.value)}
+                disabled={!puedeCapturar} placeholder="Ingresar referencias bibliográficas básicas..." />
             </div>
             <div>
               <Label className="mb-2 block font-semibold">Complementarias</Label>
-              <textarea
-                className={ta}
-                value={referenciasComplementarias}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setReferenciasComplementarias(e.target.value)
-                }
-                placeholder="Ingresar referencias bibliográficas complementarias..."
-              />
+              <textarea className={ta} value={referenciasComplementarias}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReferenciasComplementarias(e.target.value)}
+                disabled={!puedeCapturar} placeholder="Ingresar referencias bibliográficas complementarias..." />
             </div>
           </CardContent>
         </Card>
 
-        {/* IX. Perfil del Docente */}
+        {/* IX. Perfil Docente */}
         <Card>
           <CardHeader>
             <CardTitle>IX. Perfil del Docente</CardTitle>
-            <CardDescription>
-              Requisitos y características del docente para impartir esta UA
-            </CardDescription>
+            <CardDescription>Requisitos y características del docente para impartir esta UA</CardDescription>
           </CardHeader>
           <CardContent>
-            <textarea
-              className={ta}
-              value={perfilDocente}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setPerfilDocente(e.target.value)
-              }
-              placeholder="Ingresar perfil del docente..."
-            />
+            <textarea className={ta} value={perfilDocente}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPerfilDocente(e.target.value)}
+              disabled={!puedeCapturar} placeholder="Ingresar perfil del docente..." />
           </CardContent>
         </Card>
 
-        {/* Botones de acción */}
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={loading}
-            className="cursor-pointer"
-          >
-            Cancelar
-          </Button>
-          
-          {puaCompleto ? (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/unidades`)}
-                disabled={loading}
-                className="cursor-pointer border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white"
-              >
-                Ver Unidades →
-              </Button>
-              
-              <Button
-                variant="outline"
-                onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/taller`)}
-                disabled={loading}
-                className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white"
-              >
-                Ver Prácticas de Taller →
-              </Button>
+        {/* Botones */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm">
+            {puaCompleto
+              ? <span className="text-green-600 font-medium">PUA completo</span>
+              : <span className="text-orange-600 font-medium">PUA pendiente</span>}
+          </div>
 
-              <Button
-                className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
-                onClick={handleGuardarSoloEnEdicion}
-                disabled={loading}
-              >
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {loading ? "Guardando..." : "Guardar Cambios"}
-              </Button>
-            </>
-          ) : (
-            <Button
-              className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
-              onClick={handleContinuar}
-              disabled={loading}
-            >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {loading ? "Guardando..." : "Guardar y Continuar →"}
+          <div className="flex gap-3 flex-wrap">
+            <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+              {puedeCapturar ? "Cancelar" : "Regresar"}
             </Button>
-          )}
+
+            {puaCompleto ? (
+              <>
+                {/* Navegar a las demás secciones siempre se permite:
+                    ahí también se valida el permiso por separado. */}
+                <Button variant="outline" disabled={loading}
+                  onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/unidades?programaId=${programaId}`)}
+                  className="cursor-pointer border-[#00723F] text-[#00723F] hover:bg-[#00723F] hover:text-white">
+                  Ver Unidades →
+                </Button>
+
+                {tieneTaller && (
+                  <Button variant="outline" disabled={loading}
+                    onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/taller?programaId=${programaId}`)}
+                    className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white">
+                    Ver Prácticas de Taller →
+                  </Button>
+                )}
+
+                {tieneLaboratorio && (
+                  <Button variant="outline" disabled={loading}
+                    onClick={() => handleNavegacion(`/capturista/materias/${clave}/pua/laboratorio?programaId=${programaId}`)}
+                    className="cursor-pointer border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white">
+                    Ver Prácticas de Laboratorio →
+                  </Button>
+                )}
+
+                {/* Guardar solo si hay permiso */}
+                {puedeCapturar && (
+                  <Button onClick={handleGuardarSoloEnEdicion} disabled={loading}
+                    className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer">
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {loading ? "Guardando..." : "Guardar Cambios"}
+                  </Button>
+                )}
+              </>
+            ) : (
+              puedeCapturar && (
+                <Button onClick={handleContinuar} disabled={loading}
+                  className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer">
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {loading ? "Guardando..." : "Guardar y Continuar →"}
+                </Button>
+              )
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -18,7 +18,7 @@ type ErroresCampos = {
   duracion?: string;
 };
 
-type PracticaTallerProps = {
+type PracticaLaboratorioProps = {
   unidad: number;
   numero: number;
   value?: {
@@ -53,7 +53,7 @@ function firmaPractica(
   return JSON.stringify([unidad, numero, competencia, descripcion, materialApoyo, duracion]);
 }
 
-export function PracticaTaller({
+export function PracticaLaboratorio({
   unidad,
   numero,
   value,
@@ -62,7 +62,7 @@ export function PracticaTaller({
   collapsed = false,
   onToggleCollapse,
   errores = {},
-}: PracticaTallerProps) {
+}: PracticaLaboratorioProps) {
   const [competencia, setCompetencia] = useState(value?.competencia || "");
   const [descripcion, setDescripcion] = useState(value?.descripcion || "");
   const [materialApoyo, setMaterialApoyo] = useState(value?.material_apoyo || "");

@@ -42,9 +42,6 @@ export default function Page() {
   const toast = useToast();
   const { data: session, status } = useSession();
 
-  console.log("=== CLIENT COMPONENT ===");
-  console.log("Encuadre ID recibido:", encuadreId);
-
   const [loadingData, setLoadingData] = useState(true);
   const [materiaClave, setMateriaClave] = useState("");
   const [materiaNombre, setMateriaNombre] = useState("");
@@ -62,23 +59,36 @@ export default function Page() {
     { criterio: "", valor: 0, descripcion: "" },
   ]);
 
-  const [valoresOriginales, setValoresOriginales] = useState<any>(null);
+  const [valoresOriginales, setValoresOriginales] = useState<{
+    descripcionProducto: string;
+    bibliografiaBasica: string;
+    normasConducta: string;
+    criterios: CriterioCalificacion[];
+  } | null>(null);
 
-  const { obtenerEncuadre, actualizarEncuadre, loading, error } = useEncuadreProfesor();
+  const { obtenerEncuadre, actualizarEncuadre, loading, error } =
+    useEncuadreProfesor();
   const [prevError, setPrevError] = useState<string | null>(null);
+
+  const normalizarCriterios = (
+    criterios: any[] = []
+  ): CriterioCalificacion[] => {
+    return criterios.map((c) => ({
+      criterio: c.criterio || "",
+      valor: Number(c.valor || 0),
+      descripcion: c.descripcion || "",
+    }));
+  };
 
   useEffect(() => {
     if (encuadreId && encuadreId !== "undefined") {
-      console.log("Llamando a cargarDatos con ID:", encuadreId);
       cargarDatos();
     } else {
-      console.error("ID de encuadre inválido en useEffect:", encuadreId);
       setLoadingData(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encuadreId]);
 
-  // Mostrar error en toast cuando cambie
   useEffect(() => {
     if (error && error !== prevError) {
       toast.error(error);
@@ -87,66 +97,60 @@ export default function Page() {
   }, [error, prevError, toast]);
 
   const cargarDatos = async () => {
-    console.log("=== INICIO cargarDatos ===");
-    console.log("ID a cargar:", encuadreId);
-
     setLoadingData(true);
     const encuadre = await obtenerEncuadre(encuadreId);
 
     if (encuadre) {
-      console.log("Encuadre cargado exitosamente");
       setMateriaClave(encuadre.materia_clave);
       setMateriaNombre(encuadre.materia_nombre);
       setProfesorPuedeModificar(encuadre.profesor_puede_modificar_criterios);
       setPeriodo(encuadre.periodo);
       setGrupo(encuadre.grupo);
-      setDescripcionEvaluacion(encuadre.descripcion_evaluacion);
-      setDerechoOrdinario(encuadre.derecho_ordinario);
-      setDerechoExtraordinario(encuadre.derecho_extraordinario);
-      setDescripcionProducto(encuadre.descripcion_producto);
-      setBibliografiaBasica(encuadre.bibliografia_basica);
-      setNormasConducta(encuadre.normas_conducta);
+      setDescripcionEvaluacion(encuadre.descripcion_evaluacion || "");
+      setDerechoOrdinario(encuadre.derecho_ordinario || "");
+      setDerechoExtraordinario(encuadre.derecho_extraordinario || "");
+      setDescripcionProducto(encuadre.descripcion_producto || "");
+      setBibliografiaBasica(encuadre.bibliografia_basica || "");
+      setNormasConducta(encuadre.normas_conducta || "");
 
-      if (encuadre.criterios && encuadre.criterios.length > 0) {
-        setCriteriosCalificacion(
-          encuadre.criterios.map((c: any) => ({
-            criterio: c.criterio,
-            valor: c.valor,
-            descripcion: c.descripcion || "",
-          }))
-        );
-      }
+      const criteriosNormalizados = normalizarCriterios(encuadre.criterios || []);
+
+      setCriteriosCalificacion(
+        criteriosNormalizados.length > 0
+          ? criteriosNormalizados
+          : [{ criterio: "", valor: 0, descripcion: "" }]
+      );
 
       setValoresOriginales({
-        descripcionEvaluacion: encuadre.descripcion_evaluacion,
-        derechoOrdinario: encuadre.derecho_ordinario,
-        derechoExtraordinario: encuadre.derecho_extraordinario,
-        descripcionProducto: encuadre.descripcion_producto,
-        bibliografiaBasica: encuadre.bibliografia_basica,
-        normasConducta: encuadre.normas_conducta,
-        criterios: encuadre.criterios || [],
+        descripcionProducto: encuadre.descripcion_producto || "",
+        bibliografiaBasica: encuadre.bibliografia_basica || "",
+        normasConducta: encuadre.normas_conducta || "",
+        criterios: criteriosNormalizados,
       });
-    } else {
-      console.error("No se pudo cargar el encuadre");
     }
 
     setLoadingData(false);
   };
 
   const handleBack = async () => {
+    const criteriosActuales = normalizarCriterios(criteriosCalificacion);
+    const criteriosOriginales = valoresOriginales?.criterios || [];
+
     const hayCambios =
-      descripcionEvaluacion !== valoresOriginales?.descripcionEvaluacion ||
-      derechoOrdinario !== valoresOriginales?.derechoOrdinario ||
-      derechoExtraordinario !== valoresOriginales?.derechoExtraordinario ||
-      descripcionProducto !== valoresOriginales?.descripcionProducto ||
-      bibliografiaBasica !== valoresOriginales?.bibliografiaBasica ||
-      normasConducta !== valoresOriginales?.normasConducta ||
-      JSON.stringify(criteriosCalificacion) !== JSON.stringify(valoresOriginales?.criterios || []);
+      (profesorPuedeModificar &&
+        descripcionProducto !== (valoresOriginales?.descripcionProducto || "")) ||
+      (profesorPuedeModificar &&
+        bibliografiaBasica !== (valoresOriginales?.bibliografiaBasica || "")) ||
+      (profesorPuedeModificar &&
+        normasConducta !== (valoresOriginales?.normasConducta || "")) ||
+      (profesorPuedeModificar &&
+        JSON.stringify(criteriosActuales) !== JSON.stringify(criteriosOriginales));
 
     if (hayCambios) {
       const shouldLeave = await confirm({
         title: "¿Salir sin guardar?",
-        message: "Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?",
+        message:
+          "Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?",
         confirmText: "Sí, salir",
         cancelText: "Cancelar",
       });
@@ -171,7 +175,8 @@ export default function Page() {
     if (status === "unauthenticated" || !session?.user?.id) {
       await confirm({
         title: "Sesión no válida",
-        message: "No se pudo verificar tu sesión. Por favor, cierra sesión y vuelve a iniciar.",
+        message:
+          "No se pudo verificar tu sesión. Por favor, cierra sesión y vuelve a iniciar.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -179,7 +184,9 @@ export default function Page() {
     }
 
     if (profesorPuedeModificar) {
-      const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
+      const criteriosConValor = criteriosCalificacion.filter(
+        (c) => c.criterio.trim() !== ""
+      );
 
       if (criteriosConValor.length > 0) {
         const criterioSinValor = criteriosConValor.find((c) => c.valor <= 0);
@@ -193,7 +200,11 @@ export default function Page() {
           return;
         }
 
-        const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
+        const totalPorcentaje = criteriosConValor.reduce(
+          (sum, c) => sum + c.valor,
+          0
+        );
+
         if (totalPorcentaje !== 100) {
           await confirm({
             title: "Porcentajes incorrectos",
@@ -219,7 +230,8 @@ export default function Page() {
       if (criteriosConValor.length === 0) {
         await confirm({
           title: "Sin criterios de calificación",
-          message: "Debes agregar al menos un criterio de evaluación con su porcentaje.",
+          message:
+            "Debes agregar al menos un criterio de evaluación con su porcentaje.",
           confirmText: "Entendido",
           cancelText: "",
         });
@@ -229,7 +241,8 @@ export default function Page() {
 
     const shouldSave = await confirm({
       title: "Guardar cambios",
-      message: "¿Estás seguro de que deseas guardar los cambios realizados al encuadre?",
+      message:
+        "¿Estás seguro de que deseas guardar los cambios realizados al encuadre?",
       confirmText: "Guardar",
       cancelText: "Cancelar",
     });
@@ -237,17 +250,20 @@ export default function Page() {
     if (!shouldSave) return;
 
     const criteriosAGuardar = profesorPuedeModificar
-      ? criteriosCalificacion.filter((c) => c.criterio.trim() !== "")
+      ? normalizarCriterios(criteriosCalificacion).filter(
+          (c) => c.criterio.trim() !== ""
+        )
       : undefined;
 
     const success = await actualizarEncuadre({
-      encuadreId: encuadreId,
-      descripcionEvaluacion,
-      derechoOrdinario,
-      derechoExtraordinario,
-      descripcionProducto,
-      bibliografiaBasica,
-      normasConducta,
+      encuadreId,
+      descripcionProducto: profesorPuedeModificar
+        ? descripcionProducto
+        : undefined,
+      bibliografiaBasica: profesorPuedeModificar
+        ? bibliografiaBasica
+        : undefined,
+      normasConducta: profesorPuedeModificar ? normasConducta : undefined,
       criterios: criteriosAGuardar,
     });
 
@@ -260,11 +276,16 @@ export default function Page() {
   };
 
   const agregarCriterioCalificacion = () => {
-    setCriteriosCalificacion([...criteriosCalificacion, { criterio: "", valor: 0, descripcion: "" }]);
+    setCriteriosCalificacion([
+      ...criteriosCalificacion,
+      { criterio: "", valor: 0, descripcion: "" },
+    ]);
   };
 
   const eliminarCriterioCalificacion = (index: number) => {
-    setCriteriosCalificacion(criteriosCalificacion.filter((_, i) => i !== index));
+    setCriteriosCalificacion(
+      criteriosCalificacion.filter((_, i) => i !== index)
+    );
   };
 
   const actualizarCriterioCalificacion = (
@@ -277,8 +298,16 @@ export default function Page() {
     setCriteriosCalificacion(nuevosCriterios);
   };
 
-  const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
-  const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
+  const criteriosConValor = criteriosCalificacion.filter(
+    (c) => c.criterio.trim() !== ""
+  );
+  const totalPorcentaje = criteriosConValor.reduce(
+    (sum, c) => sum + c.valor,
+    0
+  );
+
+  const camposSiempreSoloLectura = true;
+  const camposSoloLecturaPorRestriccion = !profesorPuedeModificar;
 
   if (loadingData) {
     return (
@@ -324,14 +353,20 @@ export default function Page() {
     <div className="px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <div>
-          <Button variant="outline" onClick={handleBack} className="cursor-pointer">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            className="cursor-pointer"
+          >
             <ChevronLeft className="mr-2 h-5 w-5" />
             Regresar
           </Button>
         </div>
 
         <div className="text-center">
-          <h1 className="text-2xl font-bold">Encuadre de la Unidad de Aprendizaje</h1>
+          <h1 className="text-2xl font-bold">
+            Encuadre de la Unidad de Aprendizaje
+          </h1>
           <p className="text-lg font-semibold text-[#00723F] mt-2">
             {materiaClave} - {materiaNombre}
           </p>
@@ -350,8 +385,7 @@ export default function Page() {
                     Permisos de edición limitados
                   </h3>
                   <p className="text-sm text-yellow-800">
-                    El capturista ha restringido la edición de los criterios de evaluación.
-                    Solo podrás editar las descripciones y contenidos generales del encuadre.
+                    Los criterios de evaluación no pueden ser modificados.
                   </p>
                 </div>
               </div>
@@ -391,7 +425,7 @@ export default function Page() {
               <div className="flex items-center h-10 px-3 border rounded-md bg-gray-50">
                 {profesorPuedeModificar ? (
                   <span className="text-sm text-green-700 font-medium">
-                    ✓ Edición completa habilitada
+                    ✓ Edición de criterios habilitada
                   </span>
                 ) : (
                   <span className="text-sm text-yellow-700 font-medium">
@@ -417,10 +451,11 @@ export default function Page() {
             <div>
               <Label className="mb-2 block">Descripción general</Label>
               <textarea
-                className={ta}
+                className={`${ta} bg-gray-50 text-muted-foreground cursor-not-allowed`}
                 value={descripcionEvaluacion}
-                onChange={(e) => setDescripcionEvaluacion(e.target.value)}
+                onChange={() => {}}
                 placeholder="Descripción detallada de cómo se evaluará el curso..."
+                disabled={camposSiempreSoloLectura}
               />
             </div>
 
@@ -429,9 +464,13 @@ export default function Page() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[35%]">Criterio</TableHead>
-                    <TableHead className="w-[15%] text-center">Valor %</TableHead>
+                    <TableHead className="w-[15%] text-center">
+                      Valor %
+                    </TableHead>
                     <TableHead className="w-[40%]">Descripción</TableHead>
-                    {profesorPuedeModificar && <TableHead className="w-[10%]"></TableHead>}
+                    {profesorPuedeModificar && (
+                      <TableHead className="w-[10%]"></TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -441,7 +480,11 @@ export default function Page() {
                         <Input
                           value={crit.criterio}
                           onChange={(e) =>
-                            actualizarCriterioCalificacion(index, "criterio", e.target.value)
+                            actualizarCriterioCalificacion(
+                              index,
+                              "criterio",
+                              e.target.value
+                            )
                           }
                           placeholder="Nombre del criterio"
                           disabled={!profesorPuedeModificar}
@@ -455,9 +498,15 @@ export default function Page() {
                           max={100}
                           value={crit.valor}
                           onChange={(e) =>
-                            actualizarCriterioCalificacion(index, "valor", Number(e.target.value))
+                            actualizarCriterioCalificacion(
+                              index,
+                              "valor",
+                              Number(e.target.value)
+                            )
                           }
-                          className={`text-center ${!profesorPuedeModificar ? "bg-gray-50" : ""}`}
+                          className={`text-center ${
+                            !profesorPuedeModificar ? "bg-gray-50" : ""
+                          }`}
                           placeholder="%"
                           disabled={!profesorPuedeModificar}
                         />
@@ -466,7 +515,11 @@ export default function Page() {
                         <Input
                           value={crit.descripcion}
                           onChange={(e) =>
-                            actualizarCriterioCalificacion(index, "descripcion", e.target.value)
+                            actualizarCriterioCalificacion(
+                              index,
+                              "descripcion",
+                              e.target.value
+                            )
                           }
                           placeholder="Descripción del criterio"
                           disabled={!profesorPuedeModificar}
@@ -535,19 +588,21 @@ export default function Page() {
             <div>
               <Label className="mb-2 block">Ordinario</Label>
               <textarea
-                className={ta}
+                className={`${ta} bg-gray-50 text-muted-foreground cursor-not-allowed`}
                 value={derechoOrdinario}
-                onChange={(e) => setDerechoOrdinario(e.target.value)}
+                onChange={() => {}}
                 placeholder="- Alumnos con 80% o más de asistencias en clases impartidas&#10;- Para exentar examen ordinario el estudiante deberá tener..."
+                disabled={camposSiempreSoloLectura}
               />
             </div>
             <div>
               <Label className="mb-2 block">Extraordinario</Label>
               <textarea
-                className={ta}
+                className={`${ta} bg-gray-50 text-muted-foreground cursor-not-allowed`}
                 value={derechoExtraordinario}
-                onChange={(e) => setDerechoExtraordinario(e.target.value)}
+                onChange={() => {}}
                 placeholder="- Alumnos con 60% o más de asistencias en clases impartidas&#10;- La calificación final obtenida equivale al 100%"
+                disabled={camposSiempreSoloLectura}
               />
             </div>
           </CardContent>
@@ -555,17 +610,27 @@ export default function Page() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Descripción de Producto o Evidencia de Desempeño</CardTitle>
+            <CardTitle>
+              Descripción de Producto o Evidencia de Desempeño
+            </CardTitle>
             <CardDescription>
               En caso de existir rúbrica del trabajo final, incluirla en este apartado
             </CardDescription>
           </CardHeader>
           <CardContent>
             <textarea
-              className={ta}
+              className={`${ta} ${
+                camposSoloLecturaPorRestriccion
+                  ? "bg-gray-50 text-muted-foreground cursor-not-allowed"
+                  : ""
+              }`}
               value={descripcionProducto}
-              onChange={(e) => setDescripcionProducto(e.target.value)}
+              onChange={(e) => {
+                if (camposSoloLecturaPorRestriccion) return;
+                setDescripcionProducto(e.target.value);
+              }}
               placeholder="Describe el producto final o evidencias de desempeño..."
+              disabled={camposSoloLecturaPorRestriccion}
             />
           </CardContent>
         </Card>
@@ -576,10 +641,18 @@ export default function Page() {
           </CardHeader>
           <CardContent>
             <textarea
-              className={ta}
+              className={`${ta} ${
+                camposSoloLecturaPorRestriccion
+                  ? "bg-gray-50 text-muted-foreground cursor-not-allowed"
+                  : ""
+              }`}
               value={bibliografiaBasica}
-              onChange={(e) => setBibliografiaBasica(e.target.value)}
+              onChange={(e) => {
+                if (camposSoloLecturaPorRestriccion) return;
+                setBibliografiaBasica(e.target.value);
+              }}
               placeholder="Lista las referencias bibliográficas, sitios web y recursos..."
+              disabled={camposSoloLecturaPorRestriccion}
             />
           </CardContent>
         </Card>
@@ -593,15 +666,22 @@ export default function Page() {
           </CardHeader>
           <CardContent>
             <textarea
-              className={ta}
+              className={`${ta} ${
+                camposSoloLecturaPorRestriccion
+                  ? "bg-gray-50 text-muted-foreground cursor-not-allowed"
+                  : ""
+              }`}
               value={normasConducta}
-              onChange={(e) => setNormasConducta(e.target.value)}
+              onChange={(e) => {
+                if (camposSoloLecturaPorRestriccion) return;
+                setNormasConducta(e.target.value);
+              }}
               placeholder="En caso de haber una sanción al no respetarlas, estas deberán mencionarse en este apartado y apegarse al estatuto general de la UABC (art. 202)"
+              disabled={camposSoloLecturaPorRestriccion}
             />
           </CardContent>
         </Card>
 
-        {/* Card de Gestión de Alumnos */}
         <AlumnosEncuadreCard
           encuadreId={encuadreId}
           materiaNombre={materiaNombre}

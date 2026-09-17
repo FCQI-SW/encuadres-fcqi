@@ -12,10 +12,17 @@ import {
   BookOpen,
   Users,
   ClipboardList,
+  ShieldCheck,
+  Lock,
+  AlertCircle,
 } from "lucide-react";
 import EncuadreTab from "./EncuadreTab";
 import AlumnosTab from "./AlumnosTab";
 import AvancesTab from "./AvancesTab";
+import {
+  usePermisoOperacion,
+  type PermisoOperacion,
+} from "@/hooks/usePermisoOperacion";
 
 type CursoInfo = {
   encuadre_id: string;
@@ -25,15 +32,30 @@ type CursoInfo = {
   periodo: string;
 };
 
+const permisoDefault: PermisoOperacion = {
+  puede_ver: true,
+  dentro_ventana_global: false,
+  tiene_permiso_especial: false,
+  solo_lectura: false,
+  puede_editar_encuadre: false,
+  puede_gestionar_alumnos: false,
+  puede_firmar: false,
+  puede_registrar_avances: false,
+  motivo: "",
+};
+
 export default function CursoDetallePage() {
   const router = useRouter();
   const params = useParams();
   const encuadreId = params.id as string;
   const { data: session } = useSession();
+  const { validarPermiso, loadingPermiso } = usePermisoOperacion();
 
   const [cursoInfo, setCursoInfo] = useState<CursoInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("encuadre");
+  const [permisoOperacion, setPermisoOperacion] =
+    useState<PermisoOperacion>(permisoDefault);
 
   useEffect(() => {
     if (encuadreId && session?.user?.id) {
@@ -83,6 +105,9 @@ export default function CursoDetallePage() {
         grupo: encuadre.grupo,
         periodo: encuadre.periodo,
       });
+
+      const permiso = await validarPermiso(encuadreId, "profesor");
+      setPermisoOperacion(permiso || permisoDefault);
     } catch (err) {
       console.error("Error:", err);
     }
@@ -90,7 +115,23 @@ export default function CursoDetallePage() {
     setLoading(false);
   };
 
-  if (loading) {
+  const handleTabChange = (value: string) => {
+    if (value === "alumnos" && !permisoOperacion.puede_gestionar_alumnos) {
+      return;
+    }
+
+    setActiveTab(value);
+  };
+
+  const mostrarAvisoCierre =
+    !permisoOperacion.dentro_ventana_global &&
+    !permisoOperacion.tiene_permiso_especial;
+
+  const mostrarAvisoEspecial =
+    !permisoOperacion.dentro_ventana_global &&
+    permisoOperacion.tiene_permiso_especial;
+
+  if (loading || loadingPermiso) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-[#00723F]" />
@@ -121,7 +162,6 @@ export default function CursoDetallePage() {
   return (
     <div className="px-4 py-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        {/* Botón regresar */}
         <div>
           <Button
             variant="outline"
@@ -133,7 +173,6 @@ export default function CursoDetallePage() {
           </Button>
         </div>
 
-        {/* Header centrado */}
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-800">
             {cursoInfo.materia_clave} - {cursoInfo.materia_nombre}
@@ -143,8 +182,58 @@ export default function CursoDetallePage() {
           </p>
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        {mostrarAvisoCierre && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-start gap-3">
+              <Lock className="h-5 w-5 text-amber-700 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium text-amber-800">
+                  Periodo general cerrado
+                </p>
+                <p className="text-sm text-amber-700 mt-1">
+                  Puedes consultar el curso, pero no puedes operar acciones de
+                  edición porque el periodo general está cerrado y este encuadre
+                  no tiene un permiso especial activo.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mostrarAvisoEspecial && (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="h-5 w-5 text-green-700 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium text-green-800">
+                  Acceso especial habilitado
+                </p>
+                <p className="text-sm text-green-700 mt-1">
+                  Este encuadre tiene un permiso especial fuera del periodo general.
+                  {permisoOperacion.motivo
+                    ? ` Motivo: ${permisoOperacion.motivo}`
+                    : ""}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {permisoOperacion.solo_lectura && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-blue-700 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium text-blue-800">Modo solo lectura</p>
+                <p className="text-sm text-blue-700 mt-1">
+                  Puedes revisar la información del curso, pero no realizar cambios.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger
               value="encuadre"
@@ -153,6 +242,7 @@ export default function CursoDetallePage() {
               <BookOpen className="h-4 w-4" />
               Encuadre
             </TabsTrigger>
+
             <TabsTrigger
               value="avances"
               className="flex items-center gap-2 cursor-pointer"
@@ -160,9 +250,20 @@ export default function CursoDetallePage() {
               <ClipboardList className="h-4 w-4" />
               Registro de Avances
             </TabsTrigger>
+
             <TabsTrigger
               value="alumnos"
-              className="flex items-center gap-2 cursor-pointer"
+              disabled={!permisoOperacion.puede_gestionar_alumnos}
+              className={`flex items-center gap-2 ${
+                !permisoOperacion.puede_gestionar_alumnos
+                  ? "cursor-not-allowed opacity-50"
+                  : "cursor-pointer"
+              }`}
+              title={
+                !permisoOperacion.puede_gestionar_alumnos
+                  ? "No tienes permiso para gestionar alumnos en este momento"
+                  : ""
+              }
             >
               <Users className="h-4 w-4" />
               Alumnos
@@ -170,7 +271,14 @@ export default function CursoDetallePage() {
           </TabsList>
 
           <TabsContent value="encuadre">
-            <EncuadreTab encuadreId={encuadreId} />
+            <EncuadreTab
+              encuadreId={encuadreId}
+              puedeEditar={
+                permisoOperacion.puede_editar_encuadre &&
+                !permisoOperacion.solo_lectura
+              }
+              motivoPermiso={permisoOperacion.motivo}
+            />
           </TabsContent>
 
           <TabsContent value="avances">
@@ -179,16 +287,32 @@ export default function CursoDetallePage() {
               materiaNombre={cursoInfo.materia_nombre}
               grupo={cursoInfo.grupo}
               periodo={cursoInfo.periodo}
+              puedeEditar={
+                permisoOperacion.puede_registrar_avances &&
+                !permisoOperacion.solo_lectura
+              }
+              motivoPermiso={permisoOperacion.motivo}
             />
           </TabsContent>
 
           <TabsContent value="alumnos">
-            <AlumnosTab
-              encuadreId={encuadreId}
-              materiaNombre={cursoInfo.materia_nombre}
-              grupo={cursoInfo.grupo}
-              periodo={cursoInfo.periodo}
-            />
+            {permisoOperacion.puede_gestionar_alumnos ? (
+              <AlumnosTab
+                encuadreId={encuadreId}
+                materiaNombre={cursoInfo.materia_nombre}
+                grupo={cursoInfo.grupo}
+                periodo={cursoInfo.periodo}
+              />
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-lg font-semibold mb-2">
+                  Gestión de alumnos no disponible
+                </p>
+                <p className="text-sm">
+                  No tienes permiso para administrar alumnos en este encuadre en este momento.
+                </p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

@@ -20,10 +20,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Trash2, Lock } from "lucide-react";
+import { Loader2, Plus, Trash2, Lock, AlertCircle } from "lucide-react";
 import { useEncuadreProfesor } from "@/hooks/useEncuadreProfesor";
 import { useConfirm } from "@/components/global-confirm-modal";
 import { useToast } from "@/components/ui/toast";
+import EvidenciaEncuadre from "@/components/EvidenciaEncuadre";
 
 type CriterioCalificacion = {
   criterio: string;
@@ -33,9 +34,15 @@ type CriterioCalificacion = {
 
 type EncuadreTabProps = {
   encuadreId: string;
+  puedeEditar: boolean;
+  motivoPermiso?: string;
 };
 
-export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
+export default function EncuadreTab({
+  encuadreId,
+  puedeEditar,
+  motivoPermiso,
+}: EncuadreTabProps) {
   const confirm = useConfirm();
   const toast = useToast();
   const { data: session, status } = useSession();
@@ -53,13 +60,12 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
   const [bibliografiaBasica, setBibliografiaBasica] = useState("");
   const [normasConducta, setNormasConducta] = useState("");
 
-  const [criteriosCalificacion, setCriteriosCalificacion] = useState<CriterioCalificacion[]>([
-    { criterio: "", valor: 0, descripcion: "" },
-  ]);
+  const [criteriosCalificacion, setCriteriosCalificacion] = useState<
+    CriterioCalificacion[]
+  >([{ criterio: "", valor: 0, descripcion: "" }]);
 
-  const [valoresOriginales, setValoresOriginales] = useState<any>(null);
-
-  const { obtenerEncuadre, actualizarEncuadre, loading, error } = useEncuadreProfesor();
+  const { obtenerEncuadre, actualizarEncuadre, loading, error } =
+    useEncuadreProfesor();
   const [prevError, setPrevError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -71,7 +77,6 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encuadreId]);
 
-  // Mostrar error en toast cuando cambie
   useEffect(() => {
     if (error && error !== prevError) {
       toast.error(error);
@@ -105,22 +110,20 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
           }))
         );
       }
-
-      setValoresOriginales({
-        descripcionEvaluacion: encuadre.descripcion_evaluacion,
-        derechoOrdinario: encuadre.derecho_ordinario,
-        derechoExtraordinario: encuadre.derecho_extraordinario,
-        descripcionProducto: encuadre.descripcion_producto,
-        bibliografiaBasica: encuadre.bibliografia_basica,
-        normasConducta: encuadre.normas_conducta,
-        criterios: encuadre.criterios || [],
-      });
     }
 
     setLoadingData(false);
   };
 
   const handleGuardar = async () => {
+    if (!puedeEditar) {
+      toast.error(
+        motivoPermiso ||
+          "No tienes permiso de operación para editar este encuadre en este momento."
+      );
+      return;
+    }
+
     if (status === "loading") {
       await confirm({
         title: "Cargando sesión",
@@ -134,7 +137,8 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
     if (status === "unauthenticated" || !session?.user?.id) {
       await confirm({
         title: "Sesión no válida",
-        message: "No se pudo verificar tu sesión. Por favor, cierra sesión y vuelve a iniciar.",
+        message:
+          "No se pudo verificar tu sesión. Por favor, cierra sesión y vuelve a iniciar.",
         confirmText: "Entendido",
         cancelText: "",
       });
@@ -142,7 +146,9 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
     }
 
     if (profesorPuedeModificar) {
-      const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
+      const criteriosConValor = criteriosCalificacion.filter(
+        (c) => c.criterio.trim() !== ""
+      );
 
       if (criteriosConValor.length > 0) {
         const criterioSinValor = criteriosConValor.find((c) => c.valor <= 0);
@@ -156,7 +162,10 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
           return;
         }
 
-        const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
+        const totalPorcentaje = criteriosConValor.reduce(
+          (sum, c) => sum + c.valor,
+          0
+        );
         if (totalPorcentaje !== 100) {
           await confirm({
             title: "Porcentajes incorrectos",
@@ -182,7 +191,8 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
       if (criteriosConValor.length === 0) {
         await confirm({
           title: "Sin criterios de calificación",
-          message: "Debes agregar al menos un criterio de evaluación con su porcentaje.",
+          message:
+            "Debes agregar al menos un criterio de evaluación con su porcentaje.",
           confirmText: "Entendido",
           cancelText: "",
         });
@@ -192,16 +202,18 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
 
     const shouldSave = await confirm({
       title: "Guardar cambios",
-      message: "¿Estás seguro de que deseas guardar los cambios realizados al encuadre?",
+      message:
+        "¿Estás seguro de que deseas guardar los cambios realizados al encuadre?",
       confirmText: "Guardar",
       cancelText: "Cancelar",
     });
 
     if (!shouldSave) return;
 
-    const criteriosAGuardar = profesorPuedeModificar
-      ? criteriosCalificacion.filter((c) => c.criterio.trim() !== "")
-      : undefined;
+    const criteriosAGuardar =
+      profesorPuedeModificar && puedeEditar
+        ? criteriosCalificacion.filter((c) => c.criterio.trim() !== "")
+        : undefined;
 
     const success = await actualizarEncuadre({
       encuadreId: encuadreId,
@@ -223,11 +235,18 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
   };
 
   const agregarCriterioCalificacion = () => {
-    setCriteriosCalificacion([...criteriosCalificacion, { criterio: "", valor: 0, descripcion: "" }]);
+    if (!puedeEditar || !profesorPuedeModificar) return;
+    setCriteriosCalificacion([
+      ...criteriosCalificacion,
+      { criterio: "", valor: 0, descripcion: "" },
+    ]);
   };
 
   const eliminarCriterioCalificacion = (index: number) => {
-    setCriteriosCalificacion(criteriosCalificacion.filter((_, i) => i !== index));
+    if (!puedeEditar || !profesorPuedeModificar) return;
+    setCriteriosCalificacion(
+      criteriosCalificacion.filter((_, i) => i !== index)
+    );
   };
 
   const actualizarCriterioCalificacion = (
@@ -235,13 +254,19 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
     field: keyof CriterioCalificacion,
     value: string | number
   ) => {
+    if (!puedeEditar || !profesorPuedeModificar) return;
     const nuevosCriterios = [...criteriosCalificacion];
     nuevosCriterios[index] = { ...nuevosCriterios[index], [field]: value };
     setCriteriosCalificacion(nuevosCriterios);
   };
 
-  const criteriosConValor = criteriosCalificacion.filter((c) => c.criterio.trim() !== "");
-  const totalPorcentaje = criteriosConValor.reduce((sum, c) => sum + c.valor, 0);
+  const criteriosConValor = criteriosCalificacion.filter(
+    (c) => c.criterio.trim() !== ""
+  );
+  const totalPorcentaje = criteriosConValor.reduce(
+    (sum, c) => sum + c.valor,
+    0
+  );
 
   if (loadingData) {
     return (
@@ -255,10 +280,29 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
     "min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm " +
     "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 " +
     "focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background " +
-    "disabled:cursor-not-allowed disabled:opacity-50";
+    "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-50";
 
   return (
     <div className="space-y-6">
+      {!puedeEditar && (
+        <Card className="border-blue-300 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-blue-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-blue-900 mb-1">
+                  Edición deshabilitada
+                </h3>
+                <p className="text-sm text-blue-800">
+                  Este encuadre está disponible solo para consulta.
+                  {motivoPermiso ? ` ${motivoPermiso}` : ""}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {!profesorPuedeModificar && (
         <Card className="border-yellow-500 bg-yellow-50">
           <CardContent className="pt-6">
@@ -269,8 +313,9 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
                   Permisos de edición limitados
                 </h3>
                 <p className="text-sm text-yellow-800">
-                  El capturista ha restringido la edición de los criterios de evaluación.
-                  Solo podrás editar las descripciones y contenidos generales del encuadre.
+                  El capturista ha restringido la edición de los criterios de
+                  evaluación. Solo podrás editar las descripciones y contenidos
+                  generales del encuadre.
                 </p>
               </div>
             </div>
@@ -305,7 +350,12 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
           <div className="sm:col-span-6">
             <Label className="mb-2 block">Permisos de Edición</Label>
             <div className="flex items-center h-10 px-3 border rounded-md bg-gray-50">
-              {profesorPuedeModificar ? (
+              {!puedeEditar ? (
+                <span className="text-sm text-blue-700 font-medium">
+                  <Lock className="inline h-4 w-4 mr-1" />
+                  Solo consulta
+                </span>
+              ) : profesorPuedeModificar ? (
                 <span className="text-sm text-green-700 font-medium">
                   ✓ Edición completa habilitada
                 </span>
@@ -337,6 +387,7 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
               value={descripcionEvaluacion}
               onChange={(e) => setDescripcionEvaluacion(e.target.value)}
               placeholder="Descripción detallada de cómo se evaluará el curso..."
+              disabled={!puedeEditar}
             />
           </div>
 
@@ -347,7 +398,9 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
                   <TableHead className="w-[35%]">Criterio</TableHead>
                   <TableHead className="w-[15%] text-center">Valor %</TableHead>
                   <TableHead className="w-[40%]">Descripción</TableHead>
-                  {profesorPuedeModificar && <TableHead className="w-[10%]"></TableHead>}
+                  {profesorPuedeModificar && (
+                    <TableHead className="w-[10%]"></TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -357,11 +410,19 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
                       <Input
                         value={crit.criterio}
                         onChange={(e) =>
-                          actualizarCriterioCalificacion(index, "criterio", e.target.value)
+                          actualizarCriterioCalificacion(
+                            index,
+                            "criterio",
+                            e.target.value
+                          )
                         }
                         placeholder="Nombre del criterio"
-                        disabled={!profesorPuedeModificar}
-                        className={!profesorPuedeModificar ? "bg-gray-50" : ""}
+                        disabled={!puedeEditar || !profesorPuedeModificar}
+                        className={
+                          !puedeEditar || !profesorPuedeModificar
+                            ? "bg-gray-50"
+                            : ""
+                        }
                       />
                     </TableCell>
                     <TableCell>
@@ -371,22 +432,38 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
                         max={100}
                         value={crit.valor}
                         onChange={(e) =>
-                          actualizarCriterioCalificacion(index, "valor", Number(e.target.value))
+                          actualizarCriterioCalificacion(
+                            index,
+                            "valor",
+                            Number(e.target.value)
+                          )
                         }
-                        className={`text-center ${!profesorPuedeModificar ? "bg-gray-50" : ""}`}
+                        className={`text-center ${
+                          !puedeEditar || !profesorPuedeModificar
+                            ? "bg-gray-50"
+                            : ""
+                        }`}
                         placeholder="%"
-                        disabled={!profesorPuedeModificar}
+                        disabled={!puedeEditar || !profesorPuedeModificar}
                       />
                     </TableCell>
                     <TableCell>
                       <Input
                         value={crit.descripcion}
                         onChange={(e) =>
-                          actualizarCriterioCalificacion(index, "descripcion", e.target.value)
+                          actualizarCriterioCalificacion(
+                            index,
+                            "descripcion",
+                            e.target.value
+                          )
                         }
                         placeholder="Descripción del criterio"
-                        disabled={!profesorPuedeModificar}
-                        className={!profesorPuedeModificar ? "bg-gray-50" : ""}
+                        disabled={!puedeEditar || !profesorPuedeModificar}
+                        className={
+                          !puedeEditar || !profesorPuedeModificar
+                            ? "bg-gray-50"
+                            : ""
+                        }
                       />
                     </TableCell>
                     {profesorPuedeModificar && (
@@ -395,7 +472,9 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
                           variant="ghost"
                           size="sm"
                           onClick={() => eliminarCriterioCalificacion(index)}
-                          disabled={criteriosCalificacion.length === 1}
+                          disabled={
+                            !puedeEditar || criteriosCalificacion.length === 1
+                          }
                           className="cursor-pointer"
                         >
                           <Trash2 className="h-4 w-4 text-red-500" />
@@ -432,6 +511,7 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
               size="sm"
               onClick={agregarCriterioCalificacion}
               className="cursor-pointer"
+              disabled={!puedeEditar}
             >
               <Plus className="mr-2 h-4 w-4" />
               Agregar criterio
@@ -455,6 +535,7 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
               value={derechoOrdinario}
               onChange={(e) => setDerechoOrdinario(e.target.value)}
               placeholder="- Alumnos con 80% o más de asistencias..."
+              disabled={!puedeEditar}
             />
           </div>
           <div>
@@ -464,6 +545,7 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
               value={derechoExtraordinario}
               onChange={(e) => setDerechoExtraordinario(e.target.value)}
               placeholder="- Alumnos con 60% o más de asistencias..."
+              disabled={!puedeEditar}
             />
           </div>
         </CardContent>
@@ -471,9 +553,12 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Descripción de Producto o Evidencia de Desempeño</CardTitle>
+          <CardTitle>
+            Descripción de Producto o Evidencia de Desempeño
+          </CardTitle>
           <CardDescription>
-            En caso de existir rúbrica del trabajo final, incluirla en este apartado
+            En caso de existir rúbrica del trabajo final, incluirla en este
+            apartado
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -482,6 +567,7 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
             value={descripcionProducto}
             onChange={(e) => setDescripcionProducto(e.target.value)}
             placeholder="Describe el producto final o evidencias de desempeño..."
+            disabled={!puedeEditar}
           />
         </CardContent>
       </Card>
@@ -496,15 +582,19 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
             value={bibliografiaBasica}
             onChange={(e) => setBibliografiaBasica(e.target.value)}
             placeholder="Lista las referencias bibliográficas, sitios web y recursos..."
+            disabled={!puedeEditar}
           />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Normas de Conducta dentro del Salón de Clases</CardTitle>
+          <CardTitle>
+            Normas de Conducta dentro del Salón de Clases
+          </CardTitle>
           <CardDescription>
-            Describir las reglas de conducta, retardos, uso de celular, alimentos, etc.
+            Describir las reglas de conducta, retardos, uso de celular,
+            alimentos, etc.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -513,15 +603,19 @@ export default function EncuadreTab({ encuadreId }: EncuadreTabProps) {
             value={normasConducta}
             onChange={(e) => setNormasConducta(e.target.value)}
             placeholder="En caso de haber una sanción al no respetarlas..."
+            disabled={!puedeEditar}
           />
         </CardContent>
       </Card>
+
+      {/* ── Evidencia del encuadre firmado ── */}
+      <EvidenciaEncuadre encuadreId={encuadreId} puedeSubir={true} />
 
       <div className="flex justify-end">
         <Button
           className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
           onClick={handleGuardar}
-          disabled={loading}
+          disabled={loading || !puedeEditar}
         >
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {loading ? "Guardando..." : "Guardar cambios"}

@@ -1,5 +1,3 @@
-// app/(main)/profesor/cursos/[id]/AvancesTab.tsx
-
 "use client";
 
 import * as React from "react";
@@ -21,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, ClipboardList, Save } from "lucide-react";
+import { Loader2, ClipboardList, Save, AlertCircle } from "lucide-react";
 import {
   useRegistroAvances,
   TemaConCheckin,
@@ -35,6 +33,8 @@ type AvancesTabProps = {
   materiaNombre: string;
   grupo: string;
   periodo: string;
+  puedeEditar: boolean;
+  motivoPermiso?: string;
 };
 
 type RespuestaLocal = {
@@ -42,7 +42,12 @@ type RespuestaLocal = {
   justificacion: string;
 };
 
-export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
+export default function AvancesTab({
+  encuadreId,
+  grupo,
+  puedeEditar,
+  motivoPermiso,
+}: AvancesTabProps) {
   const confirm = useConfirm();
   const toast = useToast();
   const { obtenerDatosCompletos, guardarCheckins, loading } =
@@ -66,7 +71,6 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
     setHeader(h);
     setTemas(t);
 
-    // Inicializar respuestas con los datos existentes
     const respuestasIniciales: Record<number, RespuestaLocal> = {};
     t.forEach((tema) => {
       respuestasIniciales[tema.id] = {
@@ -80,13 +84,14 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
   };
 
   const setVista = (temaId: number, valor: boolean) => {
+    if (!puedeEditar) return;
+
     setRespuestas((prev) => {
       const actual: RespuestaLocal = prev[temaId] || {
         vista: null,
         justificacion: "",
       };
 
-      // Si marca "Sí", limpiar justificación
       if (valor === true) {
         return {
           ...prev,
@@ -97,7 +102,6 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
         };
       }
 
-      // Si marca "No", permitir justificación (mantener la existente)
       return {
         ...prev,
         [temaId]: {
@@ -109,13 +113,35 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
   };
 
   const setJustificacion = (temaId: number, value: string) => {
+    if (!puedeEditar) return;
+
     setRespuestas((prev) => ({
       ...prev,
       [temaId]: { ...prev[temaId], justificacion: value },
     }));
   };
+
+  // ── Temas marcados como "No" que aún no tienen justificación ──
+  // Se calcula aquí para usarlo tanto en la validación de guardado
+  // como para resaltar en rojo los campos que faltan.
+  const temasSinJustificar = React.useMemo(
+    () =>
+      temas.filter((tema) => {
+        const r = respuestas[tema.id];
+        return r?.vista === false && !r.justificacion?.trim();
+      }),
+    [temas, respuestas]
+  );
+
   const handleGuardar = async () => {
-    // Validación: verificar que hay al menos un cambio
+    if (!puedeEditar) {
+      toast.error(
+        motivoPermiso ||
+          "No tienes permiso de operación para registrar avances en este momento."
+      );
+      return;
+    }
+
     const tieneRespuestas = Object.values(respuestas).some(
       (r) => r.vista !== null
     );
@@ -123,6 +149,15 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
     if (!tieneRespuestas) {
       toast.warning(
         "No hay cambios para guardar. Marca al menos un tema como visto o no visto."
+      );
+      return;
+    }
+
+    // ── VALIDACIÓN: todo tema marcado como "No" requiere justificación ──
+    if (temasSinJustificar.length > 0) {
+      const lista = temasSinJustificar.map((t) => t.numero).join(", ");
+      toast.error(
+        `Debes escribir una justificación para los temas marcados como "No": ${lista}`
       );
       return;
     }
@@ -148,7 +183,7 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
       toast.error(result.error || "No se pudo guardar el registro de avances.");
     }
   };
-  // Agrupar temas por unidad
+
   const temasPorUnidad = React.useMemo(() => {
     const grupos: Record<number, { nombre: string; temas: TemaConCheckin[] }> =
       {};
@@ -191,7 +226,46 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header del curso */}
+      {!puedeEditar && (
+        <Card className="border-blue-300 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-blue-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-blue-900 mb-1">
+                  Registro en modo consulta
+                </h3>
+                <p className="text-sm text-blue-800">
+                  Puedes revisar el plan de clases, pero no registrar avances.
+                  {motivoPermiso ? ` ${motivoPermiso}` : ""}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Aviso de justificaciones pendientes */}
+      {puedeEditar && temasSinJustificar.length > 0 && (
+        <Card className="border-red-300 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-red-900 mb-1">
+                  {temasSinJustificar.length} tema
+                  {temasSinJustificar.length > 1 ? "s" : ""} sin justificar
+                </h3>
+                <p className="text-sm text-red-800">
+                  Los temas marcados como &quot;No&quot; requieren una
+                  justificación: {temasSinJustificar.map((t) => t.numero).join(", ")}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-center text-lg">
@@ -251,7 +325,6 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
         </CardContent>
       </Card>
 
-      {/* Tabla de temas */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -259,8 +332,8 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
             Plan de Clases
           </CardTitle>
           <CardDescription>
-            Marque los temas que se han cubierto y agregue comentarios si es
-            necesario
+            Marque los temas que se han cubierto. Los temas marcados como
+            &quot;No&quot; requieren justificación.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -285,16 +358,20 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
                 {Object.entries(temasPorUnidad).map(
                   ([unidadNum, unidadData]) => (
                     <React.Fragment key={unidadNum}>
-                      {/* Fila de encabezado de unidad */}
                       <TableRow className="bg-[#00723F]/10">
                         <TableCell colSpan={5} className="font-semibold">
                           Unidad {unidadNum}: {unidadData.nombre}
                         </TableCell>
                       </TableRow>
 
-                      {/* Filas de temas */}
                       {unidadData.temas.map((tema) => {
                         const state = respuestas[tema.id];
+                        // Falta justificación en un tema marcado como "No"
+                        const faltaJustificacion =
+                          puedeEditar &&
+                          state?.vista === false &&
+                          !state.justificacion?.trim();
+
                         return (
                           <TableRow key={tema.id}>
                             <TableCell className="text-center text-muted-foreground">
@@ -305,21 +382,30 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
                             </TableCell>
                             <TableCell>{tema.nombre}</TableCell>
 
-                            {/* Sí / No */}
                             <TableCell>
                               <div className="flex items-center gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer">
+                                <label
+                                  className={`flex items-center gap-2 ${
+                                    puedeEditar ? "cursor-pointer" : "opacity-60"
+                                  }`}
+                                >
                                   <Checkbox
                                     checked={state?.vista === true}
+                                    disabled={!puedeEditar}
                                     onCheckedChange={(checked) => {
                                       if (checked) setVista(tema.id, true);
                                     }}
                                   />
                                   <span className="text-sm">Sí</span>
                                 </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
+                                <label
+                                  className={`flex items-center gap-2 ${
+                                    puedeEditar ? "cursor-pointer" : "opacity-60"
+                                  }`}
+                                >
                                   <Checkbox
                                     checked={state?.vista === false}
+                                    disabled={!puedeEditar}
                                     onCheckedChange={(checked) => {
                                       if (checked) setVista(tema.id, false);
                                     }}
@@ -329,17 +415,30 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
                               </div>
                             </TableCell>
 
-                            {/* Justificación */}
                             <TableCell>
                               <Input
-                                placeholder="Escriba una justificación..."
+                                placeholder={
+                                  state?.vista === false
+                                    ? "Justificación obligatoria..."
+                                    : "Escriba una justificación..."
+                                }
                                 value={state?.justificacion ?? ""}
                                 onChange={(e) =>
                                   setJustificacion(tema.id, e.target.value)
                                 }
-                                className="text-sm"
-                                disabled={state?.vista !== false}
+                                className={`text-sm ${
+                                  faltaJustificacion
+                                    ? "border-red-500 focus-visible:ring-red-500"
+                                    : ""
+                                }`}
+                                disabled={!puedeEditar || state?.vista !== false}
+                                maxLength={500}
                               />
+                              {faltaJustificacion && (
+                                <p className="text-xs text-red-600 mt-1">
+                                  Este campo es obligatorio
+                                </p>
+                              )}
                             </TableCell>
                           </TableRow>
                         );
@@ -353,12 +452,11 @@ export default function AvancesTab({ encuadreId, grupo }: AvancesTabProps) {
         </CardContent>
       </Card>
 
-      {/* Botón guardar */}
       <div className="flex justify-center">
         <Button
           className="bg-[#00723F] hover:bg-[#005e30] text-white cursor-pointer"
           onClick={handleGuardar}
-          disabled={loading}
+          disabled={loading || !puedeEditar}
         >
           {loading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

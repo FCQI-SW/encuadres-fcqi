@@ -1,0 +1,129 @@
+       table_name        |     column_name      |          data_type          | is_nullable 
+-------------------------+----------------------+-----------------------------+-------------
+ anuncios                | id                   | uuid                        | NO
+ anuncios                | titulo               | text                        | NO
+ anuncios                | mensaje              | text                        | NO
+ anuncios                | destinatarios        | ARRAY                       | NO
+ anuncios                | enviado_at           | timestamp with time zone    | YES
+ anuncios                | estado               | USER-DEFINED                | YES
+ anuncios                | metodo               | text                        | NO
+ anuncios                | created_at           | timestamp with time zone    | YES
+ auditoria               | id                   | uuid                        | NO
+ auditoria               | accion               | text                        | NO
+ auditoria               | usuario_id           | uuid                        | YES
+ auditoria               | fecha                | timestamp with time zone    | YES
+ checkins                | id                   | uuid                        | NO
+ checkins                | usuario_id           | uuid                        | YES
+ checkins                | materia_id           | uuid                        | YES
+ checkins                | fecha                | timestamp with time zone    | YES
+ checkins                | tipo                 | text                        | NO
+ checkins                | estado               | text                        | YES
+ checkins                | coincidencia         | numeric                     | YES
+ configuraciones         | id                   | uuid                        | NO
+ configuraciones         | horario_inicio       | text                        | NO
+ configuraciones         | horario_fin          | text                        | NO
+ configuraciones         | mantenimiento_inicio | timestamp with time zone    | YES
+ configuraciones         | mantenimiento_fin    | timestamp with time zone    | YES
+ criterios_acreditacion  | id                   | bigint                      | NO
+ criterios_acreditacion  | criterio             | text                        | NO
+ criterios_acreditacion  | encuadre_id          | uuid                        | NO
+ criterios_evaluacion    | id                   | bigint                      | NO
+ criterios_evaluacion    | criterio             | text                        | NO
+ criterios_evaluacion    | valor                | bigint                      | NO
+ criterios_evaluacion    | encuadre_id          | uuid                        | NO
+ criterios_evaluacion    | descripcion          | text                        | YES
+ email_outbox            | id                   | uuid                        | NO
+ email_outbox            | ad_id                | uuid                        | YES
+ email_outbox            | user_id              | uuid                        | YES
+ email_outbox            | email                | text                        | NO
+ email_outbox            | subject              | text                        | NO
+ email_outbox            | body                 | text                        | NO
+ email_outbox            | status               | text                        | NO
+ email_outbox            | last_error           | text                        | YES
+ email_outbox            | created_at           | timestamp with time zone    | NO
+ email_outbox            | sent_at              | timestamp with time zone    | YES
+ encuadre_checkin        | id                   | bigint                      | NO
+ encuadre_checkin        | encuadre_id          | uuid                        | NO
+ encuadre_checkin        | usuario_id           | uuid                        | NO
+ encuadre_checkin        | aceptado             | boolean                     | NO
+ encuadre_checkin        | justificacion        | text                        | YES
+ encuadres               | id                   | uuid                        | NO
+ encuadres               | programa_id          | uuid                        | NO
+ encuadres               | estado_encuadre      | text                        | YES
+ encuadres               | creado_por           | uuid                        | YES
+ encuadres               | publicado_at         | timestamp with time zone    | YES
+ encuadres               | usuario_id           | uuid                        | NO
+ encuadres               | grupo                | text                        | NO
+ encuadres               | periodo              | text                        | YES
+ materias                | id                   | uuid                        | NO
+ materias                | clave                | text                        | NO
+ materias                | nombre_materia       | text                        | NO
+ materias                | licenciatura         | text                        | NO
+ materias                | categoria            | USER-DEFINED                | NO
+ materias                | requisito            | USER-DEFINED                | NO
+ materias                | created_at           | timestamp with time zone    | YES
+ materias                | estado               | text                        | YES
+ notificaciones          | id                   | uuid                        | NO
+ notificaciones          | titulo               | character varying           | NO
+ notificaciones          | mensaje              | text                        | NO
+ notificaciones          | tipo                 | character varying           | YES
+ notificaciones          | admin_id             | uuid                        | YES
+ notificaciones          | fecha_creacion       | timestamp with time zone    | YES
+ notificaciones          | fecha_expiracion     | timestamp with time zone    | YES
+ notificaciones          | activa               | boolean                     | YES
+ notificaciones_usuarios | id                   | uuid                        | NO
+ notificaciones_usuarios | usuario_id           | uuid                        | YES
+ notificaciones_usuarios | notificacion_id      | uuid                        | YES
+ notificaciones_usuarios | leida                | boolean                     | YES
+ notificaciones_usuarios | fecha_lectura        | timestamp with time zone    | YES
+ notificaciones_usuarios | fecha_creacion       | timestamp with time zone    | YES
+ plan_temas              | id                   | bigint                      | NO
+ plan_temas              | tema_id              | bigint                      | NO
+ plan_temas              | semana               | integer                     | NO
+ plan_temas              | encuadre_id          | uuid                        | NO
+ practicas_laboratorio   | id                   | bigint                      | NO
+ practicas_laboratorio   | unidad_id            | bigint                      | NO
+ practicas_laboratorio   | numero               | bigint                      | NO
+ practicas_laboratorio   | nombre               | character varying           | NO
+ practicas_laboratorio   | duracion             | bigint                      | NO
+ practicas_taller        | id                   | bigint                      | NO
+ practicas_taller        | unidad_id            | bigint                      | NO
+ practicas_taller        | numero               | bigint                      | NO
+ practicas_taller        | nombre               | character varying           | NO
+ practicas_taller        | duracion             | bigint                      | NO
+ programas               | id                   | uuid                        | NO
+ programas               | materia_id           | uuid                        | NO
+ programas               | unidades             | integer                     | NO
+ programas               | estado_programa      | text                        | YES
+ programas               | creado_por           | uuid                        | YES
+ programas               | publicado_at         | timestamp with time zone    | YES
+ programas               | proposito            | text                        | NO
+ programas               | competencia          | text                        | NO
+ programas               | evidencias           | text                        | NO
+ programas               | periodo              | text                        | YES
+ roles                   | id                   | uuid                        | NO
+ roles                   | nombre               | text                        | NO
+ temas                   | id                   | bigint                      | NO
+ temas                   | unidad_id            | bigint                      | NO
+ temas                   | numero               | character varying           | NO
+ temas                   | nombre               | text                        | NO
+ temas_checkin           | id                   | bigint                      | NO
+ temas_checkin           | tema_id              | bigint                      | NO
+ temas_checkin           | usuario_id           | uuid                        | NO
+ temas_checkin           | grupo                | text                        | NO
+ temas_checkin           | tema_visto           | boolean                     | NO
+ temas_checkin           | justificacion        | text                        | YES
+ temas_checkin           | fecha_checkin        | timestamp without time zone | NO
+ unidades                | id                   | bigint                      | NO
+ unidades                | programa_id          | uuid                        | NO
+ unidades                | numero               | bigint                      | NO
+ unidades                | titulo               | text                        | NO
+ unidades                | competencia          | text                        | NO
+ unidades                | duracion             | bigint                      | YES
+ usuarios                | id                   | uuid                        | NO
+ usuarios                | nombre               | text                        | NO
+ usuarios                | contraseña           | text                        | NO
+ usuarios                | rol_id               | uuid                        | NO
+ usuarios                | correo               | text                        | NO
+(125 rows)
+

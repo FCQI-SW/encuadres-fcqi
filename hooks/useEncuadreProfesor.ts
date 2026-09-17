@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
+import {
+  resolverPermisoOperacion,
+  type PermisoOperacion,
+} from "@/lib/permisoOperacion";
+
+type CriterioEvaluacion = {
+  id: string;
+  criterio: string;
+  valor: number;
+  descripcion: string;
+};
 
 type EncuadreProfesor = {
   id: string;
@@ -17,12 +28,8 @@ type EncuadreProfesor = {
   descripcion_producto: string;
   bibliografia_basica: string;
   normas_conducta: string;
-  criterios?: Array<{
-    id: string;
-    criterio: string;
-    valor: number;
-    descripcion: string;
-  }>;
+  criterios?: CriterioEvaluacion[];
+  permiso_operacion?: PermisoOperacion;
 };
 
 type ActualizarEncuadreParams = {
@@ -45,9 +52,20 @@ export function useEncuadreProfesor() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const validarPermisoProfesor = async (
+    encuadreId: string
+  ): Promise<PermisoOperacion | null> => {
+    if (!session?.user?.id || !encuadreId) return null;
+
+    return resolverPermisoOperacion({
+      encuadreId,
+      userId: session.user.id,
+      rol: "profesor",
+    });
+  };
+
   const obtenerMisEncuadres = async (): Promise<EncuadreProfesor[]> => {
     if (!session?.user?.id) {
-      console.log("No hay sesión de usuario");
       return [];
     }
 
@@ -72,21 +90,21 @@ export function useEncuadreProfesor() {
           normas_conducta
         `)
         .eq("usuario_id", session.user.id)
-        .order("periodo", { ascending: false });
+        .order("periodo", { ascending: false })
+        .order("grupo", { ascending: true });
 
       if (errorEncuadres) {
         console.error("Error al obtener encuadres:", errorEncuadres);
         setError("Error al cargar los encuadres");
-        setLoading(false);
         return [];
       }
 
       if (!encuadres || encuadres.length === 0) {
-        setLoading(false);
         return [];
       }
 
-      const programaIds = encuadres.map(e => e.programa_id);
+      const programaIds = [...new Set(encuadres.map((e) => e.programa_id))];
+
       const { data: programas, error: errorProgramas } = await supabase
         .from("programas")
         .select("id, materia_id")
@@ -95,11 +113,13 @@ export function useEncuadreProfesor() {
       if (errorProgramas) {
         console.error("Error al obtener programas:", errorProgramas);
         setError("Error al cargar información de materias");
-        setLoading(false);
         return [];
       }
 
-      const materiaIds = (programas || []).map((p: any) => p.materia_id);
+      const materiaIds = [
+        ...new Set((programas || []).map((p: any) => p.materia_id)),
+      ];
+
       const { data: materias, error: errorMaterias } = await supabase
         .from("materias")
         .select("id, clave, nombre_materia")
@@ -108,16 +128,15 @@ export function useEncuadreProfesor() {
       if (errorMaterias) {
         console.error("Error al obtener materias:", errorMaterias);
         setError("Error al cargar información de materias");
-        setLoading(false);
         return [];
       }
 
-      const programaMap = new Map();
+      const programaMap = new Map<string, any>();
       (programas || []).forEach((p: any) => {
         programaMap.set(p.id, p);
       });
 
-      const materiaMap = new Map();
+      const materiaMap = new Map<string, any>();
       (materias || []).forEach((m: any) => {
         materiaMap.set(m.id, m);
       });
@@ -134,7 +153,8 @@ export function useEncuadreProfesor() {
           grupo: e.grupo,
           periodo: e.periodo,
           estado_encuadre: e.estado_encuadre,
-          profesor_puede_modificar_criterios: e.profesor_puede_modificar_criterios,
+          profesor_puede_modificar_criterios:
+            e.profesor_puede_modificar_criterios ?? true,
           descripcion_evaluacion: e.descripcion_evaluacion || "",
           derecho_ordinario: e.derecho_ordinario || "",
           derecho_extraordinario: e.derecho_extraordinario || "",
@@ -144,25 +164,25 @@ export function useEncuadreProfesor() {
         };
       });
 
-      setLoading(false);
       return encuadresFormateados;
     } catch (err) {
       console.error("Error en obtenerMisEncuadres:", err);
       setError("Error inesperado al cargar encuadres");
-      setLoading(false);
       return [];
+    } finally {
+      setLoading(false);
     }
   };
 
-  const obtenerEncuadre = async (encuadreId: string): Promise<EncuadreProfesor | null> => {
+  const obtenerEncuadre = async (
+    encuadreId: string
+  ): Promise<EncuadreProfesor | null> => {
     if (!session?.user?.id) {
-      console.error("No hay sesión de usuario");
       setError("No hay sesión activa");
       return null;
     }
 
     if (!encuadreId || encuadreId === "undefined") {
-      console.error("Encuadre ID inválido:", encuadreId);
       setError("ID de encuadre inválido");
       return null;
     }
@@ -171,42 +191,6 @@ export function useEncuadreProfesor() {
     setError(null);
 
     try {
-      console.log("=== INICIO obtenerEncuadre ===");
-      console.log("Encuadre ID:", encuadreId);
-      console.log("Usuario actual:", session.user.id);
-
-      const { data: encuadreCheck, error: errorCheck } = await supabase
-        .from("encuadres")
-        .select("id, usuario_id")
-        .eq("id", encuadreId);
-
-      console.log("Resultado de verificación:", encuadreCheck);
-      console.log("Error de verificación:", errorCheck);
-
-      if (errorCheck) {
-        console.error("Error al verificar encuadre:", errorCheck);
-        setError("Error al verificar el encuadre: " + (errorCheck.message || "Error desconocido"));
-        setLoading(false);
-        return null;
-      }
-
-      if (!encuadreCheck || encuadreCheck.length === 0) {
-        console.error("El encuadre no existe con ID:", encuadreId);
-        setError("El encuadre no existe");
-        setLoading(false);
-        return null;
-      }
-
-      const encuadreBasico = encuadreCheck[0];
-      if (encuadreBasico.usuario_id !== session.user.id) {
-        console.error("Permiso denegado:");
-        console.error("  - Usuario del encuadre:", encuadreBasico.usuario_id);
-        console.error("  - Usuario de la sesión:", session.user.id);
-        setError("No tienes permiso para ver este encuadre");
-        setLoading(false);
-        return null;
-      }
-
       const { data: encuadre, error: errorEncuadre } = await supabase
         .from("encuadres")
         .select(`
@@ -221,75 +205,47 @@ export function useEncuadreProfesor() {
           derecho_extraordinario,
           descripcion_producto,
           bibliografia_basica,
-          normas_conducta,
-          usuario_id
+          normas_conducta
         `)
         .eq("id", encuadreId)
+        .eq("usuario_id", session.user.id)
         .single();
 
       if (errorEncuadre) {
-        console.error("Error al obtener datos completos del encuadre:", errorEncuadre);
-        setError("Error al cargar datos del encuadre: " + (errorEncuadre.message || "Error desconocido"));
-        setLoading(false);
+        console.error("Error al obtener el encuadre:", errorEncuadre);
+        setError("No tienes permiso para ver este encuadre o no existe");
         return null;
       }
 
       if (!encuadre) {
-        console.error("No se obtuvieron datos del encuadre");
         setError("No se pudo cargar el encuadre");
-        setLoading(false);
         return null;
       }
 
-      console.log("Encuadre obtenido correctamente:", encuadre);
-
-      console.log("Buscando programa con ID:", encuadre.programa_id);
       const { data: programa, error: errorPrograma } = await supabase
         .from("programas")
         .select("id, materia_id")
         .eq("id", encuadre.programa_id)
         .single();
 
-      if (errorPrograma) {
+      if (errorPrograma || !programa) {
         console.error("Error al obtener programa:", errorPrograma);
-        setError("Error al cargar programa: " + (errorPrograma.message || "Error desconocido"));
-        setLoading(false);
+        setError("Error al cargar programa");
         return null;
       }
 
-      if (!programa) {
-        console.error("No se encontró el programa");
-        setError("No se encontró el programa asociado");
-        setLoading(false);
-        return null;
-      }
-
-      console.log("Programa obtenido:", programa);
-
-      console.log("Buscando materia con ID:", programa.materia_id);
       const { data: materia, error: errorMateria } = await supabase
         .from("materias")
         .select("clave, nombre_materia")
         .eq("id", programa.materia_id)
         .single();
 
-      if (errorMateria) {
+      if (errorMateria || !materia) {
         console.error("Error al obtener materia:", errorMateria);
-        setError("Error al cargar materia: " + (errorMateria.message || "Error desconocido"));
-        setLoading(false);
+        setError("Error al cargar materia");
         return null;
       }
 
-      if (!materia) {
-        console.error("No se encontró la materia");
-        setError("No se encontró la materia asociada");
-        setLoading(false);
-        return null;
-      }
-
-      console.log("Materia obtenida:", materia);
-
-      console.log("Cargando criterios de evaluación...");
       const { data: criterios, error: errorCriterios } = await supabase
         .from("criterios_evaluacion")
         .select("id, criterio, valor, descripcion")
@@ -298,9 +254,9 @@ export function useEncuadreProfesor() {
 
       if (errorCriterios) {
         console.error("Error al cargar criterios:", errorCriterios);
-      } else {
-        console.log("Criterios cargados:", criterios?.length || 0);
       }
+
+      const permisoOperacion = await validarPermisoProfesor(encuadreId);
 
       const encuadreFormateado: EncuadreProfesor = {
         id: encuadre.id,
@@ -310,34 +266,38 @@ export function useEncuadreProfesor() {
         grupo: encuadre.grupo,
         periodo: encuadre.periodo,
         estado_encuadre: encuadre.estado_encuadre,
-        profesor_puede_modificar_criterios: encuadre.profesor_puede_modificar_criterios,
+        profesor_puede_modificar_criterios:
+          encuadre.profesor_puede_modificar_criterios ?? true,
         descripcion_evaluacion: encuadre.descripcion_evaluacion || "",
         derecho_ordinario: encuadre.derecho_ordinario || "",
         derecho_extraordinario: encuadre.derecho_extraordinario || "",
         descripcion_producto: encuadre.descripcion_producto || "",
         bibliografia_basica: encuadre.bibliografia_basica || "",
         normas_conducta: encuadre.normas_conducta || "",
-        criterios: criterios || [],
+        criterios: (criterios as CriterioEvaluacion[]) || [],
+        permiso_operacion: permisoOperacion || undefined,
       };
 
-      console.log("=== Encuadre formateado exitosamente ===");
-      setLoading(false);
       return encuadreFormateado;
     } catch (err: any) {
-      console.error("=== ERROR CRÍTICO en obtenerEncuadre ===");
-      console.error("Tipo de error:", typeof err);
-      console.error("Error completo:", err);
-      console.error("Error message:", err?.message);
-      console.error("Error stack:", err?.stack);
+      console.error("Error crítico en obtenerEncuadre:", err);
       setError("Error inesperado: " + (err?.message || "Error desconocido"));
-      setLoading(false);
       return null;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const actualizarEncuadre = async (params: ActualizarEncuadreParams): Promise<boolean> => {
+  const actualizarEncuadre = async (
+    params: ActualizarEncuadreParams
+  ): Promise<boolean> => {
     if (!session?.user?.id) {
       setError("No hay usuario autenticado");
+      return false;
+    }
+
+    if (!params.encuadreId || params.encuadreId === "undefined") {
+      setError("ID de encuadre inválido");
       return false;
     }
 
@@ -347,25 +307,38 @@ export function useEncuadreProfesor() {
     try {
       const userId = session.user.id;
 
+      const permisoOperacion = await validarPermisoProfesor(params.encuadreId);
+
+      if (!permisoOperacion) {
+        setError("No se pudo validar el permiso de operación.");
+        return false;
+      }
+
+      if (
+        !permisoOperacion.puede_editar_encuadre ||
+        permisoOperacion.solo_lectura
+      ) {
+        setError(
+          permisoOperacion.motivo ||
+            "No tienes permiso de operación para editar este encuadre en este momento."
+        );
+        return false;
+      }
+
       const { data: encuadre, error: errorVerificar } = await supabase
         .from("encuadres")
-        .select("usuario_id, profesor_puede_modificar_criterios")
+        .select("id, usuario_id, profesor_puede_modificar_criterios")
         .eq("id", params.encuadreId)
+        .eq("usuario_id", userId)
         .single();
 
       if (errorVerificar || !encuadre) {
+        console.error("Error al verificar permiso:", errorVerificar);
         setError("No tienes permiso para editar este encuadre");
-        setLoading(false);
         return false;
       }
 
-      if (encuadre.usuario_id !== userId) {
-        setError("No tienes permiso para editar este encuadre");
-        setLoading(false);
-        return false;
-      }
-
-      const datosActualizar: any = {
+      const datosActualizar: Record<string, any> = {
         ultimo_editor_id: userId,
         ultima_edicion: new Date().toISOString(),
       };
@@ -373,18 +346,23 @@ export function useEncuadreProfesor() {
       if (params.descripcionEvaluacion !== undefined) {
         datosActualizar.descripcion_evaluacion = params.descripcionEvaluacion;
       }
+
       if (params.derechoOrdinario !== undefined) {
         datosActualizar.derecho_ordinario = params.derechoOrdinario;
       }
+
       if (params.derechoExtraordinario !== undefined) {
         datosActualizar.derecho_extraordinario = params.derechoExtraordinario;
       }
+
       if (params.descripcionProducto !== undefined) {
         datosActualizar.descripcion_producto = params.descripcionProducto;
       }
+
       if (params.bibliografiaBasica !== undefined) {
         datosActualizar.bibliografia_basica = params.bibliografiaBasica;
       }
+
       if (params.normasConducta !== undefined) {
         datosActualizar.normas_conducta = params.normasConducta;
       }
@@ -397,15 +375,20 @@ export function useEncuadreProfesor() {
       if (errorActualizar) {
         console.error("Error al actualizar encuadre:", errorActualizar);
         setError("Error al actualizar el encuadre");
-        setLoading(false);
         return false;
       }
 
       if (encuadre.profesor_puede_modificar_criterios && params.criterios) {
-        await supabase
+        const { error: errorEliminar } = await supabase
           .from("criterios_evaluacion")
           .delete()
           .eq("encuadre_id", params.encuadreId);
+
+        if (errorEliminar) {
+          console.error("Error al eliminar criterios previos:", errorEliminar);
+          setError("Error al actualizar los criterios de evaluación");
+          return false;
+        }
 
         if (params.criterios.length > 0) {
           const criteriosParaInsertar = params.criterios.map((c) => ({
@@ -422,19 +405,18 @@ export function useEncuadreProfesor() {
           if (errorCriterios) {
             console.error("Error al guardar criterios:", errorCriterios);
             setError("Error al guardar los criterios de evaluación");
-            setLoading(false);
             return false;
           }
         }
       }
 
-      setLoading(false);
       return true;
     } catch (err) {
       console.error("Error en actualizarEncuadre:", err);
       setError("Error inesperado al actualizar el encuadre");
-      setLoading(false);
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
