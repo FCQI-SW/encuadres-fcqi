@@ -1,4 +1,6 @@
 // lib/sidebar-items.ts
+// Items del sidebar por rol (admin, capturista, profesor, alumno, lector).
+// Doc completa: docs/codigo/codigo.md#libsidebar-itemsts
 
 import {
   Users,

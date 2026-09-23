@@ -1,3 +1,6 @@
+// Previsualiza título y mensaje de la URL como texto React, sin persistencia.
+// Valida longitudes; aplica una decodificación adicional a los parámetros.
+// Doc completa: docs/codigo/codigo.md#admin-anuncios-preview
 "use client";
 
 import React, { useEffect, useState } from "react";

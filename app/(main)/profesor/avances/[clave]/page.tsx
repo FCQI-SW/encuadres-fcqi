@@ -1,3 +1,6 @@
+// Página profesor · Stub obsoleto (plan de clases hardcodeado); reemplazado
+// por AvancesTab dentro de /profesor/cursos/<id>. No enlazado desde el sidebar.
+// Doc: docs/codigo/riesgos.md#6-archivos-huérfanos-y-candidatos-a-borrar
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

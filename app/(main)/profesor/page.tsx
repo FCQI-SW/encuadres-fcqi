@@ -1,3 +1,5 @@
+// Página profesor · Inicio con pasos guiados y acceso rápido a "Mis Cursos".
+// Doc: docs/codigo/codigo.md#profesor-inicio
 "use client";
 
 import { useSession } from "next-auth/react";

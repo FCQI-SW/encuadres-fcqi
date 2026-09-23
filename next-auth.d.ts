@@ -1,4 +1,7 @@
-//next-auth.d.ts
+// next-auth.d.ts
+// Extensión de tipos de NextAuth: agrega `id` y `role` a `User`, `Session.user` y `JWT`.
+// Doc completa: docs/codigo/codigo.md#next-authdts
+
 import "next-auth";
 
 declare module "next-auth" {

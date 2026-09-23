@@ -1,3 +1,8 @@
+// app/api/alumnos/agregar/route.ts
+// POST — asocia un alumno YA EXISTENTE a un encuadre.
+// Body: { correo, encuadreId, profesorId, clave? }. Si viene `clave`, resetea la contraseña.
+// Doc completa: docs/codigo/codigo.md#post-apialumnosagregar
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";

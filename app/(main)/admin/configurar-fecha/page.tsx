@@ -1,3 +1,6 @@
+// Gestiona ventanas de operación y banderas de PUA, encuadre, firma y avances.
+// Crea, activa, desactiva y elimina registros de configuracion_fechas.
+// Doc completa: docs/codigo/codigo.md#admin-configurar-fecha
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

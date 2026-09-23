@@ -1,3 +1,8 @@
+// components/logout-button.tsx
+// Botón de cerrar sesión con 3 variantes (`sidebar`, `header`, `default`).
+// Usa `useConfirm()` para pedir confirmación antes de llamar `signOut`.
+// Doc completa: docs/codigo/codigo.md#logout-buttontsx
+
 "use client";
 
 import { useRouter } from "next/navigation";

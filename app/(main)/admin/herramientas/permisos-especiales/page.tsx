@@ -1,3 +1,6 @@
+// Crea y retira permisos temporales por usuario y encuadre mediante escenarios.
+// Guarda banderas e incluye_alumnos; la herencia se resuelve fuera de esta página.
+// Doc completa: docs/codigo/codigo.md#admin-permisos-especiales
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

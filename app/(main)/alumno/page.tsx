@@ -1,3 +1,6 @@
+// Página alumno · Inicio con bienvenida y pasos guiados (Mis Cursos → firmar
+// encuadre → registrar avances). Estático, sin consultas a Supabase.
+// Doc: docs/codigo/codigo.md#alumno-inicio
 "use client";
 
 import { useSession } from "next-auth/react";

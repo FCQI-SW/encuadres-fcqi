@@ -1,3 +1,8 @@
+// hooks/useEncuadreProfesor.ts
+// Lecturas y edición de encuadres desde el rol profesor.
+// Valida permiso de operación antes de actualizar; solo devuelve encuadres propios.
+// Doc completa: docs/codigo/codigo.md#useencuadreprofesorts
+
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";

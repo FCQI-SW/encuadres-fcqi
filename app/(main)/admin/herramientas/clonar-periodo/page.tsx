@@ -1,3 +1,6 @@
+// Carga periodos y materias para solicitar la copia de estructura por RPC.
+// La RPC clonar_estructura_periodo no existe según la verificación registrada.
+// Doc completa: docs/codigo/codigo.md#admin-clonar-periodo
 "use client";
 
 import { useEffect, useState } from "react";

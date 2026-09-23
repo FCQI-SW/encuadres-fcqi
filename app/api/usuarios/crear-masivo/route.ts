@@ -1,3 +1,8 @@
+// app/api/usuarios/crear-masivo/route.ts
+// POST — crea N usuarios en un bucle. Body: { usuarios: [{correo, nombre, contraseña, rol_id}] }.
+// Devuelve resumen con creados + errores por fila. Sin transacción SQL.
+// Doc completa: docs/codigo/codigo.md#post-apiusuarioscrear-masivo
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";

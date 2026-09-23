@@ -1,3 +1,8 @@
+// hooks/useEncuadreForm.ts
+// Cargar/guardar encuadres (una fila `encuadres` por asignación profesor+grupo).
+// Sync inteligente: crea/actualiza/elimina asignaciones respetando movimientos.
+// Doc completa: docs/codigo/codigo.md#useencuadreformts
+
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 

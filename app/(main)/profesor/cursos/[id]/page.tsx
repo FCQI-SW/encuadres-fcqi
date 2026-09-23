@@ -1,3 +1,6 @@
+// Página profesor · Detalle del curso con tres tabs (Encuadre, Avances,
+// Alumnos). Valida propiedad del encuadre y calcula permisos operativos.
+// Doc: docs/codigo/codigo.md#profesor-detalle-de-curso
 "use client";
 
 import { useEffect, useState } from "react";

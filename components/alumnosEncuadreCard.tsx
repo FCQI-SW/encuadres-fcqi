@@ -1,3 +1,8 @@
+// components/alumnosEncuadreCard.tsx
+// CRUD de alumnos dentro de un encuadre. Consume `useEncuadreAlumnos` y `useConfirm`.
+// Registrar, regenerar clave, enviar correo, revocar y reactivar acceso. La clave generada
+// se muestra al profesor en un confirm — no se persiste en claro. Doc: docs/codigo/codigo.md#alumnosencuadrecardtsx
+
 "use client";
 
 import { useEffect, useState } from "react";

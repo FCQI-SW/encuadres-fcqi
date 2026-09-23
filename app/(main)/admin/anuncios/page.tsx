@@ -1,3 +1,6 @@
+// Lista, filtra y elimina anuncios; crear y editar abre ModalCrearAnuncio.
+// Bloquea en la UI cambios a enviados; consulta Supabase directamente.
+// Doc completa: docs/codigo/codigo.md#admin-anuncios
 "use client";
 
 import React, { useEffect, useState } from "react";

@@ -1,3 +1,8 @@
+// components/modal-agregar-materia.tsx
+// Modal completo para crear una materia + gestionar licenciaturas in-line + importar desde Excel.
+// Overlay custom (no shadcn Dialog). El padre maneja el estado de `materia` y valida.
+// Doc: docs/codigo/codigo.md#modal-agregar-materiatsx-y-modal-editar-materiatsx
+
 "use client";
 
 import React, { useRef, useState } from "react";

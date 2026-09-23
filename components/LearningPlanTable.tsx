@@ -1,3 +1,8 @@
+// components/LearningPlanTable.tsx
+// Tabla del plan de clases del PUA con checkboxes Sí/No + comentario por unidad. Emite todo
+// el mapa `respuestas` en `onSubmit`. La competencia del curso está hardcodeada en el header.
+// Doc: docs/codigo/riesgos.md#6-archivos-huérfanos-y-candidatos-a-borrar
+
 "use client";
 
 import * as React from "react";

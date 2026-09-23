@@ -1,3 +1,6 @@
+// Página lector · Listado paginado (10/pág) de todos los encuadres con filtros
+// por búsqueda/periodo/nivel de coincidencia. Calcula avance profesor y % de
+// coincidencia con alumnos. Doc: docs/codigo/codigo.md#lector-cursos
 "use client";
 
 import { useEffect, useState } from "react";

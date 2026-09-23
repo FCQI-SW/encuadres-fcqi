@@ -1,3 +1,6 @@
+// Muestra comparación por tema, valores y justificaciones de profesor y alumno.
+// Consulta datos por los IDs de la URL y el grupo del encuadre; solo lectura.
+// Doc completa: docs/codigo/codigo.md#admin-resultados-detalle
 "use client";
 
 import { Fragment, useEffect, useState } from "react";

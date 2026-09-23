@@ -1,3 +1,6 @@
+// Modal controlado de alta de usuario e importación Excel para /admin/usuarios.
+// Delega persistencia al padre; permite generar y mostrar una clave temporal.
+// Doc completa: docs/codigo/codigo.md#admin-usuarios
 "use client";
 
 import React, { useRef, useState } from "react";

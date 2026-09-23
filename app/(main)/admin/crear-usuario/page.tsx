@@ -1,3 +1,6 @@
+// Formulario de creación sin persistencia; el submit navega a /admin/users.
+// El flujo funcional de alta está en el modal de /admin/usuarios.
+// Doc completa: docs/codigo/riesgos.md#6-archivos-huérfanos-y-candidatos-a-borrar
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";

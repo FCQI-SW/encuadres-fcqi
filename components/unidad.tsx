@@ -1,3 +1,8 @@
+// components/unidad.tsx
+// Card editable de una unidad del PUA (nombre, competencia, contenido, duración, semanas).
+// Usa `firma()` (JSON.stringify) + ref `ultimoEmitido` + `onChangeRef` para romper el ciclo
+// value → onChange → value cuando el padre reenvía el mismo objeto. Doc: docs/codigo/codigo.md#unidadtsx
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";

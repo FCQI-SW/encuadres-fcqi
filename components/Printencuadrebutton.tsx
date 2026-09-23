@@ -1,3 +1,8 @@
+// components/Printencuadrebutton.tsx
+// Botón que consulta 6 tablas (encuadre + criterios + programa + materia + docente + unidades
+// + alumnos + firmas), genera un HTML institucional (formato Times NR / Arial) y lo imprime
+// en un iframe oculto. 25 slots de firmas por página. Doc: docs/codigo/codigo.md#printencuadrebuttontsx-y-printpuabuttontsx
+
 "use client";
 
 import { useState } from "react";

@@ -1,3 +1,6 @@
+// Compara checkins de profesor y alumno por inscripción no revocada.
+// Calcula coincidencias entre temas con registro de ambos y filtra en memoria.
+// Doc completa: docs/codigo/codigo.md#admin-resultados
 "use client";
 
 import { useState, useEffect } from "react";

@@ -1,3 +1,8 @@
+// lib/permisoOperacion.ts
+// Resuelve permisos de un usuario sobre un encuadre (profesor/alumno) o PUA (capturista).
+// Combina ventanas de tiempo globales + permisos especiales + herencia profesor→alumno.
+// Doc completa: docs/codigo/codigo.md#libpermisooperacionts
+
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 

@@ -1,3 +1,8 @@
+// components/modal-crear-anuncio.tsx
+// Modal grande para crear/editar/programar anuncios. Sanitiza `<>{}` del texto, valida
+// longitud, destinatarios, ventana futura ≤ 365 días. Escribe directo en `anuncios` con
+// supabase-js del cliente (depende de RLS). Doc: docs/codigo/codigo.md#modal-crear-anunciotsx
+
 "use client";
 
 import React, { useState, useEffect } from "react";

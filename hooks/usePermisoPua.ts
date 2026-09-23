@@ -1,3 +1,8 @@
+// hooks/usePermisoPua.ts
+// Resuelve automáticamente el permiso del capturista sobre un PUA (programaId).
+// Corre en useEffect; expone { permiso, puedeEditar, soloLectura, motivoPermiso, loadingPermiso }.
+// Doc completa: docs/codigo/codigo.md#usepermisooperacionts-y-usepermisopuats
+
 "use client";
 
 import { useEffect, useState } from "react";

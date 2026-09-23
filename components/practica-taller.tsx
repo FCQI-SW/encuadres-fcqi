@@ -1,3 +1,8 @@
+// components/practica-taller.tsx
+// Card editable de una práctica de taller. Copia casi literal de `practica-laboratorio.tsx`
+// (mismos campos, mismo patrón anti-eco). Duplicación conocida — ver docs para refactor futuro.
+// Doc: docs/codigo/codigo.md#practica-laboratoriotsx-y-practica-tallertsx
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";

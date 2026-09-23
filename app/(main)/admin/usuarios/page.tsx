@@ -1,3 +1,6 @@
+// Administra usuarios y roles; altas individuales o por Excel mediante API.
+// Consulta, cambia roles y elimina usuarios con el cliente Supabase compartido.
+// Doc completa: docs/codigo/codigo.md#admin-usuarios
 "use client";
 
 import React, { useEffect, useState } from "react";

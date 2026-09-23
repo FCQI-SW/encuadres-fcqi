@@ -1,3 +1,7 @@
+// components/error-modal.tsx
+// Modal genérico de error controlado por prop `isOpen`. Muestra `title` + lista de `messages`.
+// Sin dependencias de Context: el padre gestiona su estado. Doc: docs/codigo/codigo.md#error-modaltsx
+
 "use client";
 
 import React from "react";

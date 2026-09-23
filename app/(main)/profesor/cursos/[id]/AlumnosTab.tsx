@@ -1,3 +1,6 @@
+// Tab local del detalle de curso · CRUD de alumnos con banner de credenciales
+// copiables. Reimplementación paralela a components/alumnosEncuadreCard.
+// Doc: docs/codigo/codigo.md#profesor-detalle-de-curso
 "use client";
 
 import { useEffect, useState } from "react";

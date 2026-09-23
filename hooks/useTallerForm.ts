@@ -1,3 +1,8 @@
+// hooks/useTallerForm.ts
+// Espejo de useLaboratorioForm para prácticas de taller.
+// Guardar = delete-all + insert. Usa useCallback.
+// Doc completa: docs/codigo/codigo.md#uselaboratorioformts-y-usetallerformts
+
 import { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";

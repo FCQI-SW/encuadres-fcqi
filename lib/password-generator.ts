@@ -1,3 +1,8 @@
+// lib/password-generator.ts
+// Generación y validación de contraseñas seguras. Valida también correos institucionales UABC.
+// Usa `crypto.getRandomValues` (WebCrypto), no `Math.random`.
+// Doc completa: docs/codigo/codigo.md#libpassword-generatorts
+
 // Caracteres permitidos (sin confusos: 0, O, l, 1, I)
 const MAYUSCULAS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const MINUSCULAS = "abcdefghjkmnpqrstuvwxyz";

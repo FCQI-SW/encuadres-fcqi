@@ -1,4 +1,9 @@
 // components/notification-bell.tsx
+// Campana de notificaciones con dropdown y suscripción realtime a `notificaciones_usuarios`.
+// AVISO: no se importa en ningún layout — componente no montado hoy. Además usa `profiles.email`
+// y columnas `leido/updated_at` que no coinciden con el schema real. Ver notas en la doc.
+// Doc completa: docs/codigo/riesgos.md#6-archivos-huérfanos-y-candidatos-a-borrar
+
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";

@@ -1,3 +1,6 @@
+// Página lector · Detalle de un curso: comparativa tema a tema entre profesor
+// y alumnos, con % de coincidencia por alumno y estadísticas del encuadre.
+// Sólo lectura. Doc: docs/codigo/codigo.md#lector-detalle-de-curso
 "use client";
 
 import { Fragment, useEffect, useState } from "react";

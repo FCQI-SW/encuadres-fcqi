@@ -1,3 +1,8 @@
+// hooks/useUnidadesForm.ts
+// Cargar/guardar unidades del PUA. Extrae temas del texto `contenido` con regex `^N.N ...`.
+// Guardar = borrado en cascada (temas → unidades) + insert de todo.
+// Doc completa: docs/codigo/codigo.md#useunidadesformts
+
 "use client";
 
 import { useState, useCallback } from "react";

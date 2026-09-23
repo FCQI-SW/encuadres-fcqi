@@ -1,3 +1,6 @@
+// Tab local del detalle de curso · Registro de avances por tema con
+// justificación obligatoria en "No"; delega a useRegistroAvances y RLS.
+// Doc: docs/codigo/codigo.md#profesor-detalle-de-curso
 "use client";
 
 import * as React from "react";

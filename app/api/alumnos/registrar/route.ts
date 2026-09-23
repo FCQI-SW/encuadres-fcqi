@@ -1,3 +1,8 @@
+// app/api/alumnos/registrar/route.ts
+// POST — crea un nuevo usuario alumno y lo asocia al encuadre en un solo paso.
+// Body: { correo, clave, encuadreId, profesorId, materiaNombre, grupo, periodo }. Encola correo de bienvenida.
+// Doc completa: docs/codigo/codigo.md#post-apialumnosregistrar
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";

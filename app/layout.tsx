@@ -1,3 +1,6 @@
+// Layout raíz de todas las rutas: obtiene la sesión en el servidor.
+// Provee sesión, confirmaciones y toasts; configura idioma, fuentes y metadatos.
+// Doc completa: docs/codigo/codigo.md#layout-raiz
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";

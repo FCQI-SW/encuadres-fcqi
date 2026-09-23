@@ -1,3 +1,8 @@
+// components/invite.tsx
+// Modal decorativo con input de correo y botón "Invitar". NO tiene handler: el submit
+// solo cierra el diálogo. Es un stub visual que se monta desde <Materia btnText="Invitar"/>.
+// Doc: docs/codigo/riesgos.md#6-archivos-huérfanos-y-candidatos-a-borrar
+
 import { Button } from "./ui/button";
 import {
     Dialog,

@@ -1,3 +1,6 @@
+// Inicio del capturista: bienvenida e instrucciones, con acceso al listado de materias.
+// Lee el nombre de sesión; no consulta tablas ni calcula indicadores.
+// Doc completa: docs/codigo/codigo.md#capturista-inicio
 "use client";
 
 import { useSession } from "next-auth/react";

@@ -1,3 +1,6 @@
+// Página alumno · Listado "Mis Cursos". Carga inscripciones activas
+// (encuadre_alumnos con estado != revocada), muestra estado de firma y filtros
+// por búsqueda/periodo/grupo. Doc: docs/codigo/codigo.md#alumno-cursos
 "use client";
 
 import { useEffect, useState } from "react";

@@ -1,3 +1,8 @@
+// app/api/usuarios/crear/route.ts
+// POST — crea 1 usuario. Body: { correo, nombre, contraseña, rol_id }.
+// Usa service role (bypass RLS). NO valida sesión del llamador.
+// Doc completa: docs/codigo/codigo.md#post-apiusuarioscrear
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";

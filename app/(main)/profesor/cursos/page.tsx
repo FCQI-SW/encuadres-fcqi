@@ -1,3 +1,6 @@
+// Página profesor · Listado principal "Mis Cursos" con filtros, indicadores
+// de firmas/avances por curso, modal de detalle e impresiones PUA/encuadre.
+// Doc: docs/codigo/codigo.md#profesor-cursos
 "use client";
 
 import { useEffect, useState } from "react";
