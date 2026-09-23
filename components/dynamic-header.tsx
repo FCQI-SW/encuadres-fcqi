@@ -1,3 +1,8 @@
+// components/dynamic-header.tsx
+// Título dinámico del header según `usePathname()`. Mapa manual + regex de UUID.
+// Sin dependencia de la sesión; funciona solo con la ruta actual.
+// Doc completa: docs/codigo/codigo.md#dynamic-headertsx
+
 "use client";
 
 import { usePathname } from "next/navigation";

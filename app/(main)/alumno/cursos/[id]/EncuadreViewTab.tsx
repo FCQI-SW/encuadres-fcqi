@@ -1,3 +1,7 @@
+// Tab alumno · Vista de sólo lectura del encuadre + bloque de "Firma de
+// enterado" (insert único en encuadre_firmas). Al firmar, notifica al padre
+// para recargar y habilitar el tab de Avances.
+// Doc: docs/codigo/codigo.md#alumno-tab-encuadre
 "use client";
 
 import * as React from "react";

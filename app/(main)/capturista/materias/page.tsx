@@ -1,3 +1,6 @@
+// Lista programas activos no archivados por materia y periodo; calcula avance del PUA y encuadre.
+// Abre editores con programaId y permite imprimir PUA o el primer encuadre encontrado.
+// Doc completa: docs/codigo/codigo.md#capturista-materias
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";

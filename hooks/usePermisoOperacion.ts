@@ -1,3 +1,8 @@
+// hooks/usePermisoOperacion.ts
+// Wrapper thin sobre `resolverPermisoOperacion` de lib/permisoOperacion.
+// Expone `validarPermiso(encuadreId, rol)` con estado `loadingPermiso`.
+// Doc completa: docs/codigo/codigo.md#usepermisooperacionts-y-usepermisopuats
+
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import {

@@ -1,3 +1,6 @@
+// Editor alternativo de anuncios; acepta id en query para editar.
+// Guarda borrador, programa o marca enviado en Supabase y permite previsualizar.
+// Doc completa: docs/codigo/codigo.md#admin-anuncios-crear
 "use client";
 
 import React, { useState, useEffect } from "react";

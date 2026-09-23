@@ -1,3 +1,8 @@
+// components/materia.tsx
+// Card genérica de una materia (nombre, clave, grupo, profesor) con footer que muta
+// según `btnText`: si es "Invitar" monta <Invite/>, si no renderiza un Link a `${pathname}/${clave}`.
+// Doc: docs/codigo/codigo.md#materiatsx
+
 "use client"
 
 import {

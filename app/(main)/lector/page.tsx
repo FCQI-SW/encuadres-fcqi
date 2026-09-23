@@ -1,3 +1,6 @@
+// Página lector · Dashboard con estadísticas globales (cursos, profesores,
+// alumnos, promedio de coincidencia profesor–alumno) y top 5 cursos por
+// coincidencia. Sólo lectura. Doc: docs/codigo/codigo.md#lector-inicio
 "use client";
 
 import { useEffect, useState } from "react";

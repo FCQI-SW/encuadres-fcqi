@@ -1,3 +1,8 @@
+// hooks/useLaboratorioForm.ts
+// Cargar/guardar prácticas de laboratorio de un PUA.
+// Guardar = delete-all + insert (no upsert). Usa useCallback para evitar stale closures.
+// Doc completa: docs/codigo/codigo.md#uselaboratorioformts-y-usetallerformts
+
 import { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";

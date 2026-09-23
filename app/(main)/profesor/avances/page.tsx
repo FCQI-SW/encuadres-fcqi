@@ -1,3 +1,6 @@
+// Página profesor · Stub obsoleto con datos hardcodeados (Materia mock).
+// No enlazado desde sidebar; el flujo real vive en /profesor/cursos/<id>.
+// Doc: docs/codigo/riesgos.md#6-archivos-huérfanos-y-candidatos-a-borrar
 import { Materia } from "@/components/materia";
 import React from "react";
 

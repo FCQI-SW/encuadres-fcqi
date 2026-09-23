@@ -1,3 +1,6 @@
+// Página profesor · Editor de encuadre alternativo (paralelo a EncuadreTab).
+// El parámetro [clave] recibe el encuadre_id; no consulta permiso operativo.
+// Doc: docs/codigo/codigo.md#profesor-encuadres-detalle
 "use client";
 
 import { useEffect, useState } from "react";

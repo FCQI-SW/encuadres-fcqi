@@ -1,3 +1,6 @@
+// Gestiona prácticas de laboratorio por unidad para programas con HL positivo.
+// Valida y reemplaza prácticas mediante useLaboratorioForm, con permiso de PUA.
+// Doc completa: docs/codigo/codigo.md#capturista-laboratorio
 "use client";
 
 import { useEffect, useState, useCallback } from "react";

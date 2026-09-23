@@ -1,3 +1,8 @@
+// components/app-sidebar.tsx
+// Sidebar principal. Renderiza el menú según `role` con `menuItemsByRole`.
+// Resalta la ruta más específica activa (comparación por longitud de URL).
+// Doc completa: docs/codigo/codigo.md#app-sidebartsx
+
 "use client";
 
 import Link from "next/link";

@@ -1,3 +1,8 @@
+// components/contenido-editor.tsx
+// Editor jerárquico de temario para una unidad (tema/subtema/inciso, hasta 3 niveles hijos).
+// Serializa a texto con numeración `N.N ...` e indentación de 4 espacios; usa ref `ultimoEmitido`
+// + firma para evitar loops de sincronización con el padre. Doc: docs/codigo/codigo.md#contenido-editortsx
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";

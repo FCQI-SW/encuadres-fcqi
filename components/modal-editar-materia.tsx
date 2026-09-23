@@ -1,3 +1,8 @@
+// components/modal-editar-materia.tsx
+// Modal para editar una materia existente. Copia casi literal de `modal-agregar-materia`
+// (mismo overlay + gestión de licenciaturas) con diferencias: clave disabled, sin importar
+// Excel, panel de estado readonly. Duplicación conocida. Doc: docs/codigo/codigo.md#modal-agregar-materiatsx-y-modal-editar-materiatsx
+
 "use client";
 
 import React, { useState } from "react";

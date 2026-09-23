@@ -1,3 +1,8 @@
+// hooks/usePuaForm.ts
+// Cargar/guardar los campos del PUA (competencia, evidencia, bibliografía, políticas...).
+// UPDATE por `programaId` (NO por materiaId — ver FIX inline en guardarPua).
+// Doc completa: docs/codigo/codigo.md#usepuaformts
+
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";

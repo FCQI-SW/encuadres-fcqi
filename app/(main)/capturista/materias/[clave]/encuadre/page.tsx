@@ -1,3 +1,6 @@
+// Configura asignaciones profesor-grupo y criterios compartidos por programa.
+// Valida porcentajes y delega sincronización de encuadres a useEncuadreForm.
+// Doc completa: docs/codigo/codigo.md#capturista-encuadre
 "use client";
 
 import { useEffect, useState } from "react";

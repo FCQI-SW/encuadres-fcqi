@@ -1,3 +1,6 @@
+// Login público en / con credenciales NextAuth; al entrar navega a /admin.
+// El middleware redirige al panel del rol; el formulario no recupera callbackUrl.
+// Doc completa: docs/codigo/codigo.md#login
 "use client";
 
 import type React from "react";

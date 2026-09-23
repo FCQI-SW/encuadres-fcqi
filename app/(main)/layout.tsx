@@ -1,3 +1,6 @@
+// Layout autenticado: sesión, sidebar por rol y encabezado compartido.
+// Envuelve las páginas con VerificarPeriodo; admin y capturista están exentos.
+// Doc completa: docs/codigo/codigo.md#layout-autenticado
 "use client";
 
 import { ReactNode, useEffect } from "react";

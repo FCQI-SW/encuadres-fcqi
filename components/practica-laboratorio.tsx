@@ -1,3 +1,8 @@
+// components/practica-laboratorio.tsx
+// Card editable de una práctica de laboratorio (competencia, descripción, material, duración).
+// Mismo patrón anti-eco (firma + ultimoEmitido + onChangeRef) que unidad.tsx. Muestra bordes rojos
+// + AlertCircle sobre `errores` que pasa el padre. Doc: docs/codigo/codigo.md#practica-laboratoriotsx-y-practica-tallertsx
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";

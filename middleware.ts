@@ -1,3 +1,8 @@
+// middleware.ts
+// Valida sesión NextAuth y restringe rutas por rol.
+// Se ejecuta antes de cada request (excepto /api, estáticos y favicon).
+// Doc completa: docs/codigo/codigo.md#middlewarets
+
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";

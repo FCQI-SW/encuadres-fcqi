@@ -1,3 +1,8 @@
+// hooks/useRegistroAvances.ts
+// Cargar temas del encuadre y guardar checkins (tema visto/no visto + justificación).
+// La seguridad real vive en RLS de `temas_checkin` (no valida permiso en el hook — ver FIX).
+// Doc completa: docs/codigo/codigo.md#useregistroavancests
+
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";

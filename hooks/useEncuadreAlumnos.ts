@@ -1,3 +1,8 @@
+// hooks/useEncuadreAlumnos.ts
+// Gestión de alumnos invitados a un encuadre (agregar, registrar, reenviar correo, revocar/reactivar).
+// `reactivarAcceso` borra firma + checkins del alumno en cascada (sin transacción).
+// Doc completa: docs/codigo/codigo.md#useencuadrealumnosts
+
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";

@@ -1,3 +1,6 @@
+// Página alumno · Detalle de curso con tres tabs (Encuadre, Plan de clases,
+// Registro de Avances). Valida inscripción, firma y permiso de avances antes
+// de habilitar la tercera pestaña. Doc: docs/codigo/codigo.md#alumno-detalle-de-curso
 "use client";
 
 import { useEffect, useState } from "react";

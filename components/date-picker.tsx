@@ -1,3 +1,8 @@
+// components/date-picker.tsx
+// Wrapper delgado de `<Calendar mode="single">` dentro de un `<Popover>` de shadcn.
+// Botón trigger muestra la fecha formateada con `date-fns/format(...,"PPP")`.
+// Doc: docs/codigo/codigo.md#date-pickertsx
+
 "use client";
 
 import * as React from "react";

@@ -1,3 +1,6 @@
+// Edita unidades y semanas del programa; valida y guarda mediante useUnidadesForm.
+// Continúa a taller o laboratorio según HT/HL; comprueba permiso antes de guardar.
+// Doc completa: docs/codigo/codigo.md#capturista-unidades
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";

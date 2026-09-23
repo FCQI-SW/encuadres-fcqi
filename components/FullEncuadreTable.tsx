@@ -1,3 +1,8 @@
+// components/FullEncuadreTable.tsx
+// Vista tabular del encuadre completo (evaluación, derechos a examen, descripción del producto,
+// normas). Cabecera institucional con logo UABC. Emite `onSave({nombre, acepto})`; `acepto` es
+// siempre true (aceptación implícita). Doc: docs/codigo/riesgos.md#6-archivos-huérfanos-y-candidatos-a-borrar
+
 "use client";
 
 import * as React from "react";

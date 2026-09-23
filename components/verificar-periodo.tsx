@@ -1,3 +1,8 @@
+// components/verificar-periodo.tsx
+// HOC que gatea el acceso a `children` según la ventana global (`configuracion_fechas`)
+// y permisos especiales (`permisos_operacion_encuadre`). Admin/capturista pasan siempre.
+// Si Supabase falla, deja pasar (fail-open). Doc: docs/codigo/codigo.md#verificar-periodotsx
+
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";

@@ -1,3 +1,6 @@
+// Tab local del detalle de curso · Edita encuadre y criterios según permiso
+// operativo y bandera profesor_puede_modificar_criterios; monta EvidenciaEncuadre.
+// Doc: docs/codigo/codigo.md#profesor-detalle-de-curso
 "use client";
 
 import { useEffect, useState } from "react";

@@ -1,3 +1,9 @@
+// components/Printpuabutton.tsx
+// Botón que arma el PDF del PUA completo (portada, propósito/competencia/evidencias,
+// unidades, prácticas de taller/laboratorio, método, criterios, referencias, perfil docente).
+// Consultas en paralelo con Promise.all + numeración romana + `renderContenido` que reindenta
+// por profundidad de puntos. Imprime vía iframe. Doc: docs/codigo/codigo.md#printencuadrebuttontsx-y-printpuabuttontsx
+
 "use client";
 
 import { useState } from "react";

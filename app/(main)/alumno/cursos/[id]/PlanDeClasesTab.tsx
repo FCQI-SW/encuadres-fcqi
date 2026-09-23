@@ -1,3 +1,6 @@
+// Tab alumno · Vista de sólo lectura del plan de clases (competencia del
+// curso + unidades del PUA con semanas). Sólo lee; no persiste.
+// Doc: docs/codigo/codigo.md#alumno-tab-plan-de-clases
 "use client";
 
 import { useEffect, useState } from "react";

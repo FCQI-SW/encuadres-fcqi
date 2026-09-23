@@ -1,3 +1,6 @@
+// Tab alumno · Registro de avances por tema (Sí/No + justificación). Usa
+// useRegistroAvances para cargar temas y persistir checkins; redirige a
+// /alumno/cursos tras guardar. Doc: docs/codigo/codigo.md#alumno-tab-avances
 "use client";
 
 import { Fragment, useEffect, useState } from "react";

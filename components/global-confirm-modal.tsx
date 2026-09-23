@@ -1,3 +1,8 @@
+// components/global-confirm-modal.tsx
+// Modal global de confirmación vía Context API. `useConfirm()` devuelve una función que
+// abre el modal y resuelve una Promise<boolean> con la elección del usuario. Envolver
+// el árbol con `<ConfirmProvider>`. Doc: docs/codigo/codigo.md#global-confirm-modaltsx
+
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode } from "react";

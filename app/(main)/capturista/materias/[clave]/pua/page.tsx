@@ -1,3 +1,6 @@
+// Carga y actualiza datos generales del PUA por programaId, con usePermisoPua.
+// Coordina navegación a unidades y prácticas; registra cambios sin guardar.
+// Doc completa: docs/codigo/codigo.md#capturista-pua
 "use client";
 
 import { useEffect, useState } from "react";

@@ -1,3 +1,8 @@
+// components/criterios.tsx
+// Tabla editable de criterios de evaluación (criterio / valor% / descripción) con footer de total.
+// NO valida que la suma sea 100 — esa regla vive en el padre. IDs con `crypto.randomUUID()`.
+// Doc: docs/codigo/riesgos.md#6-archivos-huérfanos-y-candidatos-a-borrar
+
 "use client";
 
 import * as React from "react";

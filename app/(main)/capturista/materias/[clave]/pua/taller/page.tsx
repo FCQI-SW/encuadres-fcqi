@@ -1,3 +1,6 @@
+// Gestiona prácticas de taller por unidad para programas con HT positivo.
+// Valida y guarda con useTallerForm; continúa a laboratorio cuando HL es positivo.
+// Doc completa: docs/codigo/codigo.md#capturista-taller
 "use client";
 
 import { useEffect, useState, useCallback } from "react";

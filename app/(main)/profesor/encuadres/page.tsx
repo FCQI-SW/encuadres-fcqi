@@ -1,3 +1,6 @@
+// Página profesor · Listado alternativo "Mis Encuadres" (paralela a
+// /profesor/cursos). No aparece en el sidebar; sólo accesible por URL directa.
+// Doc: docs/codigo/codigo.md#profesor-encuadres
 "use client";
 
 import { useEffect, useState } from "react";

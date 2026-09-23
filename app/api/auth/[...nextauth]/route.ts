@@ -1,4 +1,7 @@
 // app/api/auth/[...nextauth]/route.ts
+// Handler NextAuth: login por credenciales (correo + password bcrypt).
+// Callbacks jwt/session inyectan `id` y `role` en el token.
+// Doc completa: docs/codigo/codigo.md#apiauthnextauth
 
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";

@@ -1,3 +1,6 @@
+// Inicio del administrador: bienvenida con nombre de sesión y accesos rápidos.
+// No consulta la BD; acceso por middleware y layout compartido.
+// Doc completa: docs/codigo/codigo.md#admin-inicio
 "use client";
 
 import { useSession } from "next-auth/react";

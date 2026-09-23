@@ -1,3 +1,9 @@
+// components/EvidenciaEncuadre.tsx
+// Sube/muestra la foto del encuadre firmado. Storage: bucket `evidencias-encuadre`.
+// BD: inserta en `encuadre_evidencias`. Vista alumno vs profesor según `puedeSubir`.
+// Cada reemplazo deja fotos huérfanas en el bucket (no borra la anterior).
+// Doc: docs/codigo/codigo.md#evidenciaencuadretsx
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";

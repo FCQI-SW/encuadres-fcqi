@@ -1,3 +1,6 @@
+// Gestiona catálogo, licenciaturas y programas por periodo, con importación Excel.
+// Archiva programas y elimina su estructura por RPC; consultas directas a Supabase.
+// Doc completa: docs/codigo/codigo.md#admin-materias
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
